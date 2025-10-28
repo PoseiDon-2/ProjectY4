@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Upload, MapPin, Phone, CreditCard, Save, Eye, Building, CheckCircle2, Circle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,8 @@ interface CreateRequestData {
         accountNumber: string
         accountName: string
     }
+    promptpayQR?: string
+    promptpayNumber?: string
     organizationDetails: {
         organizationType: string
         registrationNumber: string
@@ -98,6 +100,7 @@ export default function CreateRequest() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState("")
     const [success, setSuccess] = useState(false)
+    const [isAuthorized, setIsAuthorized] = useState(false)
 
     const [formData, setFormData] = useState<CreateRequestData>({
         title: "",
@@ -116,6 +119,8 @@ export default function CreateRequest() {
             accountNumber: "",
             accountName: "",
         },
+        promptpayQR: "",
+        promptpayNumber: "",
         organizationDetails: {
             organizationType: "",
             registrationNumber: "",
@@ -123,9 +128,19 @@ export default function CreateRequest() {
         },
     })
 
-    // Redirect if not organizer
-    if (!user || user.role !== "organizer") {
-        router.push("/")
+    // Check authorization in useEffect
+    useEffect(() => {
+        if (user) {
+            if (user.role !== "organizer") {
+                router.push("/")
+            } else {
+                setIsAuthorized(true)
+            }
+        }
+    }, [user, router])
+
+    // Show loading while checking authorization
+    if (!user || !isAuthorized) {
         return null
     }
 
@@ -234,19 +249,110 @@ export default function CreateRequest() {
             return
         }
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        try {
+            // Prepare base API data
+            const apiData: any = {
+                title: formData.title,
+                description: formData.description,
+                category_id: formData.category,
+                donation_types: formData.donationType,
 
-        // In a real app, this would save to database
-        console.log("Creating donation request:", formData)
+                // Location
+                location: formData.location,
+                contact_phone: formData.contactPhone,
 
-        setSuccess(true)
-        setIsSubmitting(false)
+                // Organization
+                organization_type: formData.organizationDetails.organizationType,
+                registration_number: formData.organizationDetails.registrationNumber,
 
-        // Redirect after success
-        setTimeout(() => {
-            router.push("/organizer-dashboard")
-        }, 2000)
+                // Optional
+                urgency: "MEDIUM",
+            }
+
+            // Add optional fields only if they have values
+            if (formData.detailedAddress && formData.detailedAddress.trim()) {
+                apiData.detailed_address = formData.detailedAddress
+            }
+
+            if (formData.organizationDetails.taxId && formData.organizationDetails.taxId.trim()) {
+                apiData.tax_id = formData.organizationDetails.taxId
+            }
+
+            // Money donation
+            if (formData.donationType.includes("money")) {
+                apiData.goal_amount = formData.goalAmount
+
+                // Only include bank account if all fields are filled
+                if (formData.bankAccount.bank && formData.bankAccount.accountNumber && formData.bankAccount.accountName) {
+                    apiData.bank_account = {
+                        bank: formData.bankAccount.bank,
+                        account_number: formData.bankAccount.accountNumber,
+                        account_name: formData.bankAccount.accountName
+                    }
+                }
+
+                // PromptPay (optional)
+                if (formData.promptpayNumber && formData.promptpayNumber.trim()) {
+                    apiData.promptpay_number = formData.promptpayNumber
+                }
+                if (formData.promptpayQR && formData.promptpayQR.trim()) {
+                    apiData.promptpay_qr = formData.promptpayQR
+                }
+            }
+
+            // Items donation
+            if (formData.donationType.includes("items")) {
+                apiData.items_needed = formData.goalItems
+            }
+
+            // Volunteer
+            if (formData.donationType.includes("volunteer")) {
+                apiData.volunteers_needed = formData.goalVolunteers
+                apiData.volunteer_details = formData.volunteerDetails
+            }
+
+            console.log("Sending API data:", apiData)
+
+            // Import API helper
+            const { donationRequestsAPI } = await import("@/lib/api")
+
+            const response = await donationRequestsAPI.create(apiData)
+
+            console.log("Donation request created:", response.data)
+
+            setSuccess(true)
+            setIsSubmitting(false)
+
+            // Redirect after success
+            setTimeout(() => {
+                router.push("/organizer-dashboard")
+            }, 2000)
+        } catch (error: any) {
+            console.error("Error creating donation request:", error)
+            console.error("Error response:", error.response?.data)
+
+            if (error.response?.data?.error) {
+                setError(error.response.data.error)
+            } else if (error.response?.data?.messages) {
+                // Validation errors from backend
+                const messages = error.response.data.messages
+                console.error("Validation errors:", messages)
+
+                // Show all errors
+                const errorList = Object.entries(messages)
+                    .map(([field, errors]: [string, any]) => {
+                        const errorMsg = Array.isArray(errors) ? errors[0] : errors
+                        return `${field}: ${errorMsg}`
+                    })
+                    .join('\n')
+
+                setError(errorList || "ข้อมูลไม่ถูกต้อง")
+            } else {
+                setError("เกิดข้อผิดพลาดในการสร้างคำขอ กรุณาลองใหม่อีกครั้ง")
+            }
+
+            setIsSubmitting(false)
+        }
     }
 
     const formatAmount = (amount: number) => {
@@ -688,6 +794,69 @@ export default function CreateRequest() {
                                                 onChange={(e) => handleInputChange("bankAccount.accountName", e.target.value)}
                                                 required
                                             />
+                                        </div>
+
+                                        <div className="border-t pt-4 mt-4">
+                                            <h4 className="text-sm font-medium text-gray-700 mb-3">พร้อมเพย์ (PromptPay)</h4>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="promptpayNumber">หมายเลขพร้อมเพย์</Label>
+                                                <Input
+                                                    id="promptpayNumber"
+                                                    placeholder="เบอร์โทรศัพท์หรือเลขบัตรประชาชน"
+                                                    value={formData.promptpayNumber}
+                                                    onChange={(e) => handleInputChange("promptpayNumber", e.target.value)}
+                                                />
+                                                <p className="text-xs text-gray-500">เบอร์โทรศัพท์หรือเลขบัตรประชาชน 13 หลัก</p>
+                                            </div>
+
+                                            <div className="space-y-2 mt-3">
+                                                <Label htmlFor="promptpayQR">อัปโหลด QR Code พร้อมเพย์</Label>
+                                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                                                    <Upload className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+                                                    <p className="text-sm text-gray-600">คลิกเพื่ออัปโหลด QR Code</p>
+                                                    <p className="text-xs text-gray-500 mt-1">รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 2MB</p>
+                                                    <input
+                                                        id="promptpayQR"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0]
+                                                            if (file) {
+                                                                // Convert to base64 or handle file upload
+                                                                const reader = new FileReader()
+                                                                reader.onloadend = () => {
+                                                                    setFormData({
+                                                                        ...formData,
+                                                                        promptpayQR: reader.result as string
+                                                                    })
+                                                                }
+                                                                reader.readAsDataURL(file)
+                                                            }
+                                                        }}
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="mt-2"
+                                                        onClick={() => document.getElementById('promptpayQR')?.click()}
+                                                    >
+                                                        เลือกไฟล์
+                                                    </Button>
+                                                </div>
+                                                {formData.promptpayQR && (
+                                                    <div className="mt-2">
+                                                        <img
+                                                            src={formData.promptpayQR}
+                                                            alt="QR Code Preview"
+                                                            className="w-32 h-32 object-contain border rounded mx-auto"
+                                                        />
+                                                        <p className="text-xs text-green-600 text-center mt-1">✓ อัปโหลดสำเร็จ</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </CardContent>
                                 </Card>

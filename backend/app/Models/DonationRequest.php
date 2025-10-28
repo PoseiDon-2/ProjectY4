@@ -20,9 +20,9 @@ class DonationRequest extends Model
         'accepts_items', 'accepts_volunteer', 'target_amount', 'current_amount', 'supporters',
         'documents', 'status', 'goal_amount', 'organizer_id', 'organization_id', 'urgency',
         'approved_by', 'approved_at', 'volunteers_received', 'item_details', 'volunteer_details',
-        'donation_type', 'payment_methods', 'view_count', 'expires_at', 'volunteers_needed',
-        'volunteer_skills', 'volunteer_duration', 'items_needed', 'recommendation_score',
-        'location', 'latitude', 'longitude'
+        'donation_type', 'payment_methods', 'promptpay_number', 'promptpay_qr', 'view_count',
+        'expires_at', 'volunteers_needed', 'volunteer_skills', 'volunteer_duration', 'items_needed',
+        'recommendation_score', 'location', 'latitude', 'longitude'
     ];
 
     protected $casts = [
