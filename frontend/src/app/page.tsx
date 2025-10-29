@@ -11,9 +11,12 @@ import { Separator } from "@/components/ui/separator"
 import ShareModal from "../../share-modal"
 import { useAuth } from "./auth-context"
 import StoryPreview from "../../story-preview"
+import axios from "axios"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
 interface DonationRequest {
-    id: number
+    id: string
     title: string
     description: string
     category: string
@@ -24,7 +27,6 @@ interface DonationRequest {
     supporters: number
     image: string
     organizer: string
-    // Add new fields
     detailedAddress: string
     contactPhone: string
     bankAccount: {
@@ -39,96 +41,71 @@ interface DonationRequest {
     }
 }
 
-const donationRequests: DonationRequest[] = [
-    {
-        id: 1,
-        title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
-        description: "ครอบครัวของเราประสบอุทกภัยใหญ่ ทำให้บ้านและข้าวของเสียหายหมด ต้องการความช่วยเหลือเพื่อซื้อของใช้จำเป็นและซ่อมแซมบ้าน",
-        category: "ภัยพิบัติ",
-        location: "จังหวัดอุบลราชธานี",
-        detailedAddress: "123/45 หมู่ 7 ตำบลแสนสุข อำเภอเมือง จังหวัดอุบลราชธานี 34000",
-        contactPhone: "081-234-5678",
-        goalAmount: 50000,
-        currentAmount: 23500,
-        daysLeft: 15,
-        supporters: 47,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "สมชาย ใจดี",
-        bankAccount: {
-            bank: "ธนาคารกสิกรไทย",
-            accountNumber: "123-4-56789-0",
-            accountName: "นายสมชาย ใจดี",
-        },
+// Helper function to transform API data to component format
+const transformApiData = (apiData: any): DonationRequest => {
+    const calculateDaysLeft = (expiresAt: string | null) => {
+        if (!expiresAt) return 30 // default
+        const expiry = new Date(expiresAt)
+        const now = new Date()
+        const diffTime = expiry.getTime() - now.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return diffDays > 0 ? diffDays : 0
+    }
+
+    const getFirstImage = (images: string | null) => {
+        if (!images) return "/placeholder.svg?height=400&width=300"
+        try {
+            const imageArray = JSON.parse(images)
+            return imageArray.length > 0 ? imageArray[0] : "/placeholder.svg?height=400&width=300"
+        } catch {
+            return "/placeholder.svg?height=400&width=300"
+        }
+    }
+
+    const getOrganizerName = (organizer: any) => {
+        if (!organizer) return "ไม่ระบุ"
+        return `${organizer.first_name || ""} ${organizer.last_name || ""}`.trim() || "ไม่ระบุ"
+    }
+
+    const getCategoryName = (category: any) => {
+        return category?.name || "ไม่ระบุหมวดหมู่"
+    }
+
+    const parsePaymentMethods = (paymentMethods: string | null) => {
+        if (!paymentMethods) return { bank: "", accountNumber: "", accountName: "" }
+        try {
+            const methods = JSON.parse(paymentMethods)
+            return {
+                bank: methods.bank || "",
+                accountNumber: methods.account_number || "",
+                accountName: methods.account_name || ""
+            }
+        } catch {
+            return { bank: "", accountNumber: "", accountName: "" }
+        }
+    }
+
+    return {
+        id: apiData.id,
+        title: apiData.title,
+        description: apiData.description,
+        category: getCategoryName(apiData.category),
+        location: apiData.location || "ไม่ระบุสถานที่",
+        goalAmount: apiData.goal_amount || apiData.target_amount || 0,
+        currentAmount: apiData.current_amount || 0,
+        daysLeft: calculateDaysLeft(apiData.expires_at),
+        supporters: apiData.supporters || 0,
+        image: getFirstImage(apiData.images),
+        organizer: getOrganizerName(apiData.organizer),
+        detailedAddress: apiData.location || "ไม่ระบุที่อยู่",
+        contactPhone: "",
+        bankAccount: parsePaymentMethods(apiData.payment_methods),
         qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 15.2441, lng: 104.8475 },
-    },
-    {
-        id: 2,
-        title: "ระดมทุนผ่าตัดหัวใจเด็ก",
-        description: "น้องมายด์ อายุ 8 ขวบ เป็นโรคหัวใจพิการแต่กำเนิด ต้องการเงินค่าผ่าตัดเร่งด่วน เพื่อช่วยชีวิตน้องให้กลับมาแข็งแรง",
-        category: "การแพทย์",
-        location: "โรงพยาบาลศิริราช",
-        detailedAddress: "อาคารเฉลิมพระเกียรติ 80 พรรษา",
-        contactPhone: "02-123-4567",
-        goalAmount: 800000,
-        currentAmount: 456000,
-        daysLeft: 7,
-        supporters: 234,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "มูลนิธิเด็กไทย",
-        bankAccount: {
-            bank: "ธนาคารไทยพาณิชย์",
-            accountNumber: "456-7-89012-3",
-            accountName: "มูลนิธิเด็กไทยเพื่อการผ่าตัดหัวใจ",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 13.765083, lng: 100.4929 },
-    },
-    {
-        id: 3,
-        title: "สร้างห้องสมุดให้โรงเรียนชนบท",
-        description: "โรงเรียนบ้านดอนตาลต้องการสร้างห้องสมุดใหม่ เพื่อให้เด็กๆ ได้มีแหล่งเรียนรู้ที่ดี และพัฒนาทักษะการอ่าน",
-        category: "การศึกษา",
-        location: "จังหวัดสุรินทร์",
-        detailedAddress: "โรงเรียนบ้านดอนตาล ตำบลดอนแรด อำเภอรัตนบุรี จังหวัดสุรินทร์ 32130",
-        contactPhone: "044-987-6543",
-        goalAmount: 120000,
-        currentAmount: 67000,
-        daysLeft: 30,
-        supporters: 89,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "โรงเรียนบ้านดอนตาล",
-        bankAccount: {
-            bank: "ธนาคารกรุงไทย",
-            accountNumber: "789-0-12345-6",
-            accountName: "โรงเรียนบ้านดอนตาล",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 14.8833, lng: 103.8333 },
-    },
-    {
-        id: 4,
-        title: "อาหารสำหรับสุนัขจรจัด",
-        description: "มูลนิธิรักษ์สัตว์ต้องการความช่วยเหลือซื้ออาหารสำหรับสุนัขจรจัดกว่า 200 ตัว ที่อยู่ในความดูแล",
-        category: "สัตว์",
-        location: "กรุงเทพมหานคร",
-        detailedAddress: "12/345 ซอยลาดพร้าว 101 แขวงคลองจั่น เขตบางกะปิ กรุงเทพมหานคร 10240",
-        contactPhone: "02-555-1212",
-        goalAmount: 30000,
-        currentAmount: 18500,
-        daysLeft: 10,
-        supporters: 156,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "มูลนิธิรักษ์สัตว์",
-        bankAccount: {
-            bank: "ธนาคารกรุงเทพ",
-            accountNumber: "012-3-45678-9",
-            accountName: "มูลนิธิรักษ์สัตว์",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 13.7563, lng: 100.5018 },
-    },
-]
+        coordinates: apiData.latitude && apiData.longitude
+            ? { lat: apiData.latitude, lng: apiData.longitude }
+            : undefined
+    }
+}
 
 const storyGroups = [
     {
@@ -163,18 +140,34 @@ const storyGroups = [
 
 export default function DonationSwipe() {
     const [currentIndex, setCurrentIndex] = useState(0)
-    const [likedRequests, setLikedRequests] = useState<number[]>([])
+    const [likedRequests, setLikedRequests] = useState<string[]>([])
+    const [donationRequests, setDonationRequests] = useState<DonationRequest[]>([])
+    const [loading, setLoading] = useState(true)
     const { user } = useAuth()
+
+    // Fetch donation requests from API
+    useEffect(() => {
+        const fetchDonationRequests = async () => {
+            try {
+                setLoading(true)
+                const response = await axios.get(`${API_URL}/donation-requests`)
+                const apiRequests = response.data.data || response.data
+                const transformedRequests = apiRequests.map(transformApiData)
+                setDonationRequests(transformedRequests)
+            } catch (error) {
+                console.error("Failed to fetch donation requests:", error)
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchDonationRequests()
+    }, [])
 
     useEffect(() => {
         const stored = localStorage.getItem("likedDonations")
         if (stored) {
             setLikedRequests(JSON.parse(stored))
-        } else {
-            // Add sample data for demonstration
-            const sampleLikedRequests = [1, 2, 3]
-            setLikedRequests(sampleLikedRequests)
-            localStorage.setItem("likedDonations", JSON.stringify(sampleLikedRequests))
         }
     }, [])
 
@@ -201,7 +194,19 @@ export default function DonationSwipe() {
         return new Intl.NumberFormat("th-TH").format(amount)
     }
 
-    if (!currentRequest) {
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-pink-500 mx-auto mb-4"></div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">กำลังโหลดข้อมูล...</h2>
+                    <p className="text-gray-600">โปรดรอสักครู่</p>
+                </div>
+            </div>
+        )
+    }
+
+    if (!currentRequest || donationRequests.length === 0) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
                 <div className="text-center">

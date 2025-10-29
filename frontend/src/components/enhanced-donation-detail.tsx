@@ -35,7 +35,7 @@ import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { receiptSystem } from "@/lib/receipt-system"
-import { useAuth } from "../../auth-context"
+import { useAuth } from "@/app/auth-context"
 import ShareModal from "../../share-modal"
 import DonationModal from "../../donation-modal"
 import ItemsDonationModal from "../../items-donation-modal"
@@ -43,9 +43,12 @@ import VolunteerModal from "../../volunteer-modal"
 import ReceiptUploadModal from "./receipt-upload-modal"
 import ReceiptDetailModal from "./receipt-detail-modal"
 import type { ReceiptData } from "@/types/receipt"
+import axios from "axios"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
 interface EnhancedDonationDetailProps {
-    id: number
+    id: string
 }
 
 interface Story {
@@ -58,6 +61,90 @@ interface Story {
     views: number
     likes: number
     isViewed: boolean
+}
+
+// Helper function to transform API data
+const transformApiData = (apiData: any) => {
+    const calculateDaysLeft = (expiresAt: string | null) => {
+        if (!expiresAt) return 30
+        const expiry = new Date(expiresAt)
+        const now = new Date()
+        const diffTime = expiry.getTime() - now.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return diffDays > 0 ? diffDays : 0
+    }
+
+    const getFirstImage = (images: string | null) => {
+        if (!images) return "/placeholder.svg?height=400&width=600"
+        try {
+            const imageArray = JSON.parse(images)
+            return imageArray.length > 0 ? imageArray[0] : "/placeholder.svg?height=400&width=600"
+        } catch {
+            return "/placeholder.svg?height=400&width=600"
+        }
+    }
+
+    const parsePaymentMethods = (paymentMethods: string | null) => {
+        if (!paymentMethods) {
+            console.log('⚠️ No payment_methods in API response')
+            return { bankAccount: null, promptpay: null }
+        }
+        try {
+            const parsed = JSON.parse(paymentMethods)
+            console.log('💰 Parsed payment methods:', parsed)
+            return parsed
+        } catch {
+            console.log('❌ Failed to parse payment_methods')
+            return { bankAccount: null, promptpay: null }
+        }
+    }
+
+    const donationTypes = []
+    if (apiData.accepts_money) donationTypes.push('money')
+    if (apiData.accepts_items) donationTypes.push('items')
+    if (apiData.accepts_volunteer) donationTypes.push('volunteer')
+
+    return {
+        id: apiData.id,
+        title: apiData.title,
+        description: apiData.description,
+        imageUrl: getFirstImage(apiData.images),
+        category: apiData.category?.name || "ไม่ระบุหมวดหมู่",
+        organizationType: apiData.organization?.type || "องค์กร",
+        donationTypes,
+        goals: {
+            money: apiData.accepts_money ? {
+                target: apiData.target_amount || apiData.goal_amount || 0,
+                current: apiData.current_amount || 0,
+                supporters: apiData.supporters || 0,
+            } : null,
+            items: apiData.accepts_items ? {
+                description: apiData.items_needed || "",
+                received: [],
+                supporters: 0,
+            } : null,
+            volunteer: apiData.accepts_volunteer ? {
+                target: apiData.volunteers_needed || 0,
+                current: apiData.volunteers_received || 0,
+                description: apiData.volunteer_details || "",
+                supporters: apiData.volunteers_received || 0,
+            } : null,
+        },
+        daysLeft: calculateDaysLeft(apiData.expires_at),
+        location: apiData.location || "ไม่ระบุสถานที่",
+        contactPhone: "",
+        organizer: {
+            name: `${apiData.organizer?.first_name || ""} ${apiData.organizer?.last_name || ""}`.trim() || "ไม่ระบุ",
+            organization: apiData.organization?.name || "",
+            avatar: "/placeholder.svg?height=100&width=100",
+            verified: true,
+        },
+        createdDate: apiData.created_at ? new Date(apiData.created_at).toISOString().split('T')[0] : "",
+        tags: [],
+        paymentMethods: parsePaymentMethods(apiData.payment_methods),
+        updates: [],
+        donationHistory: [],
+    }
 }
 
 // Mock stories data
@@ -86,85 +173,7 @@ const mockStories: Story[] = [
     },
 ]
 
-// Mock donation data with multiple donation types
-const mockDonation = {
-    id: 1,
-    title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
-    description:
-        "ครอบครัวของเราประสบอุทกภัยใหญ่ที่จังหวัดอุบลราชธานี ทำให้บ้านและข้าวของเสียหายหมด ต้องการความช่วยเหลือเพื่อซ่อมแซมบ้านและซื้อข้าวของใช้จำเป็น",
-    imageUrl: "/placeholder.svg?height=400&width=600",
-    category: "ภัยพิบัติ",
-    organizationType: "ชุมชน",
-    donationTypes: ["money", "items", "volunteer"],
-    goals: {
-        money: {
-            target: 50000,
-            current: 23500,
-            supporters: 47,
-        },
-        items: {
-            description: "เสื้อผ้า อาหารแห้ง น้ำดื่ม อุปกรณ์ทำความสะอาด",
-            received: ["เสื้อผ้า 50 ชุด", "น้ำดื่ม 100 ขวด", "อาหารแห้ง 20 กิโลกรัม"],
-            supporters: 23,
-        },
-        volunteer: {
-            target: 15,
-            current: 8,
-            description: "ช่วยงานซ่อมแซมบ้าน ทำความสะอาด จัดของ",
-            supporters: 8,
-        },
-    },
-    daysLeft: 15,
-    location: "อุบลราชธานี",
-    contactPhone: "081-234-5678",
-    organizer: {
-        name: "สมหญิง จัดการ",
-        organization: "ชุมชนบ้านดอนตาล",
-        avatar: "/placeholder.svg?height=100&width=100",
-        verified: true,
-    },
-    createdDate: "2024-01-10",
-    tags: ["น้ำท่วม", "ครอบครัว", "บ้าน"],
-    paymentMethods: {
-        promptpay: "081-234-5678",
-        bankAccount: {
-            bank: "ธนาคารกสิกรไทย",
-            accountNumber: "123-4-56789-0",
-            accountName: "นายสมชาย ใจดี",
-        },
-        truewallet: "081-234-5678",
-    },
-    updates: [
-        {
-            id: 1,
-            title: "ได้รับการสนับสนุนแล้ว 50%",
-            content: "ขอบคุณทุกท่านที่ให้การสนับสนุน ตอนนี้เราได้รับเงินบริจาคไปแล้ว 50% ของเป้าหมาย",
-            date: "2024-01-12",
-            images: ["/placeholder.svg?height=200&width=300"],
-        },
-        {
-            id: 2,
-            title: "เริ่มซ่อมแซมบ้าน",
-            content: "เราได้เริ่มซ่อมแซมบ้านแล้ว คาดว่าจะเสร็จสิ้นภายใน 2 สัปดาห์",
-            date: "2024-01-08",
-            images: ["/placeholder.svg?height=200&width=300", "/placeholder.svg?height=200&width=300"],
-        },
-    ],
-    donationHistory: [
-        { id: 1, donor: "คุณสมชาย", amount: 1000, date: "2024-01-15", message: "ขอให้ผ่านพ้นวิกฤตไปด้วยดี", type: "money" },
-        { id: 2, donor: "คุณสมหญิง", amount: 2000, date: "2024-01-14", message: "กำลังใจให้ครับ", type: "money" },
-        { id: 3, donor: "ผู้บริจาคไม่ประสงค์ออกนาม", amount: 5000, date: "2024-01-13", message: "", type: "money" },
-        { id: 4, donor: "คุณวิชัย", items: "เสื้อผ้า 10 ชุด", date: "2024-01-12", message: "ช่วยเหลือเท่าที่ทำได้", type: "items" },
-        {
-            id: 5,
-            donor: "คุณมาลี",
-            volunteer: "ช่วยงานทำความสะอาด",
-            date: "2024-01-11",
-            message: "หวังว่าจะช่วยได้",
-            type: "volunteer",
-        },
-    ],
-}
+// Mock donation data removed - now fetching from API
 
 export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailProps) {
     const router = useRouter()
@@ -181,13 +190,44 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
     const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null)
     const [receipts, setReceipts] = useState<ReceiptData[]>([])
 
-    const donation = mockDonation
+    // API data states
+    const [donation, setDonation] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
     const isOrganizer = user?.role === "organizer"
+
+    // Fetch donation data from API
+    useEffect(() => {
+        const fetchDonation = async () => {
+            try {
+                setLoading(true)
+                setError(null)
+                const url = `${API_URL}/donation-requests/${id}`
+                console.log('🔍 Fetching donation from:', url)
+                console.log('API_URL:', API_URL)
+                console.log('ID:', id)
+                const response = await axios.get(url)
+                console.log('✅ Response received:', response.data)
+                const transformedData = transformApiData(response.data)
+                setDonation(transformedData)
+            } catch (err: any) {
+                console.error("Failed to fetch donation:", err)
+                setError(err.response?.data?.message || "ไม่สามารถโหลดข้อมูลได้")
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchDonation()
+    }, [id])
 
     useEffect(() => {
         // Load receipts for this donation request
-        loadReceipts()
-    }, [id])
+        if (donation) {
+            loadReceipts()
+        }
+    }, [id, donation])
 
     const loadReceipts = () => {
         try {
@@ -198,10 +238,10 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
         }
     }
 
-    const moneyProgressPercentage = donation.goals.money
+    const moneyProgressPercentage = donation?.goals?.money
         ? (donation.goals.money.current / donation.goals.money.target) * 100
         : 0
-    const volunteerProgressPercentage = donation.goals.volunteer
+    const volunteerProgressPercentage = donation?.goals?.volunteer
         ? (donation.goals.volunteer.current / donation.goals.volunteer.target) * 100
         : 0
 
@@ -300,6 +340,62 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
     const receiptStats = getReceiptStats()
     const unviewedStories = mockStories.filter((story) => !story.isViewed)
     const displayedStories = showAllStories ? mockStories : mockStories.slice(0, 3)
+
+    // Loading state
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-pink-500 mx-auto mb-4"></div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">กำลังโหลดข้อมูล...</h2>
+                    <p className="text-gray-600">โปรดรอสักครู่</p>
+                </div>
+            </div>
+        )
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
+                <Card className="max-w-md w-full">
+                    <CardContent className="p-6 text-center">
+                        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">เกิดข้อผิดพลาด</h2>
+                        <p className="text-gray-600 mb-4">{error}</p>
+                        <div className="flex gap-2 justify-center">
+                            <Button onClick={() => router.back()} variant="outline">
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                กลับ
+                            </Button>
+                            <Button onClick={() => window.location.reload()} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
+                                ลองอีกครั้ง
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
+    // Not found state
+    if (!donation) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
+                <Card className="max-w-md w-full">
+                    <CardContent className="p-6 text-center">
+                        <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">ไม่พบข้อมูล</h2>
+                        <p className="text-gray-600 mb-4">ไม่พบคำขอบริจาคที่คุณกำลังค้นหา</p>
+                        <Button onClick={() => router.back()} variant="outline">
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            กลับ
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
@@ -791,23 +887,25 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     </div>
 
                                     {/* Bank Transfer */}
-                                    <div className="space-y-3 pt-4 border-t">
-                                        <h4 className="font-medium text-gray-800">โอนเงินผ่านธนาคาร</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-sm text-gray-600">ธนาคาร</label>
-                                                <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.bank}</p>
+                                    {donation?.paymentMethods?.bankAccount && (
+                                        <div className="space-y-3 pt-4 border-t">
+                                            <h4 className="font-medium text-gray-800">โอนเงินผ่านธนาคาร</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-sm text-gray-600">ธนาคาร</label>
+                                                    <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.bank}</p>
+                                                </div>
+                                                <div>
+                                                    <label className="text-sm text-gray-600">เลขที่บัญชี</label>
+                                                    <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountNumber}</p>
+                                                </div>
                                             </div>
                                             <div>
-                                                <label className="text-sm text-gray-600">เลขที่บัญชี</label>
-                                                <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountNumber}</p>
+                                                <label className="text-sm text-gray-600">ชื่อบัญชี</label>
+                                                <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountName}</p>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="text-sm text-gray-600">ชื่อบัญชี</label>
-                                            <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountName}</p>
-                                        </div>
-                                    </div>
+                                    )}
 
                                     <div className="bg-yellow-50 p-3 rounded-lg">
                                         <div className="flex items-start gap-2">

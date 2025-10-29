@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { useRouter } from "next/navigation"
 import { Separator } from "@/components/ui/separator"
 import ShareModal from "./share-modal"
-import { useAuth } from "./auth-context"
+import { useAuth } from "@/app/auth-context"
 import StoryPreview from "./story-preview"
 
 interface DonationRequest {

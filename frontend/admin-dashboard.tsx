@@ -86,7 +86,7 @@ export default function AdminDashboard() {
                     id: req.id,
                     title: req.title,
                     organizer: req.organizer,
-                    category: req.category,
+                    category: typeof req.category === 'object' ? req.category.name : req.category,
                     goalAmount: req.goal_amount,
                     submittedDate: req.submitted_date,
                     status: "pending"

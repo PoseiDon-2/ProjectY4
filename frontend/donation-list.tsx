@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Filter, SortAsc, MapPin, Users, Calendar, Heart, ExternalLink, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,9 +11,12 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import ShareModal from "./share-modal"
 import StoryPreview from "./story-preview"
+import axios from "axios"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
 interface DonationRequest {
-    id: number
+    id: string
     title: string
     description: string
     category: string
@@ -38,184 +41,74 @@ interface DonationRequest {
     }
 }
 
-const donationRequests: DonationRequest[] = [
-    {
-        id: 1,
-        title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
-        description: "ครอบครัวของเราประสบอุทกภัยใหญ่ ทำให้บ้านและข้าวของเสียหายหมด ต้องการความช่วยเหลือเพื่อซื้อของใช้จำเป็นและซ่อมแซมบ้าน",
-        category: "ภัยพิบัติ",
-        location: "จังหวัดอุบลราชธานี",
-        detailedAddress: "123/45 หมู่ 7 ตำบลแสนสุข อำเภอเมือง จังหวัดอุบลราชธานี 34000",
-        contactPhone: "081-234-5678",
-        goalAmount: 50000,
-        currentAmount: 23500,
-        daysLeft: 15,
-        supporters: 47,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "สมชาย ใจดี",
-        bankAccount: {
-            bank: "ธนาคารกสิกรไทย",
-            accountNumber: "123-4-56789-0",
-            accountName: "นายสมชาย ใจดี",
-        },
+// Helper function to transform API data to component format
+const transformApiData = (apiData: any): DonationRequest => {
+    const calculateDaysLeft = (expiresAt: string | null) => {
+        if (!expiresAt) return 30
+        const expiry = new Date(expiresAt)
+        const now = new Date()
+        const diffTime = expiry.getTime() - now.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return diffDays > 0 ? diffDays : 0
+    }
+
+    const getFirstImage = (images: string | null) => {
+        if (!images) return "/placeholder.svg?height=400&width=300"
+        try {
+            const imageArray = JSON.parse(images)
+            return imageArray.length > 0 ? imageArray[0] : "/placeholder.svg?height=400&width=300"
+        } catch {
+            return "/placeholder.svg?height=400&width=300"
+        }
+    }
+
+    const getOrganizerName = (organizer: any) => {
+        if (!organizer) return "ไม่ระบุ"
+        return `${organizer.first_name || ""} ${organizer.last_name || ""}`.trim() || "ไม่ระบุ"
+    }
+
+    const getCategoryName = (category: any) => {
+        return category?.name || "ไม่ระบุหมวดหมู่"
+    }
+
+    const parsePaymentMethods = (paymentMethods: string | null) => {
+        if (!paymentMethods) return { bank: "", accountNumber: "", accountName: "" }
+        try {
+            const methods = JSON.parse(paymentMethods)
+            return {
+                bank: methods.bank || "",
+                accountNumber: methods.account_number || "",
+                accountName: methods.account_name || ""
+            }
+        } catch {
+            return { bank: "", accountNumber: "", accountName: "" }
+        }
+    }
+
+    return {
+        id: apiData.id,
+        title: apiData.title,
+        description: apiData.description,
+        category: getCategoryName(apiData.category),
+        location: apiData.location || "ไม่ระบุสถานที่",
+        goalAmount: apiData.goal_amount || apiData.target_amount || 0,
+        currentAmount: apiData.current_amount || 0,
+        daysLeft: calculateDaysLeft(apiData.expires_at),
+        supporters: apiData.supporters || 0,
+        image: getFirstImage(apiData.images),
+        organizer: getOrganizerName(apiData.organizer),
+        detailedAddress: apiData.location || "ไม่ระบุที่อยู่",
+        contactPhone: "",
+        bankAccount: parsePaymentMethods(apiData.payment_methods),
         qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 15.2441, lng: 104.8475 },
-    },
-    {
-        id: 2,
-        title: "ระดมทุนผ่าตัดหัวใจเด็ก",
-        description: "น้องมายด์ อายุ 8 ขวบ เป็นโรคหัวใจพิการแต่กำเนิด ต้องการเงินค่าผ่าตัดเร่งด่วน เพื่อช่วยชีวิตน้องให้กลับมาแข็งแรง",
-        category: "การแพทย์",
-        location: "โรงพยาบาลศิริราช",
-        detailedAddress: "อาคารเฉลิมพระเกียรติ 80 พรรษา",
-        contactPhone: "02-123-4567",
-        goalAmount: 800000,
-        currentAmount: 456000,
-        daysLeft: 7,
-        supporters: 234,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "มูลนิธิเด็กไทย",
-        bankAccount: {
-            bank: "ธนาคารไทยพาณิชย์",
-            accountNumber: "456-7-89012-3",
-            accountName: "มูลนิธิเด็กไทยเพื่อการผ่าตัดหัวใจ",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 13.765083, lng: 100.4929 },
-    },
-    {
-        id: 3,
-        title: "สร้างห้องสมุดให้โรงเรียนชนบท",
-        description: "โรงเรียนบ้านดอนตาลต้องการสร้างห้องสมุดใหม่ เพื่อให้เด็กๆ ได้มีแหล่งเรียนรู้ที่ดี และพัฒนาทักษะการอ่าน",
-        category: "การศึกษา",
-        location: "จังหวัดสุรินทร์",
-        detailedAddress: "โรงเรียนบ้านดอนตาล ตำบลดอนแรด อำเภอรัตนบุรี จังหวัดสุรินทร์ 32130",
-        contactPhone: "044-987-6543",
-        goalAmount: 120000,
-        currentAmount: 67000,
-        daysLeft: 30,
-        supporters: 89,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "โรงเรียนบ้านดอนตาล",
-        bankAccount: {
-            bank: "ธนาคารกรุงไทย",
-            accountNumber: "789-0-12345-6",
-            accountName: "โรงเรียนบ้านดอนตาล",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 14.8833, lng: 103.8333 },
-    },
-    {
-        id: 4,
-        title: "อาหารสำหรับสุนัขจรจัด",
-        description: "มูลนิธิรักษ์สัตว์ต้องการความช่วยเหลือซื้ออาหารสำหรับสุนัขจรจัดกว่า 200 ตัว ท��่อยู่ในความดูแล",
-        category: "สัตว์",
-        location: "กรุงเทพมหานคร",
-        detailedAddress: "12/345 ซอยลาดพร้าว 101 แขวงคลองจั่น เขตบางกะปิ กรุงเทพมหานคร 10240",
-        contactPhone: "02-555-1212",
-        goalAmount: 30000,
-        currentAmount: 18500,
-        daysLeft: 10,
-        supporters: 156,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "มูลนิธิรักษ์สัตว์",
-        bankAccount: {
-            bank: "ธนาคารกรุงเทพ",
-            accountNumber: "012-3-45678-9",
-            accountName: "มูลนิธิรักษ์สัตว์",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 13.7563, lng: 100.5018 },
-    },
-    {
-        id: 5,
-        title: "ซ่อมแซมบ้านผู้สูงอายุ",
-        description: "คุณยายสมหวัง อายุ 78 ปี อาศัยอยู่คนเดียว บ้านชำรุดทรุดโทรม หลังคารั่ว ต้องการความช่วยเหลือซ่อมแซม",
-        category: "ภัยพิบัติ",
-        location: "จังหวัดเชียงใหม่",
-        detailedAddress: "89/12 หมู่ 3 ตำบลแม่แตง อำเภอแม่แตง จังหวัดเชียงใหม่ 50150",
-        contactPhone: "053-123-456",
-        goalAmount: 35000,
-        currentAmount: 12000,
-        daysLeft: 25,
-        supporters: 23,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "มูลนิธิผู้สูงอายุ",
-        bankAccount: {
-            bank: "ธนาคารกรุงไทย",
-            accountNumber: "234-5-67890-1",
-            accountName: "มูลนิธิผู้สูงอายุ",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 18.8861, lng: 98.8475 },
-    },
-    {
-        id: 6,
-        title: "ทุนการศึกษาเด็กด้อยโอกาส",
-        description: "โครงการให้ทุนการศึกษาแก่เด็กนักเรียนที่มีฐานะยากจน เพื่อให้ได้รับการศึกษาที่ดีและมีอนาคตที่สดใส",
-        category: "การศึกษา",
-        location: "จังหวัดนครราชสีมา",
-        detailedAddress: "โรงเรียนบ้านหนองไผ่ ตำบลหนองไผ่ อำเภอเมือง จังหวัดนครราชสีมา 30000",
-        contactPhone: "044-456-789",
-        goalAmount: 200000,
-        currentAmount: 85000,
-        daysLeft: 45,
-        supporters: 67,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "มูลนิธิการศึกษา",
-        bankAccount: {
-            bank: "ธนาคารไทยพาณิชย์",
-            accountNumber: "345-6-78901-2",
-            accountName: "มูลนิธิการศึกษาเพื่อเด็ก",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 14.9799, lng: 102.0977 },
-    },
-    {
-        id: 7,
-        title: "รักษาแมวจรจัดที่บาดเจ็บ",
-        description: "แมวจรจัดตัวนี้ถูกรถชน ขาหัก ต้องการเงินค่ารักษาพยาบาล และหาบ้านใหม่ให้",
-        category: "สัตว์",
-        location: "จังหวัดภูเก็ต",
-        detailedAddress: "คลินิกสัตวแพทย์ภูเก็ต ถนนราษฎร์อุทิศ ตำบลตลาดใหญ่ อำเภอเมือง จังหวัดภูเก็ต 83000",
-        contactPhone: "076-789-012",
-        goalAmount: 15000,
-        currentAmount: 8500,
-        daysLeft: 5,
-        supporters: 34,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "คลินิกสัตวแพทย์ภูเก็ต",
-        bankAccount: {
-            bank: "ธนาคารกสิกรไทย",
-            accountNumber: "456-7-89012-3",
-            accountName: "คลินิกสัตวแพทย์ภูเก็ต",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 7.8804, lng: 98.3923 },
-    },
-    {
-        id: 8,
-        title: "ผ่าตัดต้อกระจกผู้สูงอายุ",
-        description: "คุณปู่สมศักดิ์ อายุ 82 ปี เป็นต้อกระจกทั้งสองข้าง มองไม่เห็น ต้องการเงินค่าผ่าตัด",
-        category: "การแพทย์",
-        location: "โรงพยาบาลจุฬาลงกรณ์",
-        detailedAddress: "โรงพยาบาลจุฬาลงกรณ์ สภากาชาดไทย ถนนพญาไท เขตปทุมวัน กรุงเทพมหานคร 10330",
-        contactPhone: "02-256-4000",
-        goalAmount: 120000,
-        currentAmount: 45000,
-        daysLeft: 20,
-        supporters: 78,
-        image: "/placeholder.svg?height=400&width=300",
-        organizer: "มูลนิธิการแพทย์",
-        bankAccount: {
-            bank: "ธนาคารกรุงเทพ",
-            accountNumber: "567-8-90123-4",
-            accountName: "มูลนิธิการแพทย์เพื่อผู้สูงอายุ",
-        },
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
-        coordinates: { lat: 13.7307, lng: 100.5418 },
-    },
-]
+        coordinates: apiData.latitude && apiData.longitude
+            ? { lat: apiData.latitude, lng: apiData.longitude }
+            : undefined
+    }
+}
+
+// Removed hardcoded donation requests data - will fetch from API
+
 
 const storyGroups = [
     {
@@ -265,7 +158,28 @@ export default function DonationList() {
     const [searchTerm, setSearchTerm] = useState("")
     const [categoryFilter, setCategoryFilter] = useState("all")
     const [sortBy, setSortBy] = useState("newest")
-    const [showShareModal, setShowShareModal] = useState<number | null>(null)
+    const [showShareModal, setShowShareModal] = useState<string | null>(null)
+    const [donationRequests, setDonationRequests] = useState<DonationRequest[]>([])
+    const [loading, setLoading] = useState(true)
+
+    // Fetch donation requests from API
+    useEffect(() => {
+        const fetchDonationRequests = async () => {
+            try {
+                setLoading(true)
+                const response = await axios.get(`${API_URL}/donation-requests`)
+                const apiRequests = response.data.data || response.data
+                const transformedRequests = apiRequests.map(transformApiData)
+                setDonationRequests(transformedRequests)
+            } catch (error) {
+                console.error("Failed to fetch donation requests:", error)
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchDonationRequests()
+    }, [])
 
     const filteredAndSortedRequests = useMemo(() => {
         const filtered = donationRequests.filter((request) => {

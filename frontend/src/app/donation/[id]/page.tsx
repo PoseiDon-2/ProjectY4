@@ -1,11 +1,12 @@
-import DonationDetail from "../../../../donation-detail"
+import EnhancedDonationDetail from "@/components/enhanced-donation-detail"
 
 interface PageProps {
-    params: {
+    params: Promise<{
         id: string
-    }
+    }>
 }
 
-export default function DonationDetailPage({ params }: PageProps) {
-    return <DonationDetail id={params.id} />
+export default async function DonationDetailPage({ params }: PageProps) {
+    const { id } = await params
+    return <EnhancedDonationDetail id={id} />
 }
