@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import axios from "axios"
 import {
     Plus,
     Eye,
@@ -31,20 +32,32 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { useAuth } from "./src/app/auth-context"
 import OrganizerReceiptManagement from "@/components/organizer-receipt-management" // Import receipt management component
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+
 interface DonationRequest {
-    id: number
+    id: string // UUID
     title: string
     description: string
-    category: string
-    goalAmount: number
-    currentAmount: number
+    category: {
+        id: string
+        name: string
+    }
+    target_amount: number
+    current_amount: number
     supporters: number
-    status: "pending" | "active" | "completed" | "rejected"
-    createdDate: string
-    daysLeft: number
+    status: string // PENDING, APPROVED, REJECTED, DRAFT, etc.
+    created_at: string
+    expires_at: string | null
+    accepts_money: boolean
+    accepts_items: boolean
+    accepts_volunteer: boolean
 }
 
 interface VolunteerApplication {
@@ -66,46 +79,6 @@ interface VolunteerApplication {
     appliedDate: string
     requestId: number // Added requestId to link to a specific donation request
 }
-
-// Mock data for organizer's requests
-const organizerRequests: DonationRequest[] = [
-    {
-        id: 1,
-        title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
-        description: "ครอบครัวของเราประสบอุทกภัยใหญ่ ทำให้บ้านและข้าวของเสียหายหมด",
-        category: "ภัยพิบัติ",
-        goalAmount: 50000,
-        currentAmount: 23500,
-        supporters: 47,
-        status: "active",
-        createdDate: "2024-01-10",
-        daysLeft: 15,
-    },
-    {
-        id: 2,
-        title: "สร้างห้องสมุดให้โรงเรียนชนบท",
-        description: "โรงเรียนบ้านดอนตาลต้องการสร้างห้องสมุดใหม่",
-        category: "การศึกษา",
-        goalAmount: 120000,
-        currentAmount: 67000,
-        supporters: 89,
-        status: "active",
-        createdDate: "2024-01-05",
-        daysLeft: 30,
-    },
-    {
-        id: 3,
-        title: "ซื้ออุปกรณ์การแพทย์",
-        description: "โรงพยาบาลต้องการอุปกรณ์การแพทย์เพิ่มเติม",
-        category: "การแพทย์",
-        goalAmount: 200000,
-        currentAmount: 0,
-        supporters: 0,
-        status: "pending",
-        createdDate: "2024-01-15",
-        daysLeft: 45,
-    },
-]
 
 // Mock data for volunteer applications
 const mockVolunteerApplications: VolunteerApplication[] = [
@@ -176,41 +149,171 @@ export default function OrganizerDashboard() {
     >("overview")
     const [selectedRequestForReceipts, setSelectedRequestForReceipts] = useState<DonationRequest | null>(null)
 
+    // State for API data
+    const [organizerRequests, setOrganizerRequests] = useState<DonationRequest[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    // Edit dialog state
+    const [isEditOpen, setIsEditOpen] = useState(false)
+    const [editingRequest, setEditingRequest] = useState<DonationRequest | null>(null)
+    const [editTitle, setEditTitle] = useState("")
+    const [editDescription, setEditDescription] = useState("")
+    const [editTargetAmount, setEditTargetAmount] = useState<string>("")
+    const [editLocation, setEditLocation] = useState("")
+    const [editUrgency, setEditUrgency] = useState<string>("")
+    const [saving, setSaving] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
+
     // Redirect if not organizer
-    if (!user || user.role !== "organizer") {
-        router.push("/")
+    useEffect(() => {
+        if (!user || user.role !== "organizer") {
+            router.push("/")
+        }
+    }, [user, router])
+
+    // Fetch organizer's donation requests
+    useEffect(() => {
+        const fetchRequests = async () => {
+            try {
+                setLoading(true)
+                const token = localStorage.getItem("auth_token")
+
+                if (!token) {
+                    setError("กรุณาเข้าสู่ระบบ")
+                    return
+                }
+
+                const response = await axios.get(`${API_URL}/donation-requests/my/requests`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                })
+
+                console.log("📊 Organizer requests:", response.data)
+
+                // API returns paginated data
+                const requests = response.data.data || response.data
+                setOrganizerRequests(Array.isArray(requests) ? requests : [])
+            } catch (err: any) {
+                console.error("Error fetching requests:", err)
+                setError(err.response?.data?.message || "ไม่สามารถโหลดข้อมูลได้")
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        if (user && user.role === "organizer") {
+            fetchRequests()
+        }
+    }, [user])
+
+    // Show loading while checking auth
+    if (!user) {
         return null
     }
 
-    const formatAmount = (amount: number) => {
-        return new Intl.NumberFormat("th-TH").format(amount)
+    // Don't render if not organizer (will redirect via useEffect)
+    if (user.role !== "organizer") {
+        return null
+    }
+
+    const formatAmount = (amount: number | null | undefined) => {
+        // Handle NaN, null, undefined
+        const validAmount = Number(amount)
+        if (isNaN(validAmount) || amount == null) {
+            return "0"
+        }
+        return new Intl.NumberFormat("th-TH").format(validAmount)
     }
 
     const getStatusColor = (status: string) => {
-        const colors = {
-            pending: "bg-yellow-100 text-yellow-700",
-            active: "bg-green-100 text-green-700",
-            completed: "bg-blue-100 text-blue-700",
-            rejected: "bg-red-100 text-red-700",
-            approved: "bg-green-100 text-green-700", // For volunteer status
+        const statusUpper = status?.toUpperCase()
+        const colors: Record<string, string> = {
+            PENDING: "bg-yellow-100 text-yellow-700",
+            APPROVED: "bg-green-100 text-green-700",
+            REJECTED: "bg-red-100 text-red-700",
+            DRAFT: "bg-gray-100 text-gray-700",
+            COMPLETED: "bg-blue-100 text-blue-700",
         }
-        return colors[status as keyof typeof colors] || "bg-gray-100 text-gray-700"
+        return colors[statusUpper] || "bg-gray-100 text-gray-700"
     }
 
     const getStatusText = (status: string) => {
-        const texts = {
-            pending: "รอการอนุมัติ",
-            active: "กำลังระดมทุน",
-            completed: "เสร็จสิ้น",
-            rejected: "ถูกปฏิเสธ",
-            approved: "อนุมัติแล้ว", // For volunteer status
+        const statusUpper = status?.toUpperCase()
+        const texts: Record<string, string> = {
+            PENDING: "รอการอนุมัติ",
+            APPROVED: "อนุมัติแล้ว",
+            REJECTED: "ถูกปฏิเสธ",
+            DRAFT: "แบบร่าง",
+            COMPLETED: "เสร็จสิ้น",
         }
-        return texts[status as keyof typeof texts] || status
+        return texts[statusUpper] || status
     }
 
-    const totalRaised = organizerRequests.reduce((sum, req) => sum + req.currentAmount, 0)
-    const totalSupporters = organizerRequests.reduce((sum, req) => sum + req.supporters, 0)
-    const activeRequests = organizerRequests.filter((req) => req.status === "active").length
+    const canEditStatus = (status: string) => {
+        const s = status?.toUpperCase()
+        return s === "DRAFT" || s === "REJECTED"
+    }
+
+    const openEdit = (req: DonationRequest) => {
+        setEditingRequest(req)
+        setEditTitle(req.title || "")
+        setEditDescription(req.description || "")
+        setEditTargetAmount(String(req.target_amount ?? ""))
+        setEditLocation((req as any).location ?? "")
+        setEditUrgency((req as any).urgency ?? "")
+        setSaveError(null)
+        setIsEditOpen(true)
+    }
+
+    const submitEdit = async () => {
+        if (!editingRequest) return
+        const token = localStorage.getItem("auth_token")
+        if (!token) {
+            setSaveError("กรุณาเข้าสู่ระบบ")
+            return
+        }
+        if (!canEditStatus(editingRequest.status)) {
+            setSaveError("แก้ไขได้เฉพาะคำขอสถานะ แบบร่าง หรือ ถูกปฏิเสธ")
+            return
+        }
+
+        const payload: Record<string, any> = {}
+        if (editTitle !== editingRequest.title) payload.title = editTitle
+        if (editDescription !== editingRequest.description) payload.description = editDescription
+        if (editTargetAmount !== String(editingRequest.target_amount ?? "")) payload.goal_amount = Number(editTargetAmount || 0)
+        if ((editingRequest as any).location !== editLocation && editLocation) payload.location = editLocation
+        if ((editingRequest as any).urgency !== editUrgency && editUrgency) payload.urgency = editUrgency
+
+        if (Object.keys(payload).length === 0) {
+            setIsEditOpen(false)
+            return
+        }
+
+        try {
+            setSaving(true)
+            setSaveError(null)
+            await axios.put(`${API_URL}/donation-requests/${editingRequest.id}`, payload, {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+
+            // Refresh local list optimistically
+            setOrganizerRequests((prev) =>
+                prev.map((r) => (r.id === editingRequest.id ? { ...r, ...payload, target_amount: payload.goal_amount ?? r.target_amount } : r))
+            )
+            setIsEditOpen(false)
+        } catch (err: any) {
+            const msg = err?.response?.data?.error || err?.response?.data?.message || "บันทึกไม่สำเร็จ"
+            setSaveError(msg)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const totalRaised = organizerRequests.reduce((sum, req) => sum + (req.current_amount || 0), 0)
+    const totalSupporters = organizerRequests.reduce((sum, req) => sum + (req.supporters || 0), 0)
+    const activeRequests = organizerRequests.filter((req) => req.status === "APPROVED").length
     const pendingVolunteerApplications = mockVolunteerApplications.filter((app) => app.status === "pending").length
 
     const getVehicleIcon = (vehicleType: string) => {
@@ -285,7 +388,25 @@ export default function OrganizerDashboard() {
             </div>
 
             <div className="max-w-6xl mx-auto p-4">
+                {/* Loading State */}
+                {loading && (
+                    <div className="flex items-center justify-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+                        <span className="ml-3 text-gray-600">กำลังโหลดข้อมูล...</span>
+                    </div>
+                )}
+
+                {/* Error State */}
+                {error && (
+                    <Card className="mb-6 border-red-200 bg-red-50">
+                        <CardContent className="p-6">
+                            <p className="text-red-600">❌ {error}</p>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Tab Navigation */}
+                {!loading && (
                 <Card className="mb-6">
                     <CardContent className="p-0">
                         <div className="flex border-b">
@@ -347,9 +468,10 @@ export default function OrganizerDashboard() {
                         </div>
                     </CardContent>
                 </Card>
+                )}
 
                 {/* Tab Content */}
-                {activeTab === "overview" && (
+                {!loading && activeTab === "overview" && (
                     <div className="space-y-6">
                         {/* Stats Cards */}
                         <div className="grid gap-6 md:grid-cols-4">
@@ -432,7 +554,9 @@ export default function OrganizerDashboard() {
                             <CardContent>
                                 <div className="space-y-4">
                                     {organizerRequests.slice(0, 3).map((request) => {
-                                        const progressPercentage = (request.currentAmount / request.goalAmount) * 100
+                                        const currentAmount = request.current_amount || 0
+                                        const targetAmount = request.target_amount || 1
+                                        const progressPercentage = targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0
                                         return (
                                             <div key={request.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                                                 <div className="flex-1">
@@ -444,7 +568,7 @@ export default function OrganizerDashboard() {
                                                         <div className="flex justify-between text-sm">
                                                             <span className="text-gray-600">ระดมทุนได้</span>
                                                             <span className="font-semibold">
-                                                                ฿{formatAmount(request.currentAmount)} / ฿{formatAmount(request.goalAmount)}
+                                                                ฿{formatAmount(currentAmount)} / ฿{formatAmount(targetAmount)}
                                                             </span>
                                                         </div>
                                                         <Progress value={progressPercentage} className="h-2" />
@@ -459,7 +583,12 @@ export default function OrganizerDashboard() {
                                                     >
                                                         <Eye className="w-4 h-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="outline" className="bg-transparent">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="bg-transparent"
+                                                        onClick={() => openEdit(request)}
+                                                    >
                                                         <Edit className="w-4 h-4" />
                                                     </Button>
                                                 </div>
@@ -555,7 +684,7 @@ export default function OrganizerDashboard() {
                     </div>
                 )}
 
-                {activeTab === "requests" && (
+                {!loading && activeTab === "requests" && (
                     <div className="space-y-6">
                         <div className="flex items-center justify-between">
                             <h2 className="text-xl font-bold text-gray-800">คำขอบริจาคทั้งหมด</h2>
@@ -568,9 +697,33 @@ export default function OrganizerDashboard() {
                             </Button>
                         </div>
 
+                        {organizerRequests.length === 0 ? (
+                            <Card className="p-8">
+                                <div className="text-center">
+                                    <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                    <h3 className="text-lg font-semibold text-gray-700 mb-2">ยังไม่มีคำขอบริจาค</h3>
+                                    <p className="text-gray-500 mb-4">สร้างคำขอบริจาคแรกของคุณเพื่อเริ่มต้น</p>
+                                    <Button
+                                        onClick={() => router.push("/create-request")}
+                                        className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                                    >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        สร้างคำขอใหม่
+                                    </Button>
+                                </div>
+                            </Card>
+                        ) : (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                             {organizerRequests.map((request) => {
-                                const progressPercentage = (request.currentAmount / request.goalAmount) * 100
+                                const currentAmount = request.current_amount || 0
+                                const targetAmount = request.target_amount || 1
+                                const progressPercentage = targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0
+
+                                // Calculate days left
+                                const daysLeft = request.expires_at
+                                    ? Math.ceil((new Date(request.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                                    : 0
+
                                 return (
                                     <Card key={request.id} className="overflow-hidden">
                                         <div className="aspect-video bg-gray-100 flex items-center justify-center">
@@ -586,19 +739,21 @@ export default function OrganizerDashboard() {
 
                                                 <p className="text-sm text-gray-600 line-clamp-2">{request.description}</p>
 
+                                                {request.accepts_money && (
                                                 <div className="space-y-2">
                                                     <div className="flex justify-between text-sm">
                                                         <span className="text-gray-600">ระดมทุนได้</span>
                                                         <span className="font-semibold">
-                                                            ฿{formatAmount(request.currentAmount)} / ฿{formatAmount(request.goalAmount)}
+                                                            ฿{formatAmount(currentAmount)} / ฿{formatAmount(targetAmount)}
                                                         </span>
                                                     </div>
                                                     <Progress value={progressPercentage} className="h-2" />
                                                     <div className="flex justify-between text-xs text-gray-500">
-                                                        <span>{request.supporters} ผู้สนับสนุน</span>
-                                                        <span>เหลือ {request.daysLeft} วัน</span>
+                                                        <span>{request.supporters || 0} ผู้สนับสนุน</span>
+                                                        {daysLeft > 0 && <span>เหลือ {daysLeft} วัน</span>}
                                                     </div>
                                                 </div>
+                                                )}
 
                                                 <div className="flex gap-2 pt-2">
                                                     <Button
@@ -622,7 +777,13 @@ export default function OrganizerDashboard() {
                                                         <Receipt className="w-4 h-4 mr-1" />
                                                         สลิป
                                                     </Button>
-                                                    <Button size="sm" variant="outline" className="flex-1 bg-transparent">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="flex-1 bg-transparent"
+                                                        onClick={() => openEdit(request)}
+                                                        disabled={!canEditStatus(request.status)}
+                                                    >
                                                         <Edit className="w-4 h-4 mr-1" />
                                                         แก้ไข
                                                     </Button>
@@ -640,15 +801,16 @@ export default function OrganizerDashboard() {
                                 )
                             })}
                         </div>
+                        )}
                     </div>
                 )}
 
-                {activeTab === "volunteer-applicants" && (
+                {!loading && activeTab === "volunteer-applicants" && (
                     <div className="space-y-6">
                         <h2 className="text-xl font-bold text-gray-800">ผู้สมัครอาสาสมัครทั้งหมด</h2>
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                             {mockVolunteerApplications.map((applicant) => {
-                                const relatedRequest = organizerRequests.find((req) => req.id === applicant.requestId)
+                                const relatedRequest = organizerRequests.find((req) => req.id === String(applicant.requestId))
                                 return (
                                     <Card key={applicant.id} className="overflow-hidden">
                                         <CardContent className="p-4">
@@ -741,7 +903,7 @@ export default function OrganizerDashboard() {
                     </div>
                 )}
 
-                {activeTab === "receipts" && (
+                {!loading && activeTab === "receipts" && (
                     <div className="space-y-6">
                         {selectedRequestForReceipts ? (
                             <div className="space-y-4">
@@ -756,7 +918,7 @@ export default function OrganizerDashboard() {
                                     </div>
                                 </div>
                                 <OrganizerReceiptManagement
-                                    requestId={selectedRequestForReceipts.id.toString()}
+                                    requestId={selectedRequestForReceipts.id}
                                     requestTitle={selectedRequestForReceipts.title}
                                 />
                             </div>
@@ -779,7 +941,7 @@ export default function OrganizerDashboard() {
                                                     <p className="text-sm text-gray-600 line-clamp-2">{request.description}</p>
                                                     <div className="flex items-center justify-between text-sm">
                                                         <span className="text-gray-600">ระดมทุนได้</span>
-                                                        <span className="font-semibold">฿{formatAmount(request.currentAmount)}</span>
+                                                        <span className="font-semibold">฿{formatAmount(request.current_amount || 0)}</span>
                                                     </div>
                                                     <Button className="w-full" size="sm">
                                                         <Receipt className="w-4 h-4 mr-2" />
@@ -795,7 +957,7 @@ export default function OrganizerDashboard() {
                     </div>
                 )}
 
-                {activeTab === "analytics" && (
+                {!loading && activeTab === "analytics" && (
                     <div className="space-y-6">
                         <h2 className="text-xl font-bold text-gray-800">สถิติและการวิเคราะห์</h2>
 
@@ -807,9 +969,11 @@ export default function OrganizerDashboard() {
                                 <CardContent>
                                     <div className="space-y-4">
                                         {organizerRequests
-                                            .filter((req) => req.status === "active")
+                                            .filter((req) => req.status === "APPROVED" && req.accepts_money)
                                             .map((request) => {
-                                                const progressPercentage = (request.currentAmount / request.goalAmount) * 100
+                                                const currentAmount = request.current_amount || 0
+                                                const targetAmount = request.target_amount || 1
+                                                const progressPercentage = targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0
                                                 return (
                                                     <div key={request.id} className="space-y-2">
                                                         <div className="flex justify-between text-sm">
@@ -831,8 +995,8 @@ export default function OrganizerDashboard() {
                                 <CardContent>
                                     <div className="space-y-4">
                                         {["ภัยพิบัติ", "การแพทย์", "การศึกษา", "สัตว์"].map((category) => {
-                                            const categoryRequests = organizerRequests.filter((req) => req.category === category)
-                                            const categoryTotal = categoryRequests.reduce((sum, req) => sum + req.currentAmount, 0)
+                                            const categoryRequests = organizerRequests.filter((req) => req.category?.name === category)
+                                            const categoryTotal = categoryRequests.reduce((sum, req) => sum + (req.current_amount || 0), 0)
                                             return (
                                                 <div key={category} className="flex justify-between items-center">
                                                     <span className="text-sm font-medium">{category}</span>
@@ -850,6 +1014,58 @@ export default function OrganizerDashboard() {
                     </div>
                 )}
             </div>
+
+            {/* Edit Dialog */}
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>แก้ไขคำขอบริจาค</DialogTitle>
+                    </DialogHeader>
+                    {editingRequest && (
+                        <div className="space-y-4">
+                            {!canEditStatus(editingRequest.status) && (
+                                <div className="text-sm text-red-600">แก้ไขได้เฉพาะสถานะ แบบร่าง หรือ ถูกปฏิเสธ</div>
+                            )}
+                            {saveError && <div className="text-sm text-red-600">{saveError}</div>}
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-title">ชื่อคำขอ</Label>
+                                <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-description">รายละเอียด</Label>
+                                <Textarea id="edit-description" rows={4} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-target">เป้าหมายระดมทุน (บาท)</Label>
+                                <Input
+                                    id="edit-target"
+                                    type="number"
+                                    inputMode="numeric"
+                                    value={editTargetAmount}
+                                    onChange={(e) => setEditTargetAmount(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-location">สถานที่</Label>
+                                <Input id="edit-location" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-urgency">ความเร่งด่วน (LOW/MEDIUM/HIGH)</Label>
+                                <Input id="edit-urgency" placeholder="LOW | MEDIUM | HIGH" value={editUrgency} onChange={(e) => setEditUrgency(e.target.value.toUpperCase())} />
+                            </div>
+
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={saving}>
+                                    ยกเลิก
+                                </Button>
+                                <Button onClick={submitEdit} disabled={saving || !canEditStatus(editingRequest.status)}>
+                                    {saving ? "กำลังบันทึก..." : "บันทึก"}
+                                </Button>
+                            </DialogFooter>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
