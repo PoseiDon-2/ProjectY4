@@ -38,6 +38,7 @@ interface User {
 
 interface AuthContextType {
     user: User | null
+    token: string | null
     login: (email: string, password: string) => Promise<boolean>
     register: (payload: RegisterPayload) => Promise<boolean>
     sendOTP: (email: string) => Promise<boolean>
@@ -72,6 +73,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [token, setToken] = useState<string | null>(null)
 
     const setAuthToken = (token: string) => {
         localStorage.setItem('auth_token', token)
@@ -146,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const token = getAuthToken()
         if (token) {
+            setToken(token)
             fetchUser()
         } else {
             setUser(null)
@@ -165,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (res.ok) {
                 const data = await res.json()
                 setAuthToken(data.access_token)
+                setToken(data.access_token)
                 await fetchUser()
                 return true
             }
@@ -268,10 +272,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         localStorage.removeItem('auth_token')
         setUser(null)
+        setToken(null)
     }
 
     return (
-        <AuthContext.Provider value={{ user, login, register, sendOTP, verifyOTP, logout, isLoading, fetchUser }}>
+        <AuthContext.Provider value={{ user, token, login, register, sendOTP, verifyOTP, logout, isLoading, fetchUser }}>
             {children}
         </AuthContext.Provider>
     )

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Sanctum\HasApiTokens;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
-use Illuminate\Support\Str; // เพิ่มบรรทัดนี้
+use Illuminate\Support\Str; 
 
 class User extends Authenticatable
 {

@@ -10,10 +10,18 @@ class AdminMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
+        // ตรวจสอบว่าผู้ใช้ล็อกอินอยู่หรือไม่
+        if (!$request->user()) {
+            return response()->json([
+                'message' => 'Unauthenticated.'
+            ], 401);
+        }
 
-        if (!$user || $user->role->value !== 'ADMIN') {
-            return response()->json(['message' => 'Forbidden'], 403);
+        // ตรวจสอบว่าเป็น Admin หรือไม่
+        if ($request->user()->role !== 'ADMIN') {
+            return response()->json([
+                'message' => 'Unauthorized. Admin access required.'
+            ], 403);
         }
 
         return $next($request);

@@ -7,6 +7,16 @@ module.exports = {
 	],
 	theme: {
 		extend: {
+			fontFamily: {
+				// ใช้ฟอนต์จาก CSS variables ที่กำหนดใน globals.css
+				sans: ['var(--font-sans)'],
+				mono: ['var(--font-mono)'],
+				elegant: ['var(--font-elegant)'],
+				handwrite: ['var(--font-handwrite)'],
+				cute: ['var(--font-cute)'],
+				soft: ['var(--font-soft)'],
+				modern: ['var(--font-modern)'],
+			},
 			borderRadius: {
 				lg: "var(--radius)",
 				md: "calc(var(--radius) - 2px)",
