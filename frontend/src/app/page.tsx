@@ -206,18 +206,6 @@ export default function DonationSwipe() {
         )
     }
 
-    if (!currentRequest || donationRequests.length === 0) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
-                <div className="text-center">
-                    <Heart className="w-16 h-16 text-pink-500 mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">ไม่มีคำขอบริจาคเพิ่มเติม</h2>
-                    <p className="text-gray-600">กลับมาดูใหม่ในภายหลัง</p>
-                </div>
-            </div>
-        )
-    }
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
             <div className="max-w-md mx-auto">
@@ -286,6 +274,15 @@ export default function DonationSwipe() {
                 </div>
 
                 {/* Main Card */}
+                {!currentRequest || donationRequests.length === 0 ? (
+                    <Card className="shadow-lg border-0 bg-white p-8">
+                        <div className="text-center">
+                            <Heart className="w-12 h-12 text-pink-500 mx-auto mb-3" />
+                            <h3 className="text-lg font-semibold text-gray-800 mb-2">ไม่มีคำขอบริจาคในขณะนี้</h3>
+                            <p className="text-sm text-gray-600 mb-4">ใช้เมนูด้านบนเพื่อดูรายการหรือสร้างคำขอใหม่</p>
+                        </div>
+                    </Card>
+                ) : (
                 <div className="relative">
                     <Card className="overflow-hidden shadow-2xl border-0 bg-white">
                         <div className="relative">
@@ -389,6 +386,7 @@ export default function DonationSwipe() {
                         ))}
                     </div>
                 </div>
+                )}
 
                 {/* Instructions */}
                 <div className="text-center mt-8 text-sm text-gray-500">
