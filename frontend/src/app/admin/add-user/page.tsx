@@ -12,6 +12,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "../../auth-context"
+import axios from "axios"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
 // Updated organization types
 const organizationTypes = [
@@ -59,7 +62,7 @@ interface AddUserData {
 
 export default function AddUserPage() {
     const router = useRouter()
-    const { user: currentUser } = useAuth()
+    const { user: currentUser, token } = useAuth()
     const [formData, setFormData] = useState<AddUserData>({
         email: "",
         password: "",
@@ -149,13 +152,28 @@ export default function AddUserPage() {
         }
 
         try {
-            // Simulate API call
-            await new Promise((resolve) => setTimeout(resolve, 2000))
+            // ใช้ API จริงแทน simulation
+            const response = await axios.post(`${API_URL}/admin/users`, {
+                email: formData.email,
+                password: formData.password,
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                phone: formData.phone,
+                role: formData.role,
+                organizationName: formData.organizationName,
+                organizationType: formData.organizationType,
+                organizationId: formData.organizationId,
+                interests: formData.interests,
+                isVerified: formData.isVerified,
+                documentsVerified: formData.documentsVerified,
+            }, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            })
 
-            // In real app, this would call API to create user
-            console.log("Creating user:", formData)
-
-            setSuccess("สร้างผู้ใช้ใหม่เรียบร้อยแล้ว")
+            setSuccess(response.data.message || "สร้างผู้ใช้ใหม่เรียบร้อยแล้ว")
 
             // Reset form after success
             setTimeout(() => {
@@ -175,9 +193,24 @@ export default function AddUserPage() {
                     documentsVerified: undefined,
                 })
                 setSuccess("")
+
+                // Optional: redirect back to admin dashboard
+                setTimeout(() => {
+                    router.push('/admin-dashboard?tab=users')
+                }, 1000)
             }, 3000)
-        } catch (err) {
-            setError("เกิดข้อผิดพลาดในการสร้างผู้ใช้")
+
+        } catch (err: any) {
+            console.error('Error creating user:', err)
+
+            if (err.response?.data?.errors) {
+                // แสดง error จาก validation
+                const errors = err.response.data.errors
+                const firstError = Object.values(errors)[0] as string[]
+                setError(firstError[0] || "ข้อมูลไม่ถูกต้อง")
+            } else {
+                setError(err.response?.data?.message || "เกิดข้อผิดพลาดในการสร้างผู้ใช้")
+            }
         }
 
         setSaving(false)
@@ -477,7 +510,7 @@ export default function AddUserPage() {
                                 <Button
                                     type="submit"
                                     disabled={saving}
-                                    className="flex-1 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                                    className="flex-1 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white"
                                 >
                                     {saving ? (
                                         <>

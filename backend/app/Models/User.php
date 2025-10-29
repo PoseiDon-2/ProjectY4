@@ -21,29 +21,33 @@ class User extends Authenticatable
     protected $table = 'users';
 
     protected $fillable = [
-        'id',
-        'email',
-        'password',
-        'first_name',
-        'last_name',
-        'phone',
-        'role',
-        'avatar',
-        'bio',
-        'total_donated',
-        'donation_count',
-        'customization',
-        'organization_id',
-        'preferred_categories',
-        'id_card_url',
-        'is_email_verified',
-        'organization_cert_url',
-        'documents_verified',
-        'location',
-        'latitude',
-        'longitude',
-        'status'
-    ];
+    'id',
+    'email',
+    'password',
+    'first_name',
+    'last_name',
+    'phone',
+    'role',
+    'avatar',
+    'bio',
+    'total_donated',
+    'donation_count',
+    'customization',
+    
+    'organization_name',
+    'organization_type',
+    'organization_id',
+    
+    'preferred_categories',
+    'id_card_url',
+    'is_email_verified',
+    'organization_cert_url',
+    'documents_verified',
+    'location',
+    'latitude',
+    'longitude',
+    'status'
+];
 
     protected $hidden = [
         'password',

@@ -146,6 +146,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         }
     });
     
+    // === USER MANAGEMENT ROUTES ===
     Route::get('/users', function (Request $request) {
         try {
             $user = $request->user();
@@ -162,6 +163,69 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             }
             
             return app(AdminUserController::class)->getUsers($request);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    Route::post('/users', function (Request $request) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
+            } else {
+                $isAdmin = in_array(strtoupper($userRole), ['ADMIN']);
+            }
+
+            if (!$isAdmin) {
+                return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
+            }
+            
+            return app(AdminUserController::class)->createUser($request);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    Route::get('/users/{id}', function (Request $request, $id) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
+            } else {
+                $isAdmin = in_array(strtoupper($userRole), ['ADMIN']);
+            }
+
+            if (!$isAdmin) {
+                return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
+            }
+            
+            return app(AdminUserController::class)->getUser($request, $id);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    Route::put('/users/{id}', function (Request $request, $id) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
+            } else {
+                $isAdmin = in_array(strtoupper($userRole), ['ADMIN']);
+            }
+
+            if (!$isAdmin) {
+                return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
+            }
+            
+            return app(AdminUserController::class)->updateUser($request, $id);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
