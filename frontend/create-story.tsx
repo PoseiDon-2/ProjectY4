@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Upload, Camera, ImageIcon, Save, Eye, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,17 +15,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "./src/app/auth-context"
 
-interface StoryData {
+interface StoryFormData {
     title: string
     content: string
-    type: "progress" | "milestone" | "thank_you" | "completion"
+    type: "progress" | "milestone" | "thank_you" | "completion" 
     image?: File
-    duration: number
-    donationRequestId: number
+    duration: number 
+    donation_request_id: string // เปลี่ยนจาก number เป็น string
 }
 
 interface DonationRequest {
-    id: number
+    id: string // เปลี่ยนจาก number เป็น string
     title: string
     organizer: string
     currentAmount: number
@@ -33,54 +33,123 @@ interface DonationRequest {
     supporters: number
 }
 
-// Mock data for organizer's requests
-const organizerRequests: DonationRequest[] = [
-    {
-        id: 1,
-        title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
-        organizer: "สมชาย ใจดี",
-        currentAmount: 23500,
-        goalAmount: 50000,
-        supporters: 47,
-    },
-    {
-        id: 2,
-        title: "สร้างห้องสมุดให้โรงเรียนชนบท",
-        organizer: "โรงเรียนบ้านดอนตาล",
-        currentAmount: 67000,
-        goalAmount: 120000,
-        supporters: 89,
-    },
-]
+// API Service
+class StoryApiService {
+  private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+
+  private async request(endpoint: string, options: RequestInit = {}) {
+    const token = localStorage.getItem('auth_token')
+    
+    const config: RequestInit = {
+      headers: {
+        'Accept': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+        ...options.headers,
+      },
+      ...options,
+    }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, config)
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `API error: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getOrganizerRequests(): Promise<DonationRequest[]> {
+    try {
+      const response = await this.request('/organizer/donation-requests')
+      return response.data || []
+    } catch (error) {
+      console.error('Error fetching organizer requests:', error)
+      throw error
+    }
+  }
+
+  async createStory(formData: StoryFormData) {
+    const formDataToSend = new FormData()
+    
+    // Append basic fields
+    formDataToSend.append('title', formData.title)
+    formDataToSend.append('content', formData.content)
+    formDataToSend.append('type', formData.type)
+    formDataToSend.append('duration', formData.duration.toString())
+    formDataToSend.append('donation_request_id', formData.donation_request_id)
+
+    // Append image if exists
+    if (formData.image) {
+      formDataToSend.append('image', formData.image)
+    }
+
+    return this.request('/organizer/stories', {
+      method: 'POST',
+      body: formDataToSend,
+    })
+  }
+}
+
+export const storyApiService = new StoryApiService()
 
 export default function CreateStory() {
     const router = useRouter()
     const { user } = useAuth()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState("")
     const [success, setSuccess] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
+    const [organizerRequests, setOrganizerRequests] = useState<DonationRequest[]>([])
 
-    const [formData, setFormData] = useState<StoryData>({
+    const [formData, setFormData] = useState<StoryFormData>({
         title: "",
         content: "",
         type: "progress",
         duration: 5,
-        donationRequestId: 0,
+        donation_request_id: "", // เปลี่ยนจาก 0 เป็น ""
     })
 
-    // Redirect if not organizer
-    if (!user || user.role !== "organizer") {
-        router.push("/")
-        return null
+    // Redirect if not organizer - ใช้ useEffect แทน
+    useEffect(() => {
+        if (!user || user.role !== "organizer") {
+            router.push("/")
+        }
+    }, [user, router])
+
+    // Fetch organizer's donation requests
+    useEffect(() => {
+        fetchOrganizerRequests()
+    }, [])
+
+    const fetchOrganizerRequests = async () => {
+        try {
+            setIsLoading(true)
+            const requests = await storyApiService.getOrganizerRequests()
+            setOrganizerRequests(requests)
+            
+            // Auto-select the first request if available
+            if (requests.length > 0 && !formData.donation_request_id) {
+                setFormData(prev => ({
+                    ...prev,
+                    donation_request_id: requests[0].id
+                }))
+            }
+        } catch (err) {
+            console.error('Error fetching organizer requests:', err)
+            setError('ไม่สามารถโหลดข้อมูลคำขอบริจาคได้')
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     const handleInputChange = (field: string, value: string | number) => {
-        setFormData({
-            ...formData,
+        setFormData(prev => ({
+            ...prev,
             [field]: value,
-        })
+        }))
     }
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,7 +160,14 @@ export default function CreateStory() {
                 return
             }
 
-            setFormData({ ...formData, image: file })
+            // Check file type
+            if (!file.type.startsWith('image/')) {
+                setError("กรุณาเลือกไฟล์รูปภาพเท่านั้น")
+                return
+            }
+
+            setFormData(prev => ({ ...prev, image: file }))
+            setError("")
 
             // Create preview
             const reader = new FileReader()
@@ -103,7 +179,7 @@ export default function CreateStory() {
     }
 
     const removeImage = () => {
-        setFormData({ ...formData, image: undefined })
+        setFormData(prev => ({ ...prev, image: undefined }))
         setPreviewImage(null)
         if (fileInputRef.current) {
             fileInputRef.current.value = ""
@@ -116,8 +192,20 @@ export default function CreateStory() {
         setIsSubmitting(true)
 
         // Validation
-        if (!formData.title || !formData.content || !formData.donationRequestId) {
-            setError("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน")
+        if (!formData.title.trim()) {
+            setError("กรุณากรอกหัวข้อ Story")
+            setIsSubmitting(false)
+            return
+        }
+
+        if (!formData.content.trim()) {
+            setError("กรุณากรอกเนื้อหา Story")
+            setIsSubmitting(false)
+            return
+        }
+
+        if (!formData.donation_request_id) {
+            setError("กรุณาเลือกคำขอบริจาค")
             setIsSubmitting(false)
             return
         }
@@ -128,25 +216,38 @@ export default function CreateStory() {
             return
         }
 
+        if (formData.content.length > 500) {
+            setError("เนื้อหาต้องไม่เกิน 500 ตัวอักษร")
+            setIsSubmitting(false)
+            return
+        }
+
         if (!formData.image) {
             setError("กรุณาเลือกรูปภาพสำหรับ Story")
             setIsSubmitting(false)
             return
         }
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-
-        // In a real app, this would upload to server
-        console.log("Creating story:", formData)
-
-        setSuccess(true)
-        setIsSubmitting(false)
-
-        // Redirect after success
-        setTimeout(() => {
-            router.push("/organizer-dashboard")
-        }, 2000)
+        try {
+            // Call API to create story
+            const response = await storyApiService.createStory(formData)
+            
+            if (response.success) {
+                setSuccess(true)
+                
+                // Redirect after success
+                setTimeout(() => {
+                    router.push("/story-management")
+                }, 2000)
+            } else {
+                setError(response.message || 'เกิดข้อผิดพลาดในการสร้าง Story')
+            }
+        } catch (err: any) {
+            console.error('Error creating story:', err)
+            setError(err.message || 'เกิดข้อผิดพลาดในการสร้าง Story')
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     const getTypeColor = (type: string) => {
@@ -169,7 +270,12 @@ export default function CreateStory() {
         return texts[type as keyof typeof texts] || type
     }
 
-    const selectedRequest = organizerRequests.find((req) => req.id === formData.donationRequestId)
+    const selectedRequest = organizerRequests.find((req) => req.id === formData.donation_request_id)
+
+    // Redirect if not organizer
+    if (!user || user.role !== "organizer") {
+        return null
+    }
 
     if (success) {
         return (
@@ -184,6 +290,17 @@ export default function CreateStory() {
                         <p className="text-sm text-gray-500">กำลังนำคุณไปยังหน้าจัดการ...</p>
                     </CardContent>
                 </Card>
+            </div>
+        )
+    }
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+                </div>
             </div>
         )
     }
@@ -226,20 +343,33 @@ export default function CreateStory() {
                                     <div className="space-y-2">
                                         <Label htmlFor="donationRequestId">เลือกคำขอบริจาค *</Label>
                                         <Select
-                                            value={formData.donationRequestId.toString()}
-                                            onValueChange={(value) => handleInputChange("donationRequestId", Number.parseInt(value))}
+                                            value={formData.donation_request_id}
+                                            onValueChange={(value) => handleInputChange("donation_request_id", value)}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="เลือกคำขอบริจาคที่ต้องการสร้าง Story" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {organizerRequests.map((request) => (
-                                                    <SelectItem key={request.id} value={request.id.toString()}>
+                                                    <SelectItem key={request.id} value={request.id}>
                                                         {request.title}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                        {organizerRequests.length === 0 && (
+                                            <p className="text-sm text-yellow-600 mt-2">
+                                                คุณยังไม่มีคำขอบริจาคที่ได้รับการอนุมัติ 
+                                                <Button 
+                                                    type="button" 
+                                                    variant="link" 
+                                                    className="p-0 h-auto text-blue-600 ml-1"
+                                                    onClick={() => router.push('/create-donation-request')}
+                                                >
+                                                    สร้างคำขอบริจาคใหม่
+                                                </Button>
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">
@@ -250,7 +380,9 @@ export default function CreateStory() {
                                             value={formData.title}
                                             onChange={(e) => handleInputChange("title", e.target.value)}
                                             required
+                                            maxLength={100}
                                         />
+                                        <p className="text-xs text-gray-500">{formData.title.length}/100 ตัวอักษร</p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -262,8 +394,9 @@ export default function CreateStory() {
                                             value={formData.content}
                                             onChange={(e) => handleInputChange("content", e.target.value)}
                                             required
+                                            maxLength={500}
                                         />
-                                        <p className="text-xs text-gray-500">{formData.content.length}/200 ตัวอักษร (อย่างน้อย 10 ตัวอักษร)</p>
+                                        <p className="text-xs text-gray-500">{formData.content.length}/500 ตัวอักษร (อย่างน้อย 10 ตัวอักษร)</p>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">
@@ -320,7 +453,7 @@ export default function CreateStory() {
                                             >
                                                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                                 <p className="text-gray-600 mb-2">คลิกเพื่อเลือกรูปภาพ หรือลากไฟล์มาวาง</p>
-                                                <p className="text-sm text-gray-500">รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 5MB</p>
+                                                <p className="text-sm text-gray-500">รองรับไฟล์ JPG, PNG, GIF, WEBP ขนาดไม่เกิน 5MB</p>
                                                 <p className="text-xs text-gray-400 mt-2">แนะนำขนาด 9:16 (เหมาะสำหรับมือถือ)</p>
                                             </div>
 
@@ -329,12 +462,12 @@ export default function CreateStory() {
                                                     type="button"
                                                     variant="outline"
                                                     onClick={() => fileInputRef.current?.click()}
-                                                    className="flex-1 bg-transparent"
+                                                    className="flex-1"
                                                 >
                                                     <ImageIcon className="w-4 h-4 mr-2" />
                                                     เลือกจากแกลเลอรี่
                                                 </Button>
-                                                <Button type="button" variant="outline" className="flex-1 bg-transparent" disabled>
+                                                <Button type="button" variant="outline" className="flex-1" disabled>
                                                     <Camera className="w-4 h-4 mr-2" />
                                                     ถ่ายรูป
                                                 </Button>
@@ -344,9 +477,9 @@ export default function CreateStory() {
                                         <div className="space-y-4">
                                             <div className="relative">
                                                 <img
-                                                    src={previewImage || "/placeholder.svg"}
+                                                    src={previewImage || "@/public/placeholder.svg"}
                                                     alt="Preview"
-                                                    className="w-full max-w-xs mx-auto rounded-lg shadow-lg"
+                                                    className="w-full max-w-xs mx-auto rounded-lg shadow-lg object-cover aspect-[9/16]"
                                                 />
                                                 <Button
                                                     type="button"
@@ -362,7 +495,7 @@ export default function CreateStory() {
                                                 type="button"
                                                 variant="outline"
                                                 onClick={() => fileInputRef.current?.click()}
-                                                className="w-full bg-transparent"
+                                                className="w-full"
                                             >
                                                 เปลี่ยนรูปภาพ
                                             </Button>
@@ -394,7 +527,7 @@ export default function CreateStory() {
                                     <div className="relative bg-black rounded-lg overflow-hidden aspect-[9/16] max-w-[200px] mx-auto">
                                         {previewImage ? (
                                             <img
-                                                src={previewImage || "/placeholder.svg"}
+                                                src={previewImage || "@/public/placeholder.svg"}
                                                 alt="Story preview"
                                                 className="w-full h-full object-cover"
                                             />
@@ -479,8 +612,8 @@ export default function CreateStory() {
                             <div className="space-y-3">
                                 <Button
                                     type="submit"
-                                    className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-                                    disabled={isSubmitting}
+                                    className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white"
+                                    disabled={isSubmitting || organizerRequests.length === 0 || !formData.image}
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -495,8 +628,13 @@ export default function CreateStory() {
                                     )}
                                 </Button>
 
-                                <Button type="button" variant="outline" className="w-full bg-transparent">
-                                    บันทึกร่าง
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    className="w-full"
+                                    onClick={() => router.back()}
+                                >
+                                    ยกเลิก
                                 </Button>
                             </div>
 

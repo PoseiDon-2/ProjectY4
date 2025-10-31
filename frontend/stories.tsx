@@ -5,151 +5,7 @@ import { useRouter } from "next/navigation"
 import { Play, Pause, X, Heart, Share2, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-
-interface Story {
-    id: number
-    donationRequestId: number
-    title: string
-    type: "progress" | "milestone" | "thank_you" | "completion"
-    content: string
-    image: string
-    timestamp: string
-    author: string
-    isViewed: boolean
-    duration: number // seconds
-}
-
-interface StoryGroup {
-    donationRequestId: number
-    donationTitle: string
-    organizer: string
-    avatar: string
-    stories: Story[]
-    hasUnviewed: boolean
-}
-
-const storyGroups: StoryGroup[] = [
-    {
-        donationRequestId: 1,
-        donationTitle: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
-        organizer: "สมชาย ใจดี",
-        avatar: "/placeholder.svg?height=60&width=60",
-        hasUnviewed: true,
-        stories: [
-            {
-                id: 1,
-                donationRequestId: 1,
-                title: "เริ่มซ่อมแซมบ้าน",
-                type: "progress",
-                content: "วันนี้ได้เริ่มซ่อมแซมหลังคาและผนังที่เสียหายจากน้ำท่วมแล้วครับ ขอบคุณทุกท่านที่ให้ความช่วยเหลือ",
-                image: "/placeholder.svg?height=600&width=400",
-                timestamp: "2024-01-15T10:00:00Z",
-                author: "สมชาย ใจดี",
-                isViewed: false,
-                duration: 5,
-            },
-            {
-                id: 2,
-                donationRequestId: 1,
-                title: "ความคืบหน้า 50%",
-                type: "milestone",
-                content: "ระดมทุนได้ครึ่งหนึ่งแล้ว! ขอบคุณผู้บริจาคทุกท่าน เรากำลังใกล้เป้าหมายแล้ว",
-                image: "/placeholder.svg?height=600&width=400",
-                timestamp: "2024-01-14T15:30:00Z",
-                author: "สมชาย ใจดี",
-                isViewed: false,
-                duration: 4,
-            },
-            {
-                id: 3,
-                donationRequestId: 1,
-                title: "ขอบคุณผู้บริจาค",
-                type: "thank_you",
-                content: "ขอบพระคุณทุกท่านที่ให้ความช่วยเหลือครอบครัวเรา ความช่วยเหลือของทุกท่านมีความหมายมากสำหรับเรา",
-                image: "/placeholder.svg?height=600&width=400",
-                timestamp: "2024-01-13T09:15:00Z",
-                author: "สมชาย ใจดี",
-                isViewed: true,
-                duration: 6,
-            },
-        ],
-    },
-    {
-        donationRequestId: 2,
-        donationTitle: "ระดมทุนผ่าตัดหัวใจเด็ก",
-        organizer: "มูลนิธิเด็กไทย",
-        avatar: "/placeholder.svg?height=60&width=60",
-        hasUnviewed: true,
-        stories: [
-            {
-                id: 4,
-                donationRequestId: 2,
-                title: "น้องเข้าโรงพยาบาล",
-                type: "milestone",
-                content: "น้องมายด์เข้าโรงพยาบาลเพื่อเตรียมผ่าตัดแล้ว แพทย์บอกว่าการผ่าตัดจะดำเนินการในสัปดาห์หน้า",
-                image: "/placeholder.svg?height=600&width=400",
-                timestamp: "2024-01-15T14:00:00Z",
-                author: "มูลนิธิเด็กไทย",
-                isViewed: false,
-                duration: 5,
-            },
-            {
-                id: 5,
-                donationRequestId: 2,
-                title: "เป้าหมายใกล้สำเร็จ",
-                type: "progress",
-                content: "ระดมทุนได้ 80% แล้ว! อีกเพียงเล็กน้อยน้องจะได้รับการรักษา",
-                image: "/placeholder.svg?height=600&width=400",
-                timestamp: "2024-01-14T11:20:00Z",
-                author: "มูลนิธิเด็กไทย",
-                isViewed: false,
-                duration: 4,
-            },
-        ],
-    },
-    {
-        donationRequestId: 3,
-        donationTitle: "สร้างห้องสมุดให้โรงเรียนชนบท",
-        organizer: "โรงเรียนบ้านดอนตาล",
-        avatar: "/placeholder.svg?height=60&width=60",
-        hasUnviewed: false,
-        stories: [
-            {
-                id: 6,
-                donationRequestId: 3,
-                title: "เริ่มก่อสร้าง",
-                type: "progress",
-                content: "เริ่มก่อสร้างห้องสมุดแล้ว! เด็กๆ ตื่นเต้นมาก รอไม่ไหวที่จะได้อ่านหนังสือใหม่ๆ",
-                image: "/placeholder.svg?height=600&width=400",
-                timestamp: "2024-01-12T08:00:00Z",
-                author: "โรงเรียนบ้านดอนตาล",
-                isViewed: true,
-                duration: 5,
-            },
-        ],
-    },
-    {
-        donationRequestId: 4,
-        donationTitle: "อาหารสำหรับสุนัขจรจัด",
-        organizer: "มูลนิธิรักษ์สัตว์",
-        avatar: "/placeholder.svg?height=60&width=60",
-        hasUnviewed: true,
-        stories: [
-            {
-                id: 7,
-                donationRequestId: 4,
-                title: "สุนัขได้อาหารแล้ว",
-                type: "thank_you",
-                content: "ขอบคุณผู้บริจาคทุกท่าน สุนัขน้อยๆ ได้กินอาหารอร่อยแล้ว หางส่ายไม่หยุด!",
-                image: "/placeholder.svg?height=600&width=400",
-                timestamp: "2024-01-15T16:45:00Z",
-                author: "มูลนิธิรักษ์สัตว์",
-                isViewed: false,
-                duration: 4,
-            },
-        ],
-    },
-]
+import { useStories } from "@/hooks/useStories"
 
 interface StoriesProps {
     initialGroupIndex?: number
@@ -158,6 +14,7 @@ interface StoriesProps {
 
 export default function Stories({ initialGroupIndex = 0, initialStoryIndex = 0 }: StoriesProps) {
     const router = useRouter()
+    const { storyGroups, loading, error, recordView } = useStories()
     const [currentGroupIndex, setCurrentGroupIndex] = useState(initialGroupIndex)
     const [currentStoryIndex, setCurrentStoryIndex] = useState(initialStoryIndex)
     const [progress, setProgress] = useState(0)
@@ -166,6 +23,13 @@ export default function Stories({ initialGroupIndex = 0, initialStoryIndex = 0 }
 
     const currentGroup = storyGroups[currentGroupIndex]
     const currentStory = currentGroup?.stories[currentStoryIndex]
+
+    // บันทึกการดูเมื่อเปลี่ยน story
+    useEffect(() => {
+        if (currentStory) {
+            recordView(currentStory.id.toString())
+        }
+    }, [currentStory])
 
     useEffect(() => {
         if (!isPlaying || !currentStory) return
@@ -252,8 +116,50 @@ export default function Stories({ initialGroupIndex = 0, initialStoryIndex = 0 }
         return `${Math.floor(diffInHours / 24)} วันที่แล้ว`
     }
 
-    if (!currentStory) {
-        return null
+    // Loading state
+    if (loading) {
+        return (
+            <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+                <div className="text-white text-lg">กำลังโหลด Stories...</div>
+            </div>
+        )
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+                <div className="text-white text-lg text-center">
+                    <p>เกิดข้อผิดพลาดในการโหลด Stories</p>
+                    <p className="text-sm text-gray-400 mt-2">{error}</p>
+                    <Button
+                        onClick={() => window.location.reload()}
+                        className="mt-4"
+                        variant="outline"
+                    >
+                        โหลดใหม่
+                    </Button>
+                </div>
+            </div>
+        )
+    }
+
+    // No stories state
+    if (!currentStory || storyGroups.length === 0) {
+        return (
+            <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+                <div className="text-white text-lg text-center">
+                    <p>ไม่มี Stories ในขณะนี้</p>
+                    <Button
+                        onClick={() => router.back()}
+                        className="mt-4"
+                        variant="outline"
+                    >
+                        กลับ
+                    </Button>
+                </div>
+            </div>
+        )
     }
 
     return (

@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\DonationRequestController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AdminRequestController;
+use App\Http\Controllers\Api\StoryController;
+use App\Http\Controllers\Api\StoryStatController;
 use Illuminate\Http\Request;
 use App\Enums\UserRole;
 
@@ -34,6 +36,227 @@ Route::middleware(['auth:sanctum'])->prefix('donation-requests')->group(function
     Route::post('/', [DonationRequestController::class, 'store']);
     Route::put('/{id}', [DonationRequestController::class, 'update']);
     Route::delete('/{id}', [DonationRequestController::class, 'destroy']);
+});
+
+// === STORIES APIs ===
+Route::prefix('stories')->group(function () {
+    // Public stories routes
+    Route::get('/', [StoryController::class, 'publicIndex']);
+    Route::get('/{id}', [StoryController::class, 'publicShow']);
+    Route::get('/donation-request/{donationRequestId}', [StoryController::class, 'getStoriesByDonationRequest']);
+});
+
+Route::middleware(['auth:sanctum'])->prefix('stories')->group(function () {
+    // Story interactions
+    Route::post('/{id}/view', [StoryController::class, 'recordView']);
+    Route::post('/{id}/like', [StoryController::class, 'toggleLike']);
+});
+
+// === ORGANIZER STORIES MANAGEMENT APIs ===
+Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
+    // Stories management
+    Route::get('/stories', function (Request $request) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(StoryController::class)->index($request);
+        } catch (\Exception $e) {
+            \Log::error('Organizer stories error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    Route::post('/stories', function (Request $request) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(StoryController::class)->store($request);
+        } catch (\Exception $e) {
+            \Log::error('Create story error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    Route::get('/stories/{id}', function (Request $request, $id) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(StoryController::class)->show($request, $id);
+        } catch (\Exception $e) {
+            \Log::error('Get story error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    Route::put('/stories/{id}', function (Request $request, $id) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(StoryController::class)->update($request, $id);
+        } catch (\Exception $e) {
+            \Log::error('Update story error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    Route::delete('/stories/{id}', function (Request $request, $id) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(StoryController::class)->destroy($request, $id);
+        } catch (\Exception $e) {
+            \Log::error('Delete story error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+    
+    // Story stats
+    Route::get('/stats', function (Request $request) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(StoryStatController::class)->index($request);
+        } catch (\Exception $e) {
+            \Log::error('Story stats error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+
+    // === ORGANIZER DONATION REQUESTS FOR STORY CREATION ===
+    Route::get('/donation-requests', function (Request $request) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(DonationRequestController::class)->getOrganizerRequestsForStories($request);
+        } catch (\Exception $e) {
+            \Log::error('Get organizer donation requests error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+
+    // === ORGANIZER DASHBOARD STATS ===
+    Route::get('/dashboard-stats', function (Request $request) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+            
+            return app(DonationRequestController::class)->getOrganizerDashboardStats($request);
+        } catch (\Exception $e) {
+            \Log::error('Organizer dashboard stats error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
 });
 
 // === ADMIN APIs ===
@@ -251,4 +474,75 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
+});
+
+// === FILE UPLOAD APIs ===
+Route::middleware(['auth:sanctum'])->prefix('upload')->group(function () {
+    Route::post('/story-image', function (Request $request) {
+        try {
+            $user = $request->user();
+            $userRole = $user->role;
+            
+            if ($userRole instanceof \App\Enums\UserRole) {
+                $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
+            } else {
+                $isOrganizer = in_array(strtoupper($userRole), ['ORGANIZER']);
+            }
+
+            if (!$isOrganizer) {
+                return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
+            }
+
+            $request->validate([
+                'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB
+            ]);
+
+            if ($request->hasFile('image')) {
+                $imagePath = $request->file('image')->store('story-images', 'public');
+                $imageUrl = Storage::url($imagePath);
+
+                return response()->json([
+                    'success' => true,
+                    'url' => $imageUrl,
+                    'message' => 'Image uploaded successfully'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No image file provided'
+            ], 400);
+
+        } catch (\Exception $e) {
+            \Log::error('Image upload error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    });
+});
+
+// === HEALTH CHECK ===
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'OK',
+        'timestamp' => now()->toISOString(),
+        'service' => 'Donation API'
+    ]);
+});
+
+// === FALLBACK ROUTE ===
+Route::fallback(function () {
+    return response()->json([
+        'message' => 'API endpoint not found. Please check the documentation.',
+        'available_endpoints' => [
+            'auth' => '/api/auth/*',
+            'donation-requests' => '/api/donation-requests/*',
+            'stories' => '/api/stories/*',
+            'organizer' => '/api/organizer/*',
+            'admin' => '/api/admin/*',
+            'upload' => '/api/upload/*'
+        ]
+    ], 404);
 });

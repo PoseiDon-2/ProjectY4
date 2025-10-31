@@ -14,13 +14,28 @@ class Story extends Model
     protected $table = 'stories';
 
     protected $fillable = [
-        'id', 'title', 'content', 'slug', 'images', 'videos', 'status',
-        'author_id', 'donation_request_id', 'published_at', 'views'
+        'id',
+        'title',
+        'content',
+        'slug',
+        'images',
+        'videos',
+        'status',
+        'author_id',
+        'donation_request_id',
+        'published_at',
+        'views'
     ];
 
     protected $casts = [
         'status' => StoryStatus::class,
         'published_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+
+        // ต้องมี 2 บรรทัดนี้
+        'images' => 'array',
+        'videos' => 'array',
     ];
 
     public function author(): BelongsTo

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\DonationRequest;
 use App\Models\Category;
 use App\Models\Organization;
+use App\Models\Donation;
+use App\Models\Story;
 use App\Enums\DonationRequestStatus;
 use App\Enums\UrgencyLevel;
 use App\Enums\UserRole;
@@ -13,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class DonationRequestController extends Controller
 {
@@ -54,9 +57,9 @@ class DonationRequestController extends Controller
         // Search by title or description
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', '%' . $search . '%')
-                  ->orWhere('description', 'like', '%' . $search . '%');
+                    ->orWhere('description', 'like', '%' . $search . '%');
             });
         }
 
@@ -112,6 +115,293 @@ class DonationRequestController extends Controller
             ->paginate(15);
 
         return response()->json($requests);
+    }
+
+    /**
+     * Get organizer's donation requests for story creation
+     */
+    public function getOrganizerRequestsForStories(Request $request)
+    {
+        $user = Auth::user();
+
+        if ($user->role !== UserRole::ORGANIZER) {
+            return response()->json([
+                'error' => 'Only organizers can access this endpoint'
+            ], 403);
+        }
+
+        try {
+            $requests = DonationRequest::with(['organizer']) // โหลด organizer relationship
+                ->where('organizer_id', $user->id)
+                ->where('status', DonationRequestStatus::APPROVED)
+                ->select('id', 'title', 'current_amount', 'goal_amount', 'created_at')
+                ->withCount(['donations as supporters' => function ($query) {
+                    $query->select(DB::raw('COUNT(DISTINCT donor_id)')); // แก้ไขจาก user_id เป็น donor_id
+                }])
+                ->get()
+                ->map(function ($request) use ($user) { // ใช้ $user จาก Auth
+                    // ใช้ข้อมูลจาก organizer relationship หรือใช้ข้อมูลจาก user ปัจจุบัน
+                    $organizerName = $request->organizer
+                        ? ($request->organizer->organization_name ?? $request->organizer->name)
+                        : ($user->organization_name ?? "{$user->first_name} {$user->last_name}");
+
+                    return [
+                        'id' => $request->id,
+                        'title' => $request->title,
+                        'organizer' => $organizerName,
+                        'currentAmount' => (float) $request->current_amount,
+                        'goalAmount' => (float) $request->goal_amount,
+                        'supporters' => $request->supporters,
+                        'createdAt' => $request->created_at->toISOString(),
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $requests
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getOrganizerRequestsForStories: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+
+            // Fallback: ใช้วิธีที่ไม่ต้องพึ่ง donations table และ organizer relationship
+            $requests = DonationRequest::where('organizer_id', $user->id)
+                ->where('status', DonationRequestStatus::APPROVED)
+                ->select('id', 'title', 'current_amount', 'goal_amount', 'created_at', 'supporters')
+                ->get()
+                ->map(function ($request) use ($user) {
+                    return [
+                        'id' => $request->id,
+                        'title' => $request->title,
+                        'organizer' => $user->organization_name ?? "{$user->first_name} {$user->last_name}",
+                        'currentAmount' => (float) $request->current_amount,
+                        'goalAmount' => (float) $request->goal_amount,
+                        'supporters' => $request->supporters ?? 0, // ใช้ค่าจาก column supporters
+                        'createdAt' => $request->created_at->toISOString(),
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $requests,
+                'note' => 'Using fallback method'
+            ]);
+        }
+    }
+
+    /**
+     * Get organizer dashboard statistics
+     */
+    public function getOrganizerDashboardStats(Request $request)
+    {
+        $user = Auth::user();
+
+        if ($user->role !== UserRole::ORGANIZER) {
+            return response()->json([
+                'error' => 'Only organizers can access this endpoint'
+            ], 403);
+        }
+
+        try {
+            $stats = [
+                'totalRequests' => DonationRequest::where('organizer_id', $user->id)->count(),
+                'approvedRequests' => DonationRequest::where('organizer_id', $user->id)
+                    ->where('status', DonationRequestStatus::APPROVED)->count(),
+                'pendingRequests' => DonationRequest::where('organizer_id', $user->id)
+                    ->where('status', DonationRequestStatus::PENDING)->count(),
+                'rejectedRequests' => DonationRequest::where('organizer_id', $user->id)
+                    ->where('status', DonationRequestStatus::REJECTED)->count(),
+                'totalDonations' => Donation::whereHas('donationRequest', function ($query) use ($user) {
+                    $query->where('organizer_id', $user->id);
+                })->sum('amount'),
+                'totalSupporters' => Donation::whereHas('donationRequest', function ($query) use ($user) {
+                    $query->where('organizer_id', $user->id);
+                })->distinct('donor_id')->count('donor_id'), // แก้ไขจาก user_id เป็น donor_id
+                'totalStories' => Story::whereHas('donationRequest', function ($query) use ($user) {
+                    $query->where('organizer_id', $user->id);
+                })->count(),
+                'totalViews' => Story::whereHas('donationRequest', function ($query) use ($user) {
+                    $query->where('organizer_id', $user->id);
+                })->sum('views'),
+                'totalLikes' => Story::whereHas('donationRequest', function ($query) use ($user) {
+                    $query->where('organizer_id', $user->id);
+                })->sum('likes'),
+            ];
+
+            // Calculate engagement rate
+            $stats['engagementRate'] = $stats['totalViews'] > 0
+                ? round(($stats['totalLikes'] / $stats['totalViews']) * 100, 2)
+                : 0;
+
+            // Recent activity - last 5 stories
+            $stats['recentStories'] = Story::whereHas('donationRequest', function ($query) use ($user) {
+                $query->where('organizer_id', $user->id);
+            })
+                ->with('donationRequest')
+                ->orderBy('created_at', 'desc')
+                ->limit(5)
+                ->get()
+                ->map(function ($story) {
+                    return [
+                        'id' => $story->id,
+                        'title' => $story->title,
+                        'type' => $story->type,
+                        'views' => $story->views,
+                        'likes' => $story->likes,
+                        'createdAt' => $story->created_at->toISOString(),
+                        'donationRequest' => [
+                            'id' => $story->donationRequest->id,
+                            'title' => $story->donationRequest->title,
+                        ]
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getOrganizerDashboardStats: ' . $e->getMessage());
+
+            // Fallback stats
+            $stats = [
+                'totalRequests' => DonationRequest::where('organizer_id', $user->id)->count(),
+                'approvedRequests' => DonationRequest::where('organizer_id', $user->id)
+                    ->where('status', DonationRequestStatus::APPROVED)->count(),
+                'pendingRequests' => DonationRequest::where('organizer_id', $user->id)
+                    ->where('status', DonationRequestStatus::PENDING)->count(),
+                'rejectedRequests' => DonationRequest::where('organizer_id', $user->id)
+                    ->where('status', DonationRequestStatus::REJECTED)->count(),
+                'totalDonations' => 0,
+                'totalSupporters' => 0,
+                'totalStories' => Story::whereHas('donationRequest', function ($query) use ($user) {
+                    $query->where('organizer_id', $user->id);
+                })->count(),
+                'totalViews' => 0,
+                'totalLikes' => 0,
+                'engagementRate' => 0,
+                'recentStories' => []
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats,
+                'note' => 'Using simplified stats due to error'
+            ]);
+        }
+    }
+
+    /**
+     * Get donation requests with stories for organizer
+     */
+    public function getOrganizerRequestsWithStories(Request $request)
+    {
+        $user = Auth::user();
+
+        if ($user->role !== UserRole::ORGANIZER) {
+            return response()->json([
+                'error' => 'Only organizers can access this endpoint'
+            ], 403);
+        }
+
+        $donationRequestId = $request->get('donation_request_id');
+
+        $query = DonationRequest::with(['stories' => function ($query) {
+            $query->orderBy('created_at', 'desc');
+        }])
+            ->where('organizer_id', $user->id)
+            ->where('status', DonationRequestStatus::APPROVED);
+
+        if ($donationRequestId) {
+            $query->where('id', $donationRequestId);
+        }
+
+        $requests = $query->get()
+            ->map(function ($request) use ($user) {
+                // ใช้ข้อมูลจาก organizer หรือใช้ข้อมูลจาก user ปัจจุบัน
+                $organizerName = $request->organizer
+                    ? ($request->organizer->organization_name ?? $request->organizer->name)
+                    : ($user->organization_name ?? "{$user->first_name} {$user->last_name}");
+
+                return [
+                    'id' => $request->id,
+                    'title' => $request->title,
+                    'organizer' => $organizerName,
+                    'stories' => $request->stories->map(function ($story) {
+                        return [
+                            'id' => $story->id,
+                            'donationRequestId' => $story->donation_request_id,
+                            'title' => $story->title,
+                            'content' => $story->content,
+                            'type' => $story->type,
+                            'image_url' => $story->image_url,
+                            'duration' => $story->duration,
+                            'views' => $story->views,
+                            'likes' => $story->likes,
+                            'is_published' => $story->is_published,
+                            'created_at' => $story->created_at->toISOString(),
+                            'updated_at' => $story->updated_at->toISOString(),
+                        ];
+                    })
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $requests
+        ]);
+    }
+
+    /**
+     * Get donation request statistics for a specific organizer request
+     */
+    public function getRequestStats($id)
+    {
+        $user = Auth::user();
+        $donationRequest = DonationRequest::where('id', $id)
+            ->where('organizer_id', $user->id)
+            ->firstOrFail();
+
+        $stats = [
+            'request' => [
+                'id' => $donationRequest->id,
+                'title' => $donationRequest->title,
+                'currentAmount' => (float) $donationRequest->current_amount,
+                'goalAmount' => (float) $donationRequest->goal_amount,
+                'progressPercentage' => $donationRequest->goal_amount > 0
+                    ? round(($donationRequest->current_amount / $donationRequest->goal_amount) * 100, 2)
+                    : 0,
+            ],
+            'stories' => [
+                'total' => $donationRequest->stories()->count(),
+                'published' => $donationRequest->stories()->where('is_published', true)->count(),
+                'drafts' => $donationRequest->stories()->where('is_published', false)->count(),
+                'totalViews' => $donationRequest->stories()->sum('views'),
+                'totalLikes' => $donationRequest->stories()->sum('likes'),
+                'engagementRate' => $donationRequest->stories()->sum('views') > 0
+                    ? round(($donationRequest->stories()->sum('likes') / $donationRequest->stories()->sum('views')) * 100, 2)
+                    : 0,
+            ],
+            'recentStories' => $donationRequest->stories()
+                ->orderBy('created_at', 'desc')
+                ->limit(3)
+                ->get()
+                ->map(function ($story) {
+                    return [
+                        'id' => $story->id,
+                        'title' => $story->title,
+                        'type' => $story->type,
+                        'views' => $story->views,
+                        'likes' => $story->likes,
+                        'createdAt' => $story->created_at->toISOString(),
+                    ];
+                })
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $stats
+        ]);
     }
 
     /**
@@ -201,10 +491,12 @@ class DonationRequestController extends Controller
                     'messages' => ['goal_amount' => ['เป้าหมายการระดมทุนต้องไม่น้อยกว่า 1,000 บาท']]
                 ], 422);
             }
-            if (empty($data['bank_account']) ||
+            if (
+                empty($data['bank_account']) ||
                 empty($data['bank_account']['bank']) ||
                 empty($data['bank_account']['account_number']) ||
-                empty($data['bank_account']['account_name'])) {
+                empty($data['bank_account']['account_name'])
+            ) {
                 return response()->json([
                     'error' => 'Validation failed',
                     'messages' => ['bank_account' => ['กรุณากรอกข้อมูลบัญชีธนาคารให้ครบถ้วน']]
@@ -433,5 +725,49 @@ class DonationRequestController extends Controller
     {
         $categories = Category::all();
         return response()->json($categories);
+    }
+
+    /**
+     * Get donation request progress for organizer
+     */
+    public function getRequestProgress($id)
+    {
+        $user = Auth::user();
+
+        try {
+            $donationRequest = DonationRequest::where('id', $id)
+                ->where('organizer_id', $user->id)
+                ->firstOrFail();
+
+            $progress = [
+                'id' => $donationRequest->id,
+                'title' => $donationRequest->title,
+                'currentAmount' => (float) $donationRequest->current_amount,
+                'goalAmount' => (float) $donationRequest->goal_amount,
+                'progressPercentage' => $donationRequest->goal_amount > 0
+                    ? round(($donationRequest->current_amount / $donationRequest->goal_amount) * 100, 2)
+                    : 0,
+                'supporters' => $donationRequest->donations()->distinct('donor_id')->count(), // แก้ไขจาก user_id เป็น donor_id
+                'daysRemaining' => $donationRequest->expires_at
+                    ? max(0, now()->diffInDays($donationRequest->expires_at, false))
+                    : null,
+                'storiesCount' => $donationRequest->stories()->count(),
+                'totalViews' => $donationRequest->stories()->sum('views'),
+                'totalLikes' => $donationRequest->stories()->sum('likes'),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $progress
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getRequestProgress: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get request progress',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 }

@@ -10,7 +10,7 @@ interface ShareModalProps {
     isOpen: boolean
     onClose: () => void
     donationRequest: {
-        id: number
+        id: string // เปลี่ยนจาก number เป็น string
         title: string
         description: string
         category: string
@@ -38,6 +38,15 @@ export default function ShareModal({ isOpen, onClose, donationRequest }: ShareMo
             setTimeout(() => setCopied(false), 2000)
         } catch (err) {
             console.error("Failed to copy: ", err)
+            // Fallback for older browsers
+            const textArea = document.createElement("textarea")
+            textArea.value = shareUrl
+            document.body.appendChild(textArea)
+            textArea.select()
+            document.execCommand("copy")
+            document.body.removeChild(textArea)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
         }
     }
 
@@ -71,7 +80,7 @@ export default function ShareModal({ isOpen, onClose, donationRequest }: ShareMo
     }
 
     const generateQRCode = () => {
-        // In a real app, you'd use a QR code library or API
+        // ใช้ QR code service
         return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`
     }
 
@@ -98,6 +107,10 @@ export default function ShareModal({ isOpen, onClose, donationRequest }: ShareMo
                                 src={donationRequest.image || "/placeholder.svg"}
                                 alt={donationRequest.title}
                                 className="w-16 h-16 rounded-lg object-cover"
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.src = "/placeholder.svg?height=64&width=64"
+                                }}
                             />
                             <div className="flex-1 min-w-0">
                                 <h4 className="font-medium text-sm text-gray-800 line-clamp-2">{donationRequest.title}</h4>
@@ -113,7 +126,9 @@ export default function ShareModal({ isOpen, onClose, donationRequest }: ShareMo
                     <div className="space-y-3">
                         <h4 className="font-medium text-gray-800">คัดลอกลิงก์</h4>
                         <div className="flex gap-2">
-                            <div className="flex-1 px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-600 truncate">{shareUrl}</div>
+                            <div className="flex-1 px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-600 truncate font-mono">
+                                {shareUrl}
+                            </div>
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -204,6 +219,10 @@ export default function ShareModal({ isOpen, onClose, donationRequest }: ShareMo
                                             src={generateQRCode() || "/placeholder.svg"}
                                             alt="QR Code สำหรับแชร์"
                                             className="w-32 h-32 mx-auto"
+                                            onError={(e) => {
+                                                const target = e.target as HTMLImageElement
+                                                target.src = "/placeholder.svg?height=128&width=128"
+                                            }}
                                         />
                                     </div>
                                     <p className="text-sm text-gray-600 mt-2">สแกน QR Code เพื่อเปิดลิงก์</p>
