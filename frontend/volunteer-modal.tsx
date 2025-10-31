@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { pointsSystem } from "@/lib/points-system"
-import { useAuth } from "./src/app/auth-context"
+import { useAuth } from "@/app/auth-context"
 import { toast } from "@/hooks/use-toast"
 
 interface VolunteerModalProps {
@@ -107,7 +107,10 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
         await new Promise((resolve) => setTimeout(resolve, 2000))
 
         if (user) {
-            const earnedPoints = pointsSystem.awardVolunteerPoints(user.id)
+            // Calculate points based on volunteer hours (estimated from duration)
+            const estimatedHours = duration === "half-day" ? 4 : duration === "full-day" ? 8 : duration === "multiple-days" ? 16 : 4
+            const earnedPoints = pointsSystem.calculateDonationPoints(estimatedHours, "volunteer")
+            pointsSystem.addPoints(user.id, earnedPoints, "donation", `Volunteer application: ${donation.title}`, `volunteer_${Date.now()}`)
             setPointsEarned(earnedPoints)
 
             const volunteerRecord = {
@@ -353,7 +356,7 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
                                 <h4 className="font-medium text-gray-800">พาหนะส่วนตัว</h4>
 
                                 <div className="flex items-center gap-2">
-                                    <Checkbox id="hasVehicle" checked={hasVehicle} onCheckedChange={setHasVehicle} />
+                                    <Checkbox id="hasVehicle" checked={hasVehicle} onCheckedChange={(checked) => setHasVehicle(checked === true)} />
                                     <Label htmlFor="hasVehicle" className="text-sm">
                                         มีพาหนะส่วนตัว
                                     </Label>

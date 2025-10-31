@@ -142,15 +142,15 @@ const storyGroups = [
 ]
 
 // เพิ่มข้อมูล Stories
-const requestStories: { [key: number]: any } = {
-    1: { hasStories: true, storyCount: 3, hasUnviewed: true },
-    2: { hasStories: true, storyCount: 2, hasUnviewed: true },
-    3: { hasStories: true, storyCount: 1, hasUnviewed: false },
-    4: { hasStories: true, storyCount: 1, hasUnviewed: true },
-    5: { hasStories: false, storyCount: 0, hasUnviewed: false },
-    6: { hasStories: false, storyCount: 0, hasUnviewed: false },
-    7: { hasStories: false, storyCount: 0, hasUnviewed: false },
-    8: { hasStories: false, storyCount: 0, hasUnviewed: false },
+const requestStories: { [key: string]: any } = {
+    "1": { hasStories: true, storyCount: 3, hasUnviewed: true },
+    "2": { hasStories: true, storyCount: 2, hasUnviewed: true },
+    "3": { hasStories: true, storyCount: 1, hasUnviewed: false },
+    "4": { hasStories: true, storyCount: 1, hasUnviewed: true },
+    "5": { hasStories: false, storyCount: 0, hasUnviewed: false },
+    "6": { hasStories: false, storyCount: 0, hasUnviewed: false },
+    "7": { hasStories: false, storyCount: 0, hasUnviewed: false },
+    "8": { hasStories: false, storyCount: 0, hasUnviewed: false },
 }
 
 export default function DonationList() {
@@ -198,11 +198,14 @@ export default function DonationList() {
         filtered.sort((a, b) => {
             switch (sortBy) {
                 case "newest":
-                    return b.id - a.id
+                    // Compare string IDs by converting to numbers if possible, or use string comparison
+                    const aId = Number.parseInt(a.id) || 0
+                    const bId = Number.parseInt(b.id) || 0
+                    return bId - aId
                 case "urgent":
                     return a.daysLeft - b.daysLeft
                 case "progress":
-                    return b.currentAmount / b.goalAmount - a.currentAmount / a.goalAmount
+                    return (b.currentAmount / (b.goalAmount || 1)) - (a.currentAmount / (a.goalAmount || 1))
                 case "amount_low":
                     return a.goalAmount - b.goalAmount
                 case "amount_high":
@@ -335,9 +338,9 @@ export default function DonationList() {
                         {storyGroups.map((group, index) => (
                             <StoryPreview
                                 key={group.donationRequestId}
-                                donationRequestId={group.donationRequestId}
+                                donationRequestId={group.donationRequestId.toString()}
                                 organizer={group.organizer}
-                                avatar={group.avatar}
+                                storyImage={group.avatar}
                                 hasUnviewed={group.hasUnviewed}
                                 storyCount={group.storyCount}
                                 onClick={() => router.push(`/stories?group=${index}&story=0`)}
@@ -424,11 +427,11 @@ export default function DonationList() {
                                                 <div className="flex items-center gap-2 text-xs">
                                                     <div className="flex items-center gap-1">
                                                         <div
-                                                            className={`w-2 h-2 rounded-full ${requestStories[request.id].hasUnviewed ? "bg-pink-500" : "bg-gray-300"}`}
+                                                            className={`w-2 h-2 rounded-full ${requestStories[request.id]?.hasUnviewed ? "bg-pink-500" : "bg-gray-300"}`}
                                                         />
                                                         <span className="text-gray-600">
-                                                            📖 {requestStories[request.id].storyCount} Stories
-                                                            {requestStories[request.id].hasUnviewed && (
+                                                            📖 {requestStories[request.id]?.storyCount || 0} Stories
+                                                            {requestStories[request.id]?.hasUnviewed && (
                                                                 <span className="text-pink-600 ml-1">• ใหม่</span>
                                                             )}
                                                         </span>

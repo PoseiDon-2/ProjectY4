@@ -1,6 +1,6 @@
 "use client"
 
-import type { Receipt } from "@/types/receipt"
+import type { ReceiptData } from "@/types/receipt"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { receiptSystem } from "@/lib/receipt-system"
 import { Download, Package, CreditCard, Users, Eye } from "lucide-react"
 
 interface ReceiptDetailModalProps {
-    receipt: Receipt | null
+    receipt: ReceiptData | null
     isOpen: boolean
     onClose: () => void
 }
@@ -28,7 +28,7 @@ export default function ReceiptDetailModal({ receipt, isOpen, onClose }: Receipt
         })
     }
 
-    const getTypeIcon = (type: Receipt["type"]) => {
+    const getTypeIcon = (type: ReceiptData["type"]) => {
         switch (type) {
             case "money":
                 return <CreditCard className="w-6 h-6 text-green-600" />
@@ -124,7 +124,7 @@ export default function ReceiptDetailModal({ receipt, isOpen, onClose }: Receipt
                                         <div>
                                             <span className="text-sm text-gray-600">รายการสิ่งของ:</span>
                                             <div className="space-y-1">
-                                                {receipt.items?.map((item, index) => (
+                                                {receipt.items?.map((item: { name: string; quantity: number; status?: string }, index: number) => (
                                                     <div key={index} className="flex justify-between items-center">
                                                         <span className="text-sm">
                                                             {item.name} x{item.quantity}
@@ -163,7 +163,7 @@ export default function ReceiptDetailModal({ receipt, isOpen, onClose }: Receipt
                                             <div>
                                                 <span className="text-sm text-gray-600">ทักษะ:</span>
                                                 <div className="flex flex-wrap gap-1 mt-1">
-                                                    {receipt.volunteerSkills.map((skill, index) => (
+                                                    {receipt.volunteerSkills.map((skill: string, index: number) => (
                                                         <Badge key={index} variant="secondary" className="text-xs">
                                                             {skill}
                                                         </Badge>
@@ -194,7 +194,7 @@ export default function ReceiptDetailModal({ receipt, isOpen, onClose }: Receipt
                             <div className="space-y-4">
                                 <h3 className="font-semibold text-gray-900 border-b pb-2">สลิปที่แนบมา</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {receipt.attachments.map((attachment, index) => (
+                                    {receipt.attachments.map((attachment: { url: string; filename?: string }, index: number) => (
                                         <div key={index} className="relative group">
                                             <img
                                                 src={attachment.url || "/placeholder.svg"}
@@ -209,7 +209,7 @@ export default function ReceiptDetailModal({ receipt, isOpen, onClose }: Receipt
                                                 </div>
                                             </div>
                                             <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                                                {index + 1}/{receipt.attachments.length}
+                                                {index + 1}/{receipt.attachments?.length || 0}
                                             </div>
                                         </div>
                                     ))}

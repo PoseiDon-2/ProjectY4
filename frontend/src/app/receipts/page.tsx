@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Receipt, ReceiptFilter } from "@/types/receipt"
+import type { ReceiptData, ReceiptFilter } from "@/types/receipt"
 import { receiptSystem } from "@/lib/receipt-system"
 import { useAuth } from "../auth-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,12 +14,12 @@ import { ArrowLeft, Search, Filter, Download, FileText, Package, CreditCard, Use
 import { useRouter } from "next/navigation"
 
 export default function ReceiptsPage() {
-    const [receipts, setReceipts] = useState<Receipt[]>([])
-    const [filteredReceipts, setFilteredReceipts] = useState<Receipt[]>([])
-    const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null)
+    const [receipts, setReceipts] = useState<ReceiptData[]>([])
+    const [filteredReceipts, setFilteredReceipts] = useState<ReceiptData[]>([])
+    const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null)
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
-    const [filter, setFilter] = useState<ReceiptFilter>({ type: "", status: "", dateFrom: null, dateTo: null })
+    const [filter, setFilter] = useState<ReceiptFilter>({})
     const [isLoading, setIsLoading] = useState(true)
 
     const { user } = useAuth()
@@ -76,7 +76,7 @@ export default function ReceiptsPage() {
         setFilteredReceipts(filtered)
     }
 
-    const handleViewDetails = (receipt: Receipt) => {
+    const handleViewDetails = (receipt: ReceiptData) => {
         setSelectedReceipt(receipt)
         setIsDetailModalOpen(true)
     }
@@ -204,7 +204,7 @@ export default function ReceiptsPage() {
 
                             <Select
                                 value={filter.type || "all"}
-                                onValueChange={(value) => setFilter({ ...filter, type: value as any })}
+                                onValueChange={(value) => setFilter({ ...filter, type: value === "all" ? undefined : value as ReceiptFilter["type"] })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="ประเภทการบริจาค" />
@@ -219,7 +219,7 @@ export default function ReceiptsPage() {
 
                             <Select
                                 value={filter.status || "all"}
-                                onValueChange={(value) => setFilter({ ...filter, status: value as any })}
+                                onValueChange={(value) => setFilter({ ...filter, status: value === "all" ? undefined : value as ReceiptFilter["status"] })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="สถานะ" />

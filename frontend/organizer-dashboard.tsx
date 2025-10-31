@@ -95,7 +95,7 @@ const mockVolunteerApplications: VolunteerApplication[] = [
         skills: ["งานใช้แรงงาน", "งานขนส่ง"],
         otherSkills: "สามารถขับรถกระบะได้",
         availableDates: ["2025-08-10", "2025-08-11"],
-        availableTime: "full-day",
+        availableTime: "flexible",
         duration: "full-day",
         status: "pending",
         appliedDate: "2025-08-01T10:00:00Z",
@@ -606,7 +606,7 @@ export default function OrganizerDashboard() {
                             <CardContent>
                                 <div className="space-y-4">
                                     {mockVolunteerApplications.slice(0, 3).map((applicant) => {
-                                        const relatedRequest = organizerRequests.find((req) => req.id === applicant.requestId)
+                                        const relatedRequest = organizerRequests.find((req) => req.id === String(applicant.requestId))
                                         return (
                                             <div key={applicant.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                                                 <div className="flex-1">

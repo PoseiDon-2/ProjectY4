@@ -293,13 +293,26 @@ export default function Favorites() {
             )}
 
             {/* Share Modal */}
-            {showShareModal && (
-                <ShareModal
-                    isOpen={true}
-                    onClose={() => setShowShareModal(null)}
-                    donationRequest={favoriteRequests.find((req) => req.id === showShareModal)!}
-                />
-            )}
+            {showShareModal && (() => {
+                const request = favoriteRequests.find((req) => req.id === showShareModal)
+                if (!request) return null
+                return (
+                    <ShareModal
+                        isOpen={true}
+                        onClose={() => setShowShareModal(null)}
+                        donationRequest={{
+                            id: request.id.toString(),
+                            title: request.title,
+                            description: request.description,
+                            category: request.category,
+                            goalAmount: request.goalAmount,
+                            currentAmount: request.currentAmount,
+                            organizer: request.organizer,
+                            image: request.image,
+                        }}
+                    />
+                )
+            })()}
         </div>
     )
 }

@@ -83,7 +83,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
         if (user && amount) {
             const donationAmount = Number(amount)
-            const earnedPoints = pointsSystem.awardDonationPoints(user.id, donationAmount)
+            const earnedPoints = pointsSystem.calculateDonationPoints(donationAmount, "money")
+            pointsSystem.addPoints(user.id, earnedPoints, "donation", `Money donation ฿${donationAmount}`, `donation_${Date.now()}`)
             setPointsEarned(earnedPoints)
 
             const receipt = receiptSystem.createReceipt({

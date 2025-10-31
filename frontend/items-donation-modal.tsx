@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { pointsSystem } from "@/lib/points-system"
 import { receiptSystem } from "@/lib/receipt-system"
-import { useAuth } from "./src/app/auth-context"
+import { useAuth } from "@/app/auth-context"
 import { toast } from "@/hooks/use-toast"
 
 interface ItemsDonationModalProps {
@@ -50,7 +50,8 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
         await new Promise((resolve) => setTimeout(resolve, 2000))
 
         if (user) {
-            const earnedPoints = pointsSystem.awardItemDonationPoints(user.id)
+            const earnedPoints = pointsSystem.calculateDonationPoints(0, "item")
+            pointsSystem.addPoints(user.id, earnedPoints, "donation", `Item donation: ${donation.itemsNeeded}`, `donation_${Date.now()}`)
             setPointsEarned(earnedPoints)
 
             const receipt = receiptSystem.createReceipt({
@@ -274,7 +275,7 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                             <h4 className="font-medium text-gray-800">ข้อมูลผู้บริจาค</h4>
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2">
-                                    <Checkbox id="anonymous" checked={isAnonymous} onCheckedChange={setIsAnonymous} />
+                                    <Checkbox id="anonymous" checked={isAnonymous} onCheckedChange={(checked) => setIsAnonymous(checked === true)} />
                                     <Label htmlFor="anonymous" className="text-sm">
                                         บริจาคแบบไม่ระบุชื่อ
                                     </Label>

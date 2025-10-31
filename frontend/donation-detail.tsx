@@ -852,14 +852,15 @@ export default function DonationDetail({ id }: DonationDetailProps) {
             <ShareModal
                 isOpen={showShareModal}
                 onClose={() => setShowShareModal(false)}
-                donation={{
-                    id: donation.id,
+                donationRequest={{
+                    id: donation.id.toString(),
                     title: donation.title,
                     description: donation.description,
-                    imageUrl: donation.imageUrl,
-                    currentAmount: donation.goals.money?.current || 0,
+                    category: donation.category,
                     goalAmount: donation.goals.money?.target || 0,
-                    supporters: donation.goals.money?.supporters || 0,
+                    currentAmount: donation.goals.money?.current || 0,
+                    organizer: donation.organizer.name,
+                    image: donation.imageUrl,
                 }}
             />
 

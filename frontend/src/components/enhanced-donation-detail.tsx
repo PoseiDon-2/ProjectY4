@@ -472,7 +472,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             <div className="space-y-3">
                                 <h3 className="font-medium text-gray-800">ประเภทการบริจาค</h3>
                                 <div className="flex flex-wrap gap-2">
-                                    {donation.donationTypes.map((type) => {
+                                    {donation.donationTypes.map((type: string) => {
                                         const Icon = getDonationTypeIcon(type)
                                         return (
                                             <Badge key={type} className={`${getDonationTypeColor(type)} border`}>
@@ -520,7 +520,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         <div className="space-y-2">
                                             <h5 className="text-sm font-medium text-blue-800">ได้รับแล้ว:</h5>
                                             <ul className="text-sm text-gray-700 space-y-1">
-                                                {donation.goals.items.received.map((item, index) => (
+                                                {donation.goals.items.received.map((item: string, index: number) => (
                                                     <li key={index} className="flex items-center gap-2">
                                                         <CheckCircle className="w-4 h-4 text-green-500" />
                                                         {item}
@@ -664,7 +664,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             <CardContent>
                                 <p className="text-gray-700 leading-relaxed">{donation.description}</p>
                                 <div className="flex flex-wrap gap-2 mt-4">
-                                    {donation.tags.map((tag) => (
+                                    {donation.tags.map((tag: string) => (
                                         <Badge key={tag} variant="secondary" className="bg-pink-100 text-pink-700">
                                             #{tag}
                                         </Badge>
@@ -935,31 +935,31 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
-                                    {donation.donationHistory.map((donation) => (
-                                        <div key={donation.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                                    {donation.donationHistory.map((donationItem: any) => (
+                                        <div key={donationItem.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
                                             <Avatar className="w-10 h-10">
-                                                <AvatarFallback>{donation.donor.charAt(0)}</AvatarFallback>
+                                                <AvatarFallback>{donationItem.donor.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div className="flex-1">
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className="font-medium text-gray-800">{donation.donor}</span>
+                                                    <span className="font-medium text-gray-800">{donationItem.donor}</span>
                                                     <div className="flex items-center gap-2">
-                                                        {donation.type === "money" && donation.amount && (
-                                                            <span className="font-bold text-green-600">฿{formatAmount(donation.amount)}</span>
+                                                        {donationItem.type === "money" && donationItem.amount && (
+                                                            <span className="font-bold text-green-600">฿{formatAmount(donationItem.amount)}</span>
                                                         )}
-                                                        {donation.type === "items" && donation.items && (
-                                                            <span className="font-bold text-blue-600">{donation.items}</span>
+                                                        {donationItem.type === "items" && donationItem.items && (
+                                                            <span className="font-bold text-blue-600">{donationItem.items}</span>
                                                         )}
-                                                        {donation.type === "volunteer" && donation.volunteer && (
-                                                            <span className="font-bold text-purple-600">{donation.volunteer}</span>
+                                                        {donationItem.type === "volunteer" && donationItem.volunteer && (
+                                                            <span className="font-bold text-purple-600">{donationItem.volunteer}</span>
                                                         )}
-                                                        <Badge className={getDonationTypeColor(donation.type)}>
-                                                            {getDonationTypeLabel(donation.type)}
+                                                        <Badge className={getDonationTypeColor(donationItem.type)}>
+                                                            {getDonationTypeLabel(donationItem.type)}
                                                         </Badge>
                                                     </div>
                                                 </div>
-                                                <p className="text-sm text-gray-600 mb-1">{formatDate(donation.date)}</p>
-                                                {donation.message && <p className="text-sm text-gray-700 italic">"{donation.message}"</p>}
+                                                <p className="text-sm text-gray-600 mb-1">{formatDate(donationItem.date)}</p>
+                                                {donationItem.message && <p className="text-sm text-gray-700 italic">"{donationItem.message}"</p>}
                                             </div>
                                         </div>
                                     ))}
@@ -969,7 +969,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                     </TabsContent>
 
                     <TabsContent value="updates" className="space-y-6">
-                        {donation.updates.map((update) => (
+                        {donation.updates.map((update: any) => (
                             <Card key={update.id}>
                                 <CardHeader>
                                     <div className="flex items-center justify-between">
@@ -981,7 +981,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     <p className="text-gray-700">{update.content}</p>
                                     {update.images && update.images.length > 0 && (
                                         <div className="grid grid-cols-2 gap-4">
-                                            {update.images.map((image, index) => (
+                                            {update.images.map((image: string, index: number) => (
                                                 <img
                                                     key={index}
                                                     src={image || "/placeholder.svg"}

@@ -1,6 +1,6 @@
 "use client"
 
-import type { DonationHistory, Receipt } from "@/types/receipt"
+import type { DonationHistory, ReceiptData } from "@/types/receipt"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -54,7 +54,7 @@ export default function DonationHistoryDetailModal({ history, isOpen, onClose }:
         }
     }
 
-    const getTypeIcon = (type: Receipt["type"]) => {
+    const getTypeIcon = (type: ReceiptData["type"]) => {
         switch (type) {
             case "money":
                 return <CreditCard className="w-4 h-4 text-green-600" />
@@ -65,7 +65,7 @@ export default function DonationHistoryDetailModal({ history, isOpen, onClose }:
         }
     }
 
-    const getReceiptSummary = (receipt: Receipt) => {
+    const getReceiptSummary = (receipt: ReceiptData) => {
         return receiptSystem.generateReceiptSummary(receipt)
     }
 

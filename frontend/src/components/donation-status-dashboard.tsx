@@ -10,15 +10,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Filter, TrendingUp, Clock, CheckCircle, XCircle } from "lucide-react"
 import { receiptSystem } from "@/lib/receipt-system"
 import { StatusTrackingTimeline } from "./status-tracking-timeline"
-import type { Receipt } from "@/types/receipt"
+import type { ReceiptData } from "@/types/receipt"
 
 export function DonationStatusDashboard() {
-    const [receipts, setReceipts] = useState<Receipt[]>([])
-    const [filteredReceipts, setFilteredReceipts] = useState<Receipt[]>([])
+    const [receipts, setReceipts] = useState<ReceiptData[]>([])
+    const [filteredReceipts, setFilteredReceipts] = useState<ReceiptData[]>([])
     const [searchTerm, setSearchTerm] = useState("")
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [typeFilter, setTypeFilter] = useState<string>("all")
-    const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null)
+    const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null)
 
     useEffect(() => {
         loadReceipts()
@@ -59,7 +59,7 @@ export function DonationStatusDashboard() {
         setFilteredReceipts(filtered)
     }
 
-    const handleStatusUpdate = (receiptId: string, newStatus: Receipt["status"]) => {
+    const handleStatusUpdate = (receiptId: string, newStatus: ReceiptData["status"]) => {
         receiptSystem.updateReceiptStatus(receiptId, newStatus)
         loadReceipts()
     }
@@ -77,7 +77,7 @@ export function DonationStatusDashboard() {
 
     const stats = getStatusStats()
 
-    const getStatusBadgeVariant = (status: Receipt["status"]) => {
+    const getStatusBadgeVariant = (status: ReceiptData["status"]) => {
         switch (status) {
             case "completed":
                 return "default"
@@ -92,7 +92,7 @@ export function DonationStatusDashboard() {
         }
     }
 
-    const getStatusText = (status: Receipt["status"]) => {
+    const getStatusText = (status: ReceiptData["status"]) => {
         switch (status) {
             case "completed":
                 return "สำเร็จ"
@@ -107,7 +107,7 @@ export function DonationStatusDashboard() {
         }
     }
 
-    const getTypeText = (type: Receipt["type"]) => {
+    const getTypeText = (type: ReceiptData["type"]) => {
         switch (type) {
             case "money":
                 return "เงิน"

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Clock, AlertCircle, XCircle, Package, Truck, MapPin } from "lucide-react"
-import type { Receipt } from "@/types/receipt"
+import type { ReceiptData } from "@/types/receipt"
 
 interface StatusEvent {
     id: string
@@ -20,15 +20,15 @@ interface StatusEvent {
 }
 
 interface StatusTrackingTimelineProps {
-    receipt: Receipt
-    onStatusUpdate?: (receiptId: string, newStatus: Receipt["status"]) => void
+    receipt: ReceiptData
+    onStatusUpdate?: (receiptId: string, newStatus: ReceiptData["status"]) => void
 }
 
 export function StatusTrackingTimeline({ receipt, onStatusUpdate }: StatusTrackingTimelineProps) {
     const [isUpdating, setIsUpdating] = useState(false)
 
     // Generate status events based on receipt type and current status
-    const generateStatusEvents = (receipt: Receipt): StatusEvent[] => {
+    const generateStatusEvents = (receipt: ReceiptData): StatusEvent[] => {
         const events: StatusEvent[] = []
         const baseTimestamp = new Date(receipt.createdAt)
 
@@ -196,7 +196,7 @@ export function StatusTrackingTimeline({ receipt, onStatusUpdate }: StatusTracki
 
     const statusEvents = generateStatusEvents(receipt)
 
-    const handleStatusUpdate = async (newStatus: Receipt["status"]) => {
+    const handleStatusUpdate = async (newStatus: ReceiptData["status"]) => {
         if (!onStatusUpdate) return
 
         setIsUpdating(true)

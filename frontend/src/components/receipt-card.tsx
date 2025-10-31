@@ -1,6 +1,6 @@
 "use client"
 
-import type { Receipt } from "@/types/receipt"
+import type { ReceiptData } from "@/types/receipt"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,14 +8,14 @@ import { receiptSystem } from "@/lib/receipt-system"
 import { Download, Eye, Package, CreditCard, Users } from "lucide-react"
 
 interface ReceiptCardProps {
-    receipt: Receipt
-    onViewDetails: (receipt: Receipt) => void
+    receipt: ReceiptData
+    onViewDetails: (receipt: ReceiptData) => void
 }
 
 export default function ReceiptCard({ receipt, onViewDetails }: ReceiptCardProps) {
     const summary = receiptSystem.generateReceiptSummary(receipt)
 
-    const getTypeIcon = (type: Receipt["type"]) => {
+    const getTypeIcon = (type: ReceiptData["type"]) => {
         switch (type) {
             case "money":
                 return <CreditCard className="w-5 h-5 text-green-600" />
