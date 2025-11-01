@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import type { ReceiptData, ReceiptFilter } from "@/types/receipt"
 import { receiptSystem } from "@/lib/receipt-system"
-import { useAuth } from "../auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

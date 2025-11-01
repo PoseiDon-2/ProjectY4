@@ -1,7 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import "../styles/globals.css"
-import { AuthProvider } from "./auth-context"
+import { AuthProvider } from "@/contexts/auth-context"
 
 export const metadata: Metadata = {
   title: "My Website",

@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useAuth } from "../../../../auth-context"
+import { useAuth } from "@/contexts/auth-context"
 
 interface EditUserProps {
     params: {

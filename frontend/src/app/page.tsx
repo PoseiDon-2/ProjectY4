@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { useRouter } from "next/navigation"
 import { Separator } from "@/components/ui/separator"
 import ShareModal from "../../share-modal"
-import { useAuth } from "./auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import StoryPreview from "../../story-preview"
 import axios from "axios"
 
@@ -520,7 +520,7 @@ export default function DonationSwipe() {
                                         key={group.donationRequestId}
                                         donationRequestId={group.donationRequestId}
                                         organizer={group.organizer}
-                                        avatar={group.avatar}
+                                        storyImage={group.avatar}
                                         hasUnviewed={group.hasUnviewed}
                                         storyCount={group.storyCount}
                                         onClick={() => handleStoryClick(group)}

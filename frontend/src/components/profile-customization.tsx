@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Crown, Palette, Award, Sparkles, Star } from "lucide-react"
 import type { ProfileCustomization as UserCustomization, UserReward } from "@/types/rewards"
-import { useAuth } from "../app/auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
 interface ProfileCustomizationProps {

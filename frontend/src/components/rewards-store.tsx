@@ -16,7 +16,7 @@ import {
 import { Coins, Crown, Palette, Award, Gift, Sparkles } from "lucide-react"
 import type { Reward, UserPoints } from "@/types/rewards"
 import { pointsSystem } from "@/lib/points-system"
-import { useAuth } from "@/app/auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
 const MOCK_REWARDS: Reward[] = [

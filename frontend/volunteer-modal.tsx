@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { pointsSystem } from "@/lib/points-system"
-import { useAuth } from "@/app/auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
 interface VolunteerModalProps {

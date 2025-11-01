@@ -6,7 +6,7 @@ import { Plus, Eye, Edit, Trash2, Calendar, Users, BarChart3, ArrowLeft } from "
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { useAuth } from "./src/app/auth-context"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Story {
     id: string

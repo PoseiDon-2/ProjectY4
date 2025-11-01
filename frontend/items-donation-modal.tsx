@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { pointsSystem } from "@/lib/points-system"
 import { receiptSystem } from "@/lib/receipt-system"
-import { useAuth } from "@/app/auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
 interface ItemsDonationModalProps {

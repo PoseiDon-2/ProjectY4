@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { pointsSystem } from "@/lib/points-system"
 import { receiptSystem } from "@/lib/receipt-system"
-import { useAuth } from "@/app/auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
 interface DonationModalProps {

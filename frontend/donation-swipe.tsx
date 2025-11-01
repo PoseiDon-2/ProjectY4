@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { useRouter } from "next/navigation"
 import { Separator } from "@/components/ui/separator"
 import ShareModal from "./share-modal"
-import { useAuth } from "@/app/auth-context"
+import { useAuth } from "@/contexts/auth-context"
 import StoryPreview from "./story-preview"
 
 interface DonationRequest {
@@ -70,6 +70,38 @@ interface StoryGroup {
     stories: Story[]
 }
 
+// Helper function สำหรับรูปภาพ
+const getImageUrl = (path: string | null, category: string = 'default', type: 'card' | 'story' = 'card') => {
+  if (!path || path.includes('placeholder.svg')) {
+    // ใช้ Picsum Photos สำหรับ placeholder
+    const dimensions = type === 'card' ? '400/300' : '200/200';
+    const categories = {
+      'ภัยพิบัติ': 'nature',
+      'การศึกษา': 'education', 
+      'สิ่งแวดล้อม': 'environment',
+      'default': 'random'
+    };
+    
+    const searchTerm = categories[category as keyof typeof categories] || categories.default;
+    return `https://picsum.photos/${dimensions}?${searchTerm}&random=${Math.random()}`;
+  }
+  return path;
+};
+
+const getFallbackAvatar = (name: string) => {
+  // สร้าง SVG avatar จากชื่อ
+  const initial = name.charAt(0).toUpperCase();
+  const colors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
+  const color = colors[name.length % colors.length];
+  
+  return `data:image/svg+xml;base64,${btoa(`
+    <svg width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="32" fill="${color}"/>
+      <text x="32" y="40" text-anchor="middle" fill="white" font-family="Arial" font-size="24" font-weight="bold">${initial}</text>
+    </svg>
+  `)}`;
+};
+
 // API Service
 class StoryApiService {
     private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
@@ -106,7 +138,7 @@ class StoryApiService {
 
 export const storyApiService = new StoryApiService()
 
-// ข้อมูลตัวอย่าง
+// ข้อมูลตัวอย่าง - แก้ไข image URLs
 const donationRequests: DonationRequest[] = [
     {
         id: "1",
@@ -118,7 +150,7 @@ const donationRequests: DonationRequest[] = [
         currentAmount: 325000,
         daysLeft: 15,
         supporters: 234,
-        image: "/placeholder.svg",
+        image: "", // ปล่อยว่างไว้จะใช้ fallback
         organizer: "มูลนิธิช่วยเหลือภัยพิบัติ",
         detailedAddress: "ตำบลศรีภูมิ อำเภอเมือง จังหวัดเชียงใหม่ 50200",
         contactPhone: "081-234-5678",
@@ -127,7 +159,7 @@ const donationRequests: DonationRequest[] = [
             accountNumber: "123-4-56789-0",
             accountName: "มูลนิธิช่วยเหลือภัยพิบัติ"
         },
-        qrCodeUrl: "/placeholder.svg"
+        qrCodeUrl: "" // ปล่อยว่างไว้
     },
     {
         id: "2",
@@ -139,7 +171,7 @@ const donationRequests: DonationRequest[] = [
         currentAmount: 185000,
         daysLeft: 30,
         supporters: 156,
-        image: "/placeholder.svg",
+        image: "",
         organizer: "สมาคมพัฒนาการศึกษา",
         detailedAddress: "อำเภอเมือง จังหวัดแม่ฮ่องสอน 58000",
         contactPhone: "082-345-6789",
@@ -148,7 +180,7 @@ const donationRequests: DonationRequest[] = [
             accountNumber: "987-6-54321-0",
             accountName: "สมาคมพัฒนาการศึกษา"
         },
-        qrCodeUrl: "/placeholder.svg"
+        qrCodeUrl: ""
     },
     {
         id: "3",
@@ -160,7 +192,7 @@ const donationRequests: DonationRequest[] = [
         currentAmount: 420000,
         daysLeft: 45,
         supporters: 321,
-        image: "/placeholder.svg",
+        image: "",
         organizer: "มูลนิธิอนุรักษ์สัตว์ป่า",
         detailedAddress: "เขตรักษาพันธุ์สัตว์ป่าทุ่งใหญ่นเรศวร จังหวัดกาญจนบุรี",
         contactPhone: "083-456-7890",
@@ -169,7 +201,7 @@ const donationRequests: DonationRequest[] = [
             accountNumber: "456-7-89101-2",
             accountName: "มูลนิธิอนุรักษ์สัตว์ป่า"
         },
-        qrCodeUrl: "/placeholder.svg"
+        qrCodeUrl: ""
     }
 ]
 
@@ -253,7 +285,7 @@ export default function DonationSwipe() {
                 groups[id] = {
                     donationRequestId: id,
                     organizer,
-                    storyImage: story.images?.[0] || null,
+                    storyImage: story.images?.[0] ? getImageUrl(story.images[0], story.donationRequest?.title || 'default', 'story') : null,
                     hasUnviewed: story.views === 0,
                     storyCount: 0,
                     stories: []
@@ -264,7 +296,7 @@ export default function DonationSwipe() {
             groups[id].storyCount = groups[id].stories.length
             if (story.views === 0) groups[id].hasUnviewed = true
             if (story.images?.[0] && !groups[id].storyImage) {
-                groups[id].storyImage = story.images[0]
+                groups[id].storyImage = getImageUrl(story.images[0], story.donationRequest?.title || 'default', 'story')
             }
         })
 
@@ -276,14 +308,14 @@ export default function DonationSwipe() {
             {
                 donationRequestId: "1",
                 organizer: "มูลนิธิช่วยเหลือภัยพิบัติ",
-                storyImage: "/placeholder.svg",
+                storyImage: getImageUrl(null, 'ภัยพิบัติ', 'story'),
                 hasUnviewed: true,
                 storyCount: 1,
                 stories: [{
                     id: "1",
                     title: "เริ่มแจกจ่ายความช่วยเหลือ",
                     content: "วันนี้ทีมงานได้เริ่มแจกจ่ายอาหารและน้ำดื่มให้ผู้ประสบภัยแล้ว",
-                    images: ["/placeholder.svg"],
+                    images: [getImageUrl(null, 'ภัยพิบัติ', 'story')],
                     status: "PUBLISHED",
                     author_id: "1",
                     donation_request_id: "1",
@@ -512,13 +544,15 @@ export default function DonationSwipe() {
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
                                                         const target = e.target as HTMLImageElement
-                                                        target.src = "/placeholder.svg"
+                                                        target.src = getFallbackAvatar(group.organizer)
                                                     }}
                                                 />
                                             ) : (
-                                                <span className="text-white text-xs font-bold">
-                                                    {group.organizer.charAt(0)}
-                                                </span>
+                                                <img 
+                                                    src={getFallbackAvatar(group.organizer)}
+                                                    alt={group.organizer}
+                                                    className="w-full h-full object-cover"
+                                                />
                                             )}
                                         </div>
                                         {group.storyCount > 1 && (
@@ -557,12 +591,12 @@ export default function DonationSwipe() {
                         <Card className="overflow-hidden shadow-xl sm:shadow-2xl border-0 bg-white cursor-grab active:cursor-grabbing">
                             <div className="relative">
                                 <img
-                                    src={currentRequest.image || "/placeholder.svg"}
+                                    src={getImageUrl(currentRequest.image, currentRequest.category, 'card')}
                                     alt={currentRequest.title}
                                     className="w-full h-48 sm:h-64 object-cover"
                                     onError={(e) => {
                                         const target = e.target as HTMLImageElement
-                                        target.src = "/placeholder.svg"
+                                        target.src = getImageUrl(null, currentRequest.category, 'card')
                                     }}
                                 />
                                 <Badge className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-white/90 text-gray-800 hover:bg-white/90 text-xs">
