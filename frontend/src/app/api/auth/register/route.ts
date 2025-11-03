@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
         // รับ FormData จาก Frontend
         const formData = await request.formData()
 
-        const backendUrl = process.env.BACKEND_URL || "http://localhost:8000/api"
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL
         console.log("Proxy: ส่ง register ไปที่", backendUrl + "/auth/register")
 
         // ส่ง FormData ไป Laravel

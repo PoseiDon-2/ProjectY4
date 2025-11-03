@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
 import OrganizerReceiptManagement from "@/components/organizer-receipt-management" // Import receipt management component
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 interface DonationRequest {
     id: string // UUID

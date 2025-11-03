@@ -45,7 +45,7 @@ import ReceiptDetailModal from "./receipt-detail-modal"
 import type { ReceiptData } from "@/types/receipt"
 import axios from "axios"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 interface EnhancedDonationDetailProps {
     id: string
@@ -75,12 +75,12 @@ const transformApiData = (apiData: any) => {
     }
 
     const getFirstImage = (images: string | null) => {
-        if (!images) return "/placeholder.svg?height=400&width=600"
+        if (!images) return "https://via.placeholder.com/400x300?text=No+Image"
         try {
             const imageArray = JSON.parse(images)
-            return imageArray.length > 0 ? imageArray[0] : "/placeholder.svg?height=400&width=600"
+            return imageArray.length > 0 ? imageArray[0] : "https://via.placeholder.com/400x300?text=No+Image"
         } catch {
-            return "/placeholder.svg?height=400&width=600"
+            return "https://via.placeholder.com/400x300?text=No+Image"
         }
     }
 
@@ -136,7 +136,7 @@ const transformApiData = (apiData: any) => {
         organizer: {
             name: `${apiData.organizer?.first_name || ""} ${apiData.organizer?.last_name || ""}`.trim() || "ไม่ระบุ",
             organization: apiData.organization?.name || "",
-            avatar: "/placeholder.svg?height=100&width=100",
+            avatar: "https://via.placeholder.com/100x100?text=No+Image",
             verified: true,
         },
         createdDate: apiData.created_at ? new Date(apiData.created_at).toISOString().split('T')[0] : "",
@@ -154,7 +154,7 @@ const mockStories: Story[] = [
         title: "เริ่มต้นโครงการ",
         content: "เราได้เริ่มต้นโครงการช่วยเหลือครอบครัวที่ประสบอุทกภัยแล้ว ขอบคุณทุกท่านที่ให้การสนับสนุน",
         type: "progress",
-        imageUrl: "/placeholder.svg?height=300&width=400",
+        imageUrl: "https://via.placeholder.com/400x300?text=No+Image",
         createdAt: "2024-01-15T10:00:00Z",
         views: 245,
         likes: 32,
@@ -165,7 +165,7 @@ const mockStories: Story[] = [
         title: "ความคืบหน้า 50%",
         content: "ขณะนี้เราได้รับการสนับสนุนไปแล้ว 50% ของเป้าหมาย ขอบคุณทุกท่านมากครับ",
         type: "milestone",
-        imageUrl: "/placeholder.svg?height=300&width=400",
+        imageUrl: "https://via.placeholder.com/400x300?text=No+Image",
         createdAt: "2024-01-12T14:30:00Z",
         views: 189,
         likes: 28,
@@ -440,7 +440,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                 <Card className="mb-6 overflow-hidden">
                     <div className="aspect-video relative">
                         <img
-                            src={donation.imageUrl || "/placeholder.svg"}
+                            src={donation.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
                             alt={donation.title}
                             className="w-full h-full object-cover"
                         />
@@ -553,7 +553,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             {/* Organizer */}
                             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
                                 <Avatar className="w-12 h-12">
-                                    <AvatarImage src={donation.organizer.avatar || "/placeholder.svg"} />
+                                    <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
                                     <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1">
@@ -708,7 +708,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
                                     <div className="relative">
                                         <Avatar className="w-16 h-16 ring-2 ring-pink-300">
-                                            <AvatarImage src={donation.organizer.avatar || "/placeholder.svg"} />
+                                            <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
                                             <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                         {unviewedStories.length > 0 && (
@@ -743,7 +743,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         >
                                             {story.imageUrl ? (
                                                 <img
-                                                    src={story.imageUrl || "/placeholder.svg"}
+                                                    src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
                                                     alt={story.title}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -776,7 +776,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                             <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center">
                                                 {story.imageUrl ? (
                                                     <img
-                                                        src={story.imageUrl || "/placeholder.svg"}
+                                                        src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
                                                         alt={story.title}
                                                         className="w-full h-full object-cover rounded-lg"
                                                     />
@@ -984,7 +984,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                             {update.images.map((image: string, index: number) => (
                                                 <img
                                                     key={index}
-                                                    src={image || "/placeholder.svg"}
+                                                    src={image || "https://via.placeholder.com/400x300?text=No+Image"}
                                                     alt={`Update ${update.id} - ${index + 1}`}
                                                     className="w-full h-48 object-cover rounded-lg"
                                                 />
@@ -1122,7 +1122,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                     goalAmount: donation.goals.money?.target || 0,
                     currentAmount: donation.goals.money?.current || 0,
                     organizer: donation.organizer,
-                    image: donation.imageUrl || "/placeholder.svg",
+                    image: donation.imageUrl || "https://via.placeholder.com/400x300?text=No+Image",
                 }}
             />
 

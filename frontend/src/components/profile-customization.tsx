@@ -121,7 +121,7 @@ export function ProfileCustomization({ onClose }: ProfileCustomizationProps) {
                 <div className="relative inline-block">
                     <div className={`p-1 rounded-full ${frame.preview}`}>
                         <Avatar className="w-24 h-24">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} alt={`${user.firstName} ${user.lastName}`} />
+                            <AvatarImage src={user.avatar || "https://via.placeholder.com/400x300?text=No+Image"} alt={`${user.firstName} ${user.lastName}`} />
                             <AvatarFallback className={`text-2xl bg-gradient-to-r ${theme.gradient} text-white`}>
                                 {getInitials(user.firstName, user.lastName)}
                             </AvatarFallback>

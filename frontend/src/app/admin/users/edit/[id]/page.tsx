@@ -42,7 +42,7 @@ const mockUserDetail = {
     firstName: "สมชาย",
     lastName: "ใจดี",
     phone: "081-234-5678",
-    avatar: "/placeholder.svg?height=100&width=100",
+    avatar: "https://via.placeholder.com/400x300?text=No+Image",
     joinDate: "2024-01-01",
     totalDonated: 15000,
     donationCount: 8,
@@ -303,7 +303,7 @@ export default function EditUser({ params }: EditUserProps) {
                                 </CardHeader>
                                 <CardContent className="text-center space-y-4">
                                     <Avatar className="w-24 h-24 mx-auto">
-                                        <AvatarImage src={mockUserDetail.avatar || "/placeholder.svg"} />
+                                        <AvatarImage src={mockUserDetail.avatar || "https://via.placeholder.com/400x300?text=No+Image"} />
                                         <AvatarFallback className="text-2xl bg-gradient-to-r from-pink-500 to-purple-500 text-white">
                                             {getInitials(formData.firstName, formData.lastName)}
                                         </AvatarFallback>

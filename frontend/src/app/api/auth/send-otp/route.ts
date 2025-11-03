@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const backendUrl = process.env.BACKEND_URL || "http://localhost:8000/api"
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL
         console.log("Proxy: ส่ง OTP ไปที่", backendUrl + "/auth/send-otp")
 
         const res = await fetch(`${backendUrl}/auth/send-otp`, {

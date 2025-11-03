@@ -47,12 +47,12 @@ export default function StoryPreview({
                     } ${isActive ? 'ring-2 ring-pink-500 ring-offset-2' : ''}`}
                 >
                     <img
-                        src={storyImage || "/placeholder.svg"}
+                        src={storyImage || "https://via.placeholder.com/400x300?text=No+Image"}
                         alt={`Story ของ ${organizer}`}
                         className="w-full h-full rounded-full border-2 border-white object-cover"
                         onError={(e) => {
                             const target = e.target as HTMLImageElement
-                            target.src = "/placeholder.svg?height=64&width=64"
+                            target.src = "https://via.placeholder.com/400x300?text=No+Image"
                         }}
                     />
                 </div>
@@ -121,12 +121,12 @@ export function StoryPreviewSmall({
                     }`}
                 >
                     <img
-                        src={storyImage || "/placeholder.svg"}
+                        src={storyImage || "https://via.placeholder.com/400x300?text=No+Image"}
                         alt={organizer}
                         className="w-full h-full rounded-full border-2 border-white object-cover"
                         onError={(e) => {
                             const target = e.target as HTMLImageElement
-                            target.src = "/placeholder.svg?height=48&width=48"
+                            target.src = "https://via.placeholder.com/400x300?text=No+Image"
                         }}
                     />
                 </div>
@@ -176,12 +176,12 @@ export function StoryPreviewLarge({
                     }`}
                 >
                     <img
-                        src={storyImage || "/placeholder.svg"}
+                        src={storyImage || "https://via.placeholder.com/400x300?text=No+Image"}
                         alt={organizer}
                         className="w-full h-full rounded-full border-2 border-white object-cover"
                         onError={(e) => {
                             const target = e.target as HTMLImageElement
-                            target.src = "/placeholder.svg?height=80&width=80"
+                            target.src = "https://via.placeholder.com/400x300?text=No+Image"
                         }}
                     />
                 </div>

@@ -546,16 +546,3 @@ Route::fallback(function () {
         ]
     ], 404);
 });
-// === ORGANIZER STORIES MANAGEMENT APIs ===
-Route::middleware(['auth:sanctum', 'organizer'])->prefix('organizer')->group(function () {
-
-    Route::get('/stories', [StoryController::class, 'index']);
-    Route::post('/stories', [StoryController::class, 'store']);
-    Route::get('/stories/{id}', [StoryController::class, 'show']);
-    Route::put('/stories/{id}', [StoryController::class, 'update']);
-    Route::delete('/stories/{id}', [StoryController::class, 'destroy']);
-
-    Route::get('/stats', [StoryStatController::class, 'index']);
-    Route::get('/donation-requests', [DonationRequestController::class, 'getOrganizerRequestsForStories']);
-    Route::get('/dashboard-stats', [DonationRequestController::class, 'getOrganizerDashboardStats']);
-});

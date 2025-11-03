@@ -23,7 +23,7 @@ export interface StoryGroup {
     hasUnviewed: boolean;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
 
 export const useStories = () => {
     const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
@@ -44,7 +44,7 @@ export const useStories = () => {
                     donationRequestId,
                     donationTitle: apiStory.donation_request?.title || 'Unknown Request',
                     organizer: apiStory.donation_request?.organizer?.name || `User${apiStory.author_id}`,
-                    avatar: apiStory.donation_request?.organizer?.avatar || '/placeholder.svg?height=60&width=60',
+                    avatar: apiStory.donation_request?.organizer?.avatar || 'https://via.placeholder.com/400x300?text=No+Image',
                     stories: [],
                     hasUnviewed: false,
                 });
@@ -57,7 +57,7 @@ export const useStories = () => {
                 title: apiStory.title,
                 type: apiStory.type,
                 content: apiStory.content,
-                image: apiStory.images?.[0] || '/placeholder.svg?height=600&width=400',
+                image: apiStory.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image',
                 timestamp: apiStory.published_at || apiStory.created_at,
                 author: apiStory.donation_request?.organizer?.name || `User${apiStory.author_id}`,
                 isViewed: apiStory.views > 0,

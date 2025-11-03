@@ -185,7 +185,7 @@ export default function Stories({ initialGroupIndex = 0, initialStoryIndex = 0 }
                 <div className="flex items-center gap-3">
                     <div className="relative">
                         <img
-                            src={currentGroup.avatar || "/placeholder.svg"}
+                            src={currentGroup.avatar || "https://via.placeholder.com/400x300?text=No+Image"}
                             alt={currentGroup.organizer}
                             className="w-10 h-10 rounded-full border-2 border-white"
                         />
@@ -211,7 +211,7 @@ export default function Stories({ initialGroupIndex = 0, initialStoryIndex = 0 }
             {/* Story Content */}
             <div className="relative w-full h-full max-w-md mx-auto">
                 <img
-                    src={currentStory.image || "/placeholder.svg"}
+                    src={currentStory.image || "https://via.placeholder.com/400x300?text=No+Image"}
                     alt={currentStory.title}
                     className="w-full h-full object-cover"
                 />

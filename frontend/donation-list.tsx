@@ -13,7 +13,7 @@ import ShareModal from "./share-modal"
 import StoryPreview from "./story-preview"
 import axios from "axios"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 interface DonationRequest {
     id: string
@@ -53,12 +53,12 @@ const transformApiData = (apiData: any): DonationRequest => {
     }
 
     const getFirstImage = (images: string | null) => {
-        if (!images) return "/placeholder.svg?height=400&width=300"
+        if (!images) return "https://via.placeholder.com/400x300?text=No+Image"
         try {
             const imageArray = JSON.parse(images)
-            return imageArray.length > 0 ? imageArray[0] : "/placeholder.svg?height=400&width=300"
+            return imageArray.length > 0 ? imageArray[0] : "https://via.placeholder.com/400x300?text=No+Image"
         } catch {
-            return "/placeholder.svg?height=400&width=300"
+            return "https://via.placeholder.com/400x300?text=No+Image"
         }
     }
 
@@ -100,7 +100,7 @@ const transformApiData = (apiData: any): DonationRequest => {
         detailedAddress: apiData.location || "ไม่ระบุที่อยู่",
         contactPhone: "",
         bankAccount: parsePaymentMethods(apiData.payment_methods),
-        qrCodeUrl: "/placeholder.svg?height=200&width=200",
+        qrCodeUrl: "https://via.placeholder.com/200x200?text=No+Image",
         coordinates: apiData.latitude && apiData.longitude
             ? { lat: apiData.latitude, lng: apiData.longitude }
             : undefined
@@ -114,28 +114,28 @@ const storyGroups = [
     {
         donationRequestId: 1,
         organizer: "สมชาย ใจดี",
-        avatar: "/placeholder.svg?height=60&width=60",
+        avatar: "https://via.placeholder.com/60x60?text=No+Image",
         hasUnviewed: true,
         storyCount: 3,
     },
     {
         donationRequestId: 2,
         organizer: "มูลนิธิเด็กไทย",
-        avatar: "/placeholder.svg?height=60&width=60",
+        avatar: "https://via.placeholder.com/60x60?text=No+Image",
         hasUnviewed: true,
         storyCount: 2,
     },
     {
         donationRequestId: 3,
         organizer: "โรงเรียนบ้านดอนตาล",
-        avatar: "/placeholder.svg?height=60&width=60",
+        avatar: "https://via.placeholder.com/60x60?text=No+Image",
         hasUnviewed: false,
         storyCount: 1,
     },
     {
         donationRequestId: 4,
         organizer: "มูลนิธิรักษ์สัตว์",
-        avatar: "/placeholder.svg?height=60&width=60",
+        avatar: "https://via.placeholder.com/60x60?text=No+Image",
         hasUnviewed: true,
         storyCount: 1,
     },
@@ -360,7 +360,7 @@ export default function DonationList() {
                                 <Card key={request.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                                     <div className="relative">
                                         <img
-                                            src={request.image || "/placeholder.svg"}
+                                            src={request.image || "https://via.placeholder.com/400x300?text=No+Image"}
                                             alt={request.title}
                                             className="w-full h-48 object-cover cursor-pointer"
                                             onClick={() => router.push(`/donation/${request.id}`)}

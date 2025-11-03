@@ -66,7 +66,7 @@ interface RegisterData {
 
 type RegisterPayload = RegisterData | FormData
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 

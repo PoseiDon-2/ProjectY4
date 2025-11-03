@@ -18,9 +18,9 @@ import { useAuth } from "@/contexts/auth-context"
 interface StoryFormData {
     title: string
     content: string
-    type: "progress" | "milestone" | "thank_you" | "completion" 
+    type: "progress" | "milestone" | "thank_you" | "completion"
     image?: File
-    duration: number 
+    duration: number
     donation_request_id: string // เปลี่ยนจาก number เป็น string
 }
 
@@ -35,60 +35,60 @@ interface DonationRequest {
 
 // API Service
 class StoryApiService {
-  private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+    private baseUrl = process.env.NEXT_PUBLIC_API_URL
 
-  private async request(endpoint: string, options: RequestInit = {}) {
-    const token = localStorage.getItem('auth_token')
-    
-    const config: RequestInit = {
-      headers: {
-        'Accept': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers,
-      },
-      ...options,
+    private async request(endpoint: string, options: RequestInit = {}) {
+        const token = localStorage.getItem('auth_token')
+
+        const config: RequestInit = {
+            headers: {
+                'Accept': 'application/json',
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+                ...options.headers,
+            },
+            ...options,
+        }
+
+        const response = await fetch(`${this.baseUrl}${endpoint}`, config)
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(errorData.message || `API error: ${response.status}`)
+        }
+
+        return response.json()
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, config)
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `API error: ${response.status}`)
+    async getOrganizerRequests(): Promise<DonationRequest[]> {
+        try {
+            const response = await this.request('/organizer/donation-requests')
+            return response.data || []
+        } catch (error) {
+            console.error('Error fetching organizer requests:', error)
+            throw error
+        }
     }
 
-    return response.json()
-  }
+    async createStory(formData: StoryFormData) {
+        const formDataToSend = new FormData()
 
-  async getOrganizerRequests(): Promise<DonationRequest[]> {
-    try {
-      const response = await this.request('/organizer/donation-requests')
-      return response.data || []
-    } catch (error) {
-      console.error('Error fetching organizer requests:', error)
-      throw error
+        // Append basic fields
+        formDataToSend.append('title', formData.title)
+        formDataToSend.append('content', formData.content)
+        formDataToSend.append('type', formData.type)
+        formDataToSend.append('duration', formData.duration.toString())
+        formDataToSend.append('donation_request_id', formData.donation_request_id)
+
+        // Append image if exists
+        if (formData.image) {
+            formDataToSend.append('image', formData.image)
+        }
+
+        return this.request('/organizer/stories', {
+            method: 'POST',
+            body: formDataToSend,
+        })
     }
-  }
-
-  async createStory(formData: StoryFormData) {
-    const formDataToSend = new FormData()
-    
-    // Append basic fields
-    formDataToSend.append('title', formData.title)
-    formDataToSend.append('content', formData.content)
-    formDataToSend.append('type', formData.type)
-    formDataToSend.append('duration', formData.duration.toString())
-    formDataToSend.append('donation_request_id', formData.donation_request_id)
-
-    // Append image if exists
-    if (formData.image) {
-      formDataToSend.append('image', formData.image)
-    }
-
-    return this.request('/organizer/stories', {
-      method: 'POST',
-      body: formDataToSend,
-    })
-  }
 }
 
 export const storyApiService = new StoryApiService()
@@ -129,7 +129,7 @@ export default function CreateStory() {
             setIsLoading(true)
             const requests = await storyApiService.getOrganizerRequests()
             setOrganizerRequests(requests)
-            
+
             // Auto-select the first request if available
             if (requests.length > 0 && !formData.donation_request_id) {
                 setFormData(prev => ({
@@ -231,10 +231,10 @@ export default function CreateStory() {
         try {
             // Call API to create story
             const response = await storyApiService.createStory(formData)
-            
+
             if (response.success) {
                 setSuccess(true)
-                
+
                 // Redirect after success
                 setTimeout(() => {
                     router.push("/story-management")
@@ -359,10 +359,10 @@ export default function CreateStory() {
                                         </Select>
                                         {organizerRequests.length === 0 && (
                                             <p className="text-sm text-yellow-600 mt-2">
-                                                คุณยังไม่มีคำขอบริจาคที่ได้รับการอนุมัติ 
-                                                <Button 
-                                                    type="button" 
-                                                    variant="link" 
+                                                คุณยังไม่มีคำขอบริจาคที่ได้รับการอนุมัติ
+                                                <Button
+                                                    type="button"
+                                                    variant="link"
                                                     className="p-0 h-auto text-blue-600 ml-1"
                                                     onClick={() => router.push('/create-donation-request')}
                                                 >
@@ -477,7 +477,7 @@ export default function CreateStory() {
                                         <div className="space-y-4">
                                             <div className="relative">
                                                 <img
-                                                    src={previewImage || "@/public/placeholder.svg"}
+                                                    src={previewImage || "https://via.placeholder.com/400x300?text=No+Image"}
                                                     alt="Preview"
                                                     className="w-full max-w-xs mx-auto rounded-lg shadow-lg object-cover aspect-[9/16]"
                                                 />
@@ -527,7 +527,7 @@ export default function CreateStory() {
                                     <div className="relative bg-black rounded-lg overflow-hidden aspect-[9/16] max-w-[200px] mx-auto">
                                         {previewImage ? (
                                             <img
-                                                src={previewImage || "@/public/placeholder.svg"}
+                                                src={previewImage || "https://via.placeholder.com/400x300?text=No+Image"}
                                                 alt="Story preview"
                                                 className="w-full h-full object-cover"
                                             />
@@ -628,9 +628,9 @@ export default function CreateStory() {
                                     )}
                                 </Button>
 
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
+                                <Button
+                                    type="button"
+                                    variant="outline"
                                     className="w-full"
                                     onClick={() => router.back()}
                                 >

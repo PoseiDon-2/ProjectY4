@@ -72,29 +72,29 @@ interface StoryGroup {
 
 // Helper function สำหรับรูปภาพ
 const getImageUrl = (path: string | null, category: string = 'default', type: 'card' | 'story' = 'card') => {
-  if (!path || path.includes('placeholder.svg')) {
-    // ใช้ Picsum Photos สำหรับ placeholder
-    const dimensions = type === 'card' ? '400/300' : '200/200';
-    const categories = {
-      'ภัยพิบัติ': 'nature',
-      'การศึกษา': 'education', 
-      'สิ่งแวดล้อม': 'environment',
-      'default': 'random'
-    };
-    
-    const searchTerm = categories[category as keyof typeof categories] || categories.default;
-    return `https://picsum.photos/${dimensions}?${searchTerm}&random=${Math.random()}`;
-  }
-  return path;
+    if (!path || path.includes('placeholder.svg')) {
+        // ใช้ Picsum Photos สำหรับ placeholder
+        const dimensions = type === 'card' ? '400/300' : '200/200';
+        const categories = {
+            'ภัยพิบัติ': 'nature',
+            'การศึกษา': 'education',
+            'สิ่งแวดล้อม': 'environment',
+            'default': 'random'
+        };
+
+        const searchTerm = categories[category as keyof typeof categories] || categories.default;
+        return `https://picsum.photos/${dimensions}?${searchTerm}&random=${Math.random()}`;
+    }
+    return path;
 };
 
 const getFallbackAvatar = (name: string) => {
-  // สร้าง SVG avatar จากชื่อ
-  const initial = name.charAt(0).toUpperCase();
-  const colors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
-  const color = colors[name.length % colors.length];
-  
-  return `data:image/svg+xml;base64,${btoa(`
+    // สร้าง SVG avatar จากชื่อ
+    const initial = name.charAt(0).toUpperCase();
+    const colors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
+    const color = colors[name.length % colors.length];
+
+    return `data:image/svg+xml;base64,${btoa(`
     <svg width="64" height="64" xmlns="http://www.w3.org/2000/svg">
       <circle cx="32" cy="32" r="32" fill="${color}"/>
       <text x="32" y="40" text-anchor="middle" fill="white" font-family="Arial" font-size="24" font-weight="bold">${initial}</text>
@@ -104,7 +104,7 @@ const getFallbackAvatar = (name: string) => {
 
 // API Service
 class StoryApiService {
-    private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+    private baseUrl = process.env.NEXT_PUBLIC_API_URL
 
     private async request(endpoint: string, options: RequestInit = {}) {
         const config: RequestInit = {
@@ -219,7 +219,7 @@ export default function DonationSwipe() {
     const [hasMounted, setHasMounted] = useState(false)
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null)
     const [isSwiping, setIsSwiping] = useState(false)
-    
+
     // Refs สำหรับจัดการ touch events
     const cardRef = useRef<HTMLDivElement>(null)
     const touchStartX = useRef(0)
@@ -231,10 +231,10 @@ export default function DonationSwipe() {
         const checkMobile = () => {
             setIsMobile(window.innerWidth < 768)
         }
-        
+
         checkMobile()
         window.addEventListener('resize', checkMobile)
-        
+
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
 
@@ -338,7 +338,7 @@ export default function DonationSwipe() {
             setLikedRequests(newLiked)
             localStorage.setItem("likedDonations", JSON.stringify(newLiked))
         }
-        
+
         // เพิ่ม animation สำหรับ swipe
         setSwipeDirection(liked ? 'right' : 'left')
         setTimeout(() => {
@@ -357,7 +357,7 @@ export default function DonationSwipe() {
 
     const handleTouchMove = (e: React.TouchEvent) => {
         if (!isSwiping) return
-        
+
         const touchX = e.touches[0].clientX
         const touchY = e.touches[0].clientY
         const deltaX = touchX - touchStartX.current
@@ -367,7 +367,7 @@ export default function DonationSwipe() {
         if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
             e.preventDefault()
             currentX.current = deltaX
-            
+
             // อัพเดทตำแหน่งการ swipe
             if (cardRef.current) {
                 const rotate = deltaX * 0.1
@@ -379,12 +379,12 @@ export default function DonationSwipe() {
 
     const handleTouchEnd = () => {
         if (!isSwiping) return
-        
+
         setIsSwiping(false)
-        
+
         // กำหนด threshold สำหรับ swipe
         const swipeThreshold = 50
-        
+
         if (Math.abs(currentX.current) > swipeThreshold) {
             if (currentX.current > 0) {
                 // Swipe ไปทางขวา = Like
@@ -394,7 +394,7 @@ export default function DonationSwipe() {
                 handleSwipe(false)
             }
         }
-        
+
         // รีเซ็ตตำแหน่งการ์ด
         if (cardRef.current) {
             cardRef.current.style.transform = 'translateX(0) rotate(0deg)'
@@ -439,24 +439,24 @@ export default function DonationSwipe() {
                 <div className="flex items-center justify-between mb-4 sm:mb-6 pt-2 sm:pt-4">
                     <h1 className="text-xl sm:text-2xl font-bold text-gray-800">DonateSwipe</h1>
                     <div className="flex items-center gap-1 sm:gap-2">
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             size={isMobile ? "icon" : "sm"}
-                            onClick={() => router.push("/list")} 
+                            onClick={() => router.push("/list")}
                             className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 h-9 sm:h-10"
                         >
                             <List className="w-4 h-4" />
                             {!isMobile && <span className="ml-1">รายการ</span>}
                         </Button>
-                        
-                        <Button 
-                            variant="outline" 
+
+                        <Button
+                            variant="outline"
                             size={isMobile ? "icon" : "sm"}
-                            onClick={() => router.push("/favorites")} 
+                            onClick={() => router.push("/favorites")}
                             className="bg-pink-100 text-pink-700 border-pink-200 hover:bg-pink-200 h-9 sm:h-10 relative"
                         >
                             <span className="flex items-center">
-                                ❤️ 
+                                ❤️
                                 {!isMobile ? (
                                     <span className="ml-1">{likedRequests.length} รายการ</span>
                                 ) : (
@@ -468,12 +468,12 @@ export default function DonationSwipe() {
                                 )}
                             </span>
                         </Button>
-                        
+
                         {user ? (
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 size={isMobile ? "icon" : "sm"}
-                                onClick={() => router.push("/profile")} 
+                                onClick={() => router.push("/profile")}
                                 className="bg-green-100 text-green-700 border-green-200 hover:bg-green-200 h-9 sm:h-10"
                             >
                                 <span className="flex items-center">
@@ -484,10 +484,10 @@ export default function DonationSwipe() {
                                 </span>
                             </Button>
                         ) : (
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 size={isMobile ? "icon" : "sm"}
-                                onClick={() => router.push("/login")} 
+                                onClick={() => router.push("/login")}
                                 className="bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200 h-9 sm:h-10"
                             >
                                 <span className="flex items-center">
@@ -528,18 +528,17 @@ export default function DonationSwipe() {
                     ) : storyGroups.length > 0 ? (
                         <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 hide-scrollbar">
                             {storyGroups.map((group) => (
-                                <div 
+                                <div
                                     key={group.donationRequestId}
                                     className="flex-shrink-0 w-16 sm:w-20 text-center cursor-pointer"
                                     onClick={() => handleStoryClick(group)}
                                 >
                                     <div className="relative mx-auto mb-2">
-                                        <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center overflow-hidden ${
-                                            group.hasUnviewed ? 'ring-2 ring-pink-500 ring-offset-2' : ''
-                                        }`}>
+                                        <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center overflow-hidden ${group.hasUnviewed ? 'ring-2 ring-pink-500 ring-offset-2' : ''
+                                            }`}>
                                             {group.storyImage ? (
-                                                <img 
-                                                    src={group.storyImage} 
+                                                <img
+                                                    src={group.storyImage}
                                                     alt={group.organizer}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
@@ -548,7 +547,7 @@ export default function DonationSwipe() {
                                                     }}
                                                 />
                                             ) : (
-                                                <img 
+                                                <img
                                                     src={getFallbackAvatar(group.organizer)}
                                                     alt={group.organizer}
                                                     className="w-full h-full object-cover"
@@ -580,10 +579,9 @@ export default function DonationSwipe() {
                 <div className="relative">
                     <div
                         ref={cardRef}
-                        className={`transform transition-transform duration-300 ${
-                            swipeDirection === 'right' ? 'translate-x-full rotate-12 opacity-0' :
-                            swipeDirection === 'left' ? '-translate-x-full rotate-12 opacity-0' : ''
-                        }`}
+                        className={`transform transition-transform duration-300 ${swipeDirection === 'right' ? 'translate-x-full rotate-12 opacity-0' :
+                                swipeDirection === 'left' ? '-translate-x-full rotate-12 opacity-0' : ''
+                            }`}
                         onTouchStart={handleTouchStart}
                         onTouchMove={handleTouchMove}
                         onTouchEnd={handleTouchEnd}
@@ -687,9 +685,8 @@ export default function DonationSwipe() {
                         {donationRequests.map((_, i) => (
                             <div
                                 key={i}
-                                className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-colors ${
-                                    i === currentIndex ? "bg-pink-500" : i < currentIndex ? "bg-pink-300" : "bg-gray-300"
-                                }`}
+                                className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-colors ${i === currentIndex ? "bg-pink-500" : i < currentIndex ? "bg-pink-300" : "bg-gray-300"
+                                    }`}
                             />
                         ))}
                     </div>
