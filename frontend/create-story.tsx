@@ -279,7 +279,7 @@ export default function CreateStory() {
 
     if (success) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4 font-sans">
                 <Card className="w-full max-w-md text-center">
                     <CardContent className="p-8">
                         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -296,7 +296,7 @@ export default function CreateStory() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center">
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center font-sans">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto"></div>
                     <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
@@ -306,7 +306,7 @@ export default function CreateStory() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
+        <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 font-sans">
             {/* Header */}
             <div className="bg-white shadow-sm border-b">
                 <div className="max-w-4xl mx-auto px-4 py-4">
