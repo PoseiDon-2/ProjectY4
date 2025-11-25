@@ -3,7 +3,7 @@ import { NextRequest } from "next/server"
 export async function POST(request: NextRequest) {
     try {
         const { email, otp } = await request.json()
-        const backendUrl = process.env.BACKEND_URL || "http://localhost:8000/api"
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL
 
         const res = await fetch(`${backendUrl}/auth/verify-otp`, {
             method: "POST",

@@ -34,7 +34,7 @@ const donationRequests: DonationRequest[] = [
         currentAmount: 23500,
         daysLeft: 15,
         supporters: 47,
-        image: "/placeholder.svg?height=400&width=300",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         organizer: "สมชาย ใจดี",
     },
     {
@@ -47,7 +47,7 @@ const donationRequests: DonationRequest[] = [
         currentAmount: 456000,
         daysLeft: 7,
         supporters: 234,
-        image: "/placeholder.svg?height=400&width=300",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         organizer: "มูลนิธิเด็กไทย",
     },
     {
@@ -60,7 +60,7 @@ const donationRequests: DonationRequest[] = [
         currentAmount: 67000,
         daysLeft: 30,
         supporters: 89,
-        image: "/placeholder.svg?height=400&width=300",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         organizer: "โรงเรียนบ้านดอนตาล",
     },
     {
@@ -73,7 +73,7 @@ const donationRequests: DonationRequest[] = [
         currentAmount: 18500,
         daysLeft: 10,
         supporters: 156,
-        image: "/placeholder.svg?height=400&width=300",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         organizer: "มูลนิธิรักษ์สัตว์",
     },
 ]
@@ -167,7 +167,7 @@ export default function Favorites() {
                                 <Card key={request.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                                     <div className="relative">
                                         <img
-                                            src={request.image || "/placeholder.svg"}
+                                            src={request.image || "https://via.placeholder.com/400x300?text=No+Image"}
                                             alt={request.title}
                                             className="w-full h-48 object-cover"
                                         />

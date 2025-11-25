@@ -104,12 +104,12 @@ export default function ShareModal({ isOpen, onClose, donationRequest }: ShareMo
                     <div className="p-3 bg-gray-50 rounded-lg">
                         <div className="flex gap-3">
                             <img
-                                src={donationRequest.image || "/placeholder.svg"}
+                                src={donationRequest.image || "https://via.placeholder.com/400x300?text=No+Image"}
                                 alt={donationRequest.title}
                                 className="w-16 h-16 rounded-lg object-cover"
                                 onError={(e) => {
                                     const target = e.target as HTMLImageElement
-                                    target.src = "/placeholder.svg?height=64&width=64"
+                                    target.src = "https://via.placeholder.com/400x300?text=No+Image"
                                 }}
                             />
                             <div className="flex-1 min-w-0">
@@ -216,12 +216,12 @@ export default function ShareModal({ isOpen, onClose, donationRequest }: ShareMo
                                 <div className="text-center">
                                     <div className="inline-block p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg">
                                         <img
-                                            src={generateQRCode() || "/placeholder.svg"}
+                                            src={generateQRCode() || "https://via.placeholder.com/400x300?text=No+Image"}
                                             alt="QR Code สำหรับแชร์"
                                             className="w-32 h-32 mx-auto"
                                             onError={(e) => {
                                                 const target = e.target as HTMLImageElement
-                                                target.src = "/placeholder.svg?height=128&width=128"
+                                                target.src = "https://via.placeholder.com/400x300?text=No+Image"
                                             }}
                                         />
                                     </div>

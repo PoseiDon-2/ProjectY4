@@ -197,7 +197,7 @@ export default function ReceiptDetailModal({ receipt, isOpen, onClose }: Receipt
                                     {receipt.attachments.map((attachment: { url: string; filename?: string }, index: number) => (
                                         <div key={index} className="relative group">
                                             <img
-                                                src={attachment.url || "/placeholder.svg"}
+                                                src={attachment.url || "https://via.placeholder.com/400x300?text=No+Image"}
                                                 alt={`สลิป ${receipt.receiptNumber} - ${index + 1}`}
                                                 className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                                                 onClick={() => window.open(attachment.url, "_blank")}

@@ -60,7 +60,7 @@ const mockStories: Story[] = [
         title: "เริ่มต้นโครงการ",
         content: "เราได้เริ่มต้นโครงการช่วยเหลือครอบครัวที่ประสบอุทกภัยแล้ว ขอบคุณทุกท่านที่ให้การสนับสนุน",
         type: "progress",
-        imageUrl: "/placeholder.svg?height=300&width=400",
+        imageUrl: "https://via.placeholder.com/400x300?text=No+Image",
         createdAt: "2024-01-15T10:00:00Z",
         views: 245,
         likes: 32,
@@ -71,7 +71,7 @@ const mockStories: Story[] = [
         title: "ความคืบหน้า 50%",
         content: "ขณะนี้เราได้รับการสนับสนุนไปแล้ว 50% ของเป้าหมาย ขอบคุณทุกท่านมากครับ",
         type: "milestone",
-        imageUrl: "/placeholder.svg?height=300&width=400",
+        imageUrl: "https://via.placeholder.com/400x300?text=No+Image",
         createdAt: "2024-01-12T14:30:00Z",
         views: 189,
         likes: 28,
@@ -105,7 +105,7 @@ const mockDonation = {
     title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
     description:
         "ครอบครัวของเราประสบอุทกภัยใหญ่ที่จังหวัดอุบลราชธานี ทำให้บ้านและข้าวของเสียหายหมด ต้องการความช่วยเหลือเพื่อซ่อมแซมบ้านและซื้อข้าวของใช้จำเป็น",
-    imageUrl: "/placeholder.svg?height=400&width=600",
+    imageUrl: "https://via.placeholder.com/600x400?text=No+Image",
     category: "ภัยพิบัติ",
     organizationType: "ชุมชน",
     donationTypes: ["money", "items", "volunteer"],
@@ -133,7 +133,7 @@ const mockDonation = {
     organizer: {
         name: "สมหญิง จัดการ",
         organization: "ชุมชนบ้านดอนตาล",
-        avatar: "/placeholder.svg?height=100&width=100",
+        avatar: "https://via.placeholder.com/100x100?text=No+Image",
         verified: true,
     },
     createdDate: "2024-01-10",
@@ -153,14 +153,14 @@ const mockDonation = {
             title: "ได้รับการสนับสนุนแล้ว 50%",
             content: "ขอบคุณทุกท่านที่ให้การสนับสนุน ตอนนี้เราได้รับเงินบริจาคไปแล้ว 50% ของเป้าหมาย",
             date: "2024-01-12",
-            images: ["/placeholder.svg?height=200&width=300"],
+            images: ["https://via.placeholder.com/200x300?text=No+Image"],
         },
         {
             id: 2,
             title: "เริ่มซ่อมแซมบ้าน",
             content: "เราได้เริ่มซ่อมแซมบ้านแล้ว คาดว่าจะเสร็จสิ้นภายใน 2 สัปดาห์",
             date: "2024-01-08",
-            images: ["/placeholder.svg?height=200&width=300", "/placeholder.svg?height=200&width=300"],
+            images: ["https://via.placeholder.com/200x300?text=No+Image", "https://via.placeholder.com/200x300?text=No+Image"],
         },
     ],
     donationHistory: [
@@ -303,7 +303,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                 <Card className="mb-6 overflow-hidden">
                     <div className="aspect-video relative">
                         <img
-                            src={donation.imageUrl || "/placeholder.svg"}
+                            src={donation.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
                             alt={donation.title}
                             className="w-full h-full object-cover"
                         />
@@ -416,7 +416,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                             {/* Organizer */}
                             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
                                 <Avatar className="w-12 h-12">
-                                    <AvatarImage src={donation.organizer.avatar || "/placeholder.svg"} />
+                                    <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
                                     <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1">
@@ -561,7 +561,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                 <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
                                     <div className="relative">
                                         <Avatar className="w-16 h-16 ring-2 ring-pink-300">
-                                            <AvatarImage src={donation.organizer.avatar || "/placeholder.svg"} />
+                                            <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
                                             <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                         {unviewedStories.length > 0 && (
@@ -596,7 +596,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                         >
                                             {story.imageUrl ? (
                                                 <img
-                                                    src={story.imageUrl || "/placeholder.svg"}
+                                                    src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
                                                     alt={story.title}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -629,7 +629,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                             <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center">
                                                 {story.imageUrl ? (
                                                     <img
-                                                        src={story.imageUrl || "/placeholder.svg"}
+                                                        src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
                                                         alt={story.title}
                                                         className="w-full h-full object-cover rounded-lg"
                                                     />
@@ -835,7 +835,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                             {update.images.map((image, index) => (
                                                 <img
                                                     key={index}
-                                                    src={image || "/placeholder.svg"}
+                                                    src={image || "https://via.placeholder.com/400x300?text=No+Image"}
                                                     alt={`Update ${update.id} - ${index + 1}`}
                                                     className="w-full h-48 object-cover rounded-lg"
                                                 />

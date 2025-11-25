@@ -72,7 +72,7 @@ export default function StorySection({ donationRequestId, stories, organizer, av
 
     // ดึงรูปแรก (ไม่ต้อง parse)
     const getFirstImage = (images: string[] | null): string => {
-        return images?.[0] || "/placeholder.svg?height=200&width=300"
+        return images?.[0] || "https://via.placeholder.com/400x300?text=No+Image"
     }
 
     const formatTimeAgo = (timestamp: string | null) => {
@@ -163,12 +163,12 @@ export default function StorySection({ donationRequestId, stories, organizer, av
                                 }`}
                             >
                                 <img
-                                    src={avatar || "/placeholder.svg"}
+                                    src={avatar || "https://via.placeholder.com/400x300?text=No+Image"}
                                     alt={organizer}
                                     className="w-full h-full rounded-full border-2 border-white object-cover"
                                     onError={(e) => {
                                         const target = e.target as HTMLImageElement
-                                        target.src = "/placeholder.svg?height=64&width=64"
+                                        target.src = "https://via.placeholder.com/400x300?text=No+Image"
                                     }}
                                 />
                             </div>
@@ -203,7 +203,7 @@ export default function StorySection({ donationRequestId, stories, organizer, av
                                         className="w-full h-full object-cover"
                                         onError={(e) => {
                                             const target = e.target as HTMLImageElement
-                                            target.src = "/placeholder.svg?height=200&width=300"
+                                            target.src = "https://via.placeholder.com/200x300?text=No+Image"
                                         }}
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
@@ -252,7 +252,7 @@ export default function StorySection({ donationRequestId, stories, organizer, av
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                         const target = e.target as HTMLImageElement
-                                        target.src = "/placeholder.svg?height=200&width=300"
+                                        target.src = "https://via.placeholder.com/400x300?text=No+Image"
                                     }}
                                 />
                                 {story.views === 0 && (

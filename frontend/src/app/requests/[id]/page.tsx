@@ -104,7 +104,7 @@ const mockDonationRequests: DonationRequest[] = [
             type: "หนังสือเรียน, อุปกรณ์การเรียน",
             condition: "ใหม่หรือสภาพดีมาก",
             quantity: 500,
-            images: ["/placeholder.svg?height=100&width=150", "/placeholder.svg?height=100&width=150"],
+            images: ["https://via.placeholder.com/400x300?text=No+Image", "https://via.placeholder.com/400x300?text=No+Image"],
             deliveryAddress: "โรงเรียนบ้านดอนตาล, 123 หมู่ 4, ต.หนองบัว, อ.เมือง, จ.ขอนแก่น 40000",
             deliveryContact: "ครูสมศรี 089-123-4567",
         },
@@ -409,7 +409,7 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                                         {currentRequest.itemDetails.images.map((img, index) => (
                                             <img
                                                 key={index}
-                                                src={img || "/placeholder.svg"}
+                                                src={img || "https://via.placeholder.com/400x300?text=No+Image"}
                                                 alt={`Item image ${index + 1}`}
                                                 className="w-24 h-24 object-cover rounded-md border"
                                             />

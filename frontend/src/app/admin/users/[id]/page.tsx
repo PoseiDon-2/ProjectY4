@@ -38,7 +38,7 @@ const mockUserDetail = {
     firstName: "สมชาย",
     lastName: "ใจดี",
     phone: "081-234-5678",
-    avatar: "/placeholder.svg?height=100&width=100",
+    avatar: "https://via.placeholder.com/400x300?text=No+Image",
     joinDate: "2024-01-01",
     lastLogin: "2024-01-20T10:30:00Z",
     totalDonated: 15000,
@@ -286,7 +286,7 @@ export default function UserDetail({ params }: UserDetailProps) {
                                 <div className="space-y-4">
                                     <div className="relative inline-block">
                                         <Avatar className="w-24 h-24 mx-auto">
-                                            <AvatarImage src={user.avatar || "/placeholder.svg"} alt={`${user.firstName} ${user.lastName}`} />
+                                            <AvatarImage src={user.avatar || "https://via.placeholder.com/400x300?text=No+Image"} alt={`${user.firstName} ${user.lastName}`} />
                                             <AvatarFallback className="text-2xl bg-gradient-to-r from-pink-500 to-purple-500 text-white">
                                                 {getInitials(user.firstName, user.lastName)}
                                             </AvatarFallback>

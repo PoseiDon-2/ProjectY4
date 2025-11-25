@@ -55,7 +55,7 @@ interface StoryStats {
 
 // API Service
 class StoryApiService {
-    private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+    private API_URL = process.env.NEXT_PUBLIC_API_URL
 
     private async request(endpoint: string, options: RequestInit = {}) {
         const token = localStorage.getItem('auth_token')
@@ -69,7 +69,7 @@ class StoryApiService {
             ...options,
         }
 
-        const response = await fetch(`${this.baseUrl}${endpoint}`, config)
+        const response = await fetch(`${this.API_URL}${endpoint}`, config)
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
@@ -205,7 +205,7 @@ export default function StoryManagement() {
     // ฟังก์ชันสำหรับดึงรูปภาพแรกจาก array
     const getFirstImage = (images: string[] | null): string => {
         if (!images || images.length === 0) {
-            return "/placeholder.svg?height=200&width=300"
+            return "https://via.placeholder.com/400x300?text=No+Image"
         }
 
         // ถ้า images เป็น array ของ string URLs
@@ -225,7 +225,7 @@ export default function StoryManagement() {
             console.error('Error parsing images:', e)
         }
 
-        return "/placeholder.svg?height=200&width=300"
+        return "https://via.placeholder.com/400x300?text=No+Image"
     }
 
     // ใช้ type จาก field โดยตรง (มีแล้วในโครงสร้างใหม่)
@@ -515,7 +515,7 @@ export default function StoryManagement() {
                                                         className="w-full h-32 object-cover"
                                                         onError={(e) => {
                                                             const target = e.target as HTMLImageElement
-                                                            target.src = "/placeholder.svg?height=200&width=300"
+                                                            target.src = "https://via.placeholder.com/400x300?text=No+Image"
                                                         }}
                                                     />
                                                     <div className="absolute top-2 left-2 flex gap-1">

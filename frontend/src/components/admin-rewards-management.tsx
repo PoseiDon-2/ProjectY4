@@ -63,7 +63,7 @@ export function AdminRewardsManagement({ onClose }: AdminRewardsManagementProps)
                     description: "เปลี่ยนธีมโปรไฟล์เป็นสีทองหรูหรา",
                     category: "profile",
                     pointsCost: 500,
-                    image: "/placeholder.svg",
+                    image: "https://via.placeholder.com/400x300?text=No+Image",
                     isActive: true,
                     isLimited: false,
                     createdBy: "admin",
@@ -75,7 +75,7 @@ export function AdminRewardsManagement({ onClose }: AdminRewardsManagementProps)
                     description: "ตราสัญลักษณ์หัวใจทองคำ",
                     category: "badge",
                     pointsCost: 300,
-                    image: "/placeholder.svg",
+                    image: "https://via.placeholder.com/400x300?text=No+Image",
                     isActive: true,
                     isLimited: false,
                     createdBy: "admin",
@@ -107,7 +107,7 @@ export function AdminRewardsManagement({ onClose }: AdminRewardsManagementProps)
             description: newReward.description,
             category: newReward.category || "profile",
             pointsCost: newReward.pointsCost,
-            image: newReward.image || "/placeholder.svg",
+            image: newReward.image || "https://via.placeholder.com/400x300?text=No+Image",
             isActive: newReward.isActive ?? true,
             isLimited: newReward.isLimited ?? false,
             limitQuantity: newReward.isLimited ? newReward.limitQuantity : undefined,
@@ -461,7 +461,7 @@ export function AdminRewardsManagement({ onClose }: AdminRewardsManagementProps)
                                     id="image"
                                     value={newReward.image}
                                     onChange={(e) => setNewReward((prev) => ({ ...prev, image: e.target.value }))}
-                                    placeholder="/placeholder.svg"
+                                    placeholder="https://via.placeholder.com/400x300?text=No+Image"
                                 />
                             </div>
                         </div>

@@ -57,7 +57,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     }
 
     const generateQRCode = (amount: string) => {
-        return `/placeholder.svg?height=200&width=200&text=QR+Code+${amount}+THB`
+        return `https://via.placeholder.com/400x300?text=No+Image?height=200&width=200&text=QR+Code+${amount}+THB`
     }
 
     const copyToClipboard = (text: string) => {
@@ -345,7 +345,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                     <div className="text-center">
                                         <div className="bg-white p-4 rounded-lg border inline-block">
                                             <img
-                                                src={generateQRCode(amount) || "/placeholder.svg"}
+                                                src={generateQRCode(amount) || "https://via.placeholder.com/400x300?text=No+Image"}
                                                 alt="QR Code"
                                                 className="w-48 h-48 mx-auto"
                                             />

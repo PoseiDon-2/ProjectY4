@@ -27,7 +27,7 @@ const MOCK_REWARDS: Reward[] = [
         description: "เปลี่ยนธีมโปรไฟล์เป็นสีทองหรูหรา",
         category: "profile",
         pointsCost: 500,
-        image: "/placeholder-qnb7c.png",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         isActive: true,
         isLimited: false,
         createdBy: "system",
@@ -39,7 +39,7 @@ const MOCK_REWARDS: Reward[] = [
         description: "ธีมสีเงินแพลทินัมสุดพรีเมียม",
         category: "profile",
         pointsCost: 1000,
-        image: "/placeholder-kzrrr.png",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         isActive: true,
         isLimited: false,
         createdBy: "system",
@@ -51,7 +51,7 @@ const MOCK_REWARDS: Reward[] = [
         description: "ธีมเพชรสุดหรู สำหรับผู้บริจาคระดับตำนาน",
         category: "profile",
         pointsCost: 2500,
-        image: "/placeholder-bdpu4.png",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         isActive: true,
         isLimited: true,
         limitQuantity: 100,
@@ -67,7 +67,7 @@ const MOCK_REWARDS: Reward[] = [
         description: "ตราสัญลักษณ์หัวใจทองคำ",
         category: "badge",
         pointsCost: 300,
-        image: "/placeholder-a5wmf.png",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         isActive: true,
         isLimited: false,
         createdBy: "system",
@@ -93,7 +93,7 @@ const MOCK_REWARDS: Reward[] = [
         description: "กรอบโปรไฟล์สีรุ้งสวยงาม",
         category: "profile",
         pointsCost: 400,
-        image: "/placeholder-xxg4t.png",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         isActive: true,
         isLimited: false,
         createdBy: "system",
@@ -105,7 +105,7 @@ const MOCK_REWARDS: Reward[] = [
         description: "กรอบเปลวไฟสำหรับผู้บริจาคที่ร้อนแรง",
         category: "profile",
         pointsCost: 600,
-        image: "/placeholder-n8zrx.png",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         isActive: true,
         isLimited: false,
         createdBy: "system",
@@ -118,7 +118,7 @@ const MOCK_REWARDS: Reward[] = [
         description: "คำขอบริจาคของคุณจะแสดงในลำดับต้นๆ",
         category: "feature",
         pointsCost: 1500,
-        image: "/placeholder-4h2yn.png",
+        image: "https://via.placeholder.com/400x300?text=No+Image",
         isActive: true,
         isLimited: false,
         createdBy: "system",
@@ -255,7 +255,7 @@ export function RewardsStore() {
                             <Card key={reward.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                                 <div className="aspect-square relative">
                                     <img
-                                        src={reward.image || "/placeholder.svg"}
+                                        src={reward.image || "https://via.placeholder.com/400x300?text=No+Image"}
                                         alt={reward.name}
                                         className="w-full h-full object-cover"
                                     />
