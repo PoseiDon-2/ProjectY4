@@ -1,7 +1,5 @@
 "use client"
 
-import { Label } from "@/components/ui/label"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -25,6 +23,8 @@ import {
     QrCode,
     CreditCard,
     Smartphone,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,13 +32,16 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import ShareModal from "./share-modal"
 import DonationModal from "./donation-modal"
 import ItemsDonationModal from "./items-donation-modal"
 import VolunteerModal from "./volunteer-modal"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
+
 interface DonationDetailProps {
-    id: number
+    id: string | number
 }
 
 interface Story {
@@ -53,7 +56,6 @@ interface Story {
     isViewed: boolean
 }
 
-// Mock stories data
 const mockStories: Story[] = [
     {
         id: 1,
@@ -99,13 +101,17 @@ const mockStories: Story[] = [
     },
 ]
 
-// Mock donation data with multiple donation types
 const mockDonation = {
     id: 1,
     title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
     description:
         "ครอบครัวของเราประสบอุทกภัยใหญ่ที่จังหวัดอุบลราชธานี ทำให้บ้านและข้าวของเสียหายหมด ต้องการความช่วยเหลือเพื่อซ่อมแซมบ้านและซื้อข้าวของใช้จำเป็น",
-    imageUrl: "https://via.placeholder.com/600x400?text=No+Image",
+    images: [
+        "https://via.placeholder.com/800x600?text=Image+1",
+        "https://via.placeholder.com/800x600?text=Image+2",
+        "https://via.placeholder.com/800x600?text=Image+3",
+        "https://via.placeholder.com/800x600?text=Image+4",
+    ],
     category: "ภัยพิบัติ",
     organizationType: "ชุมชน",
     donationTypes: ["money", "items", "volunteer"],
@@ -153,14 +159,14 @@ const mockDonation = {
             title: "ได้รับการสนับสนุนแล้ว 50%",
             content: "ขอบคุณทุกท่านที่ให้การสนับสนุน ตอนนี้เราได้รับเงินบริจาคไปแล้ว 50% ของเป้าหมาย",
             date: "2024-01-12",
-            images: ["https://via.placeholder.com/200x300?text=No+Image"],
+            images: ["https://via.placeholder.com/600x400?text=Update+1", "https://via.placeholder.com/600x400?text=Update+2"],
         },
         {
             id: 2,
             title: "เริ่มซ่อมแซมบ้าน",
             content: "เราได้เริ่มซ่อมแซมบ้านแล้ว คาดว่าจะเสร็จสิ้นภายใน 2 สัปดาห์",
             date: "2024-01-08",
-            images: ["https://via.placeholder.com/200x300?text=No+Image", "https://via.placeholder.com/200x300?text=No+Image"],
+            images: ["https://via.placeholder.com/600x400?text=Update+3", "https://via.placeholder.com/600x400?text=Update+4", "https://via.placeholder.com/600x400?text=Update+5"],
         },
     ],
     donationHistory: [
@@ -188,8 +194,12 @@ export default function DonationDetail({ id }: DonationDetailProps) {
     const [showAllStories, setShowAllStories] = useState(false)
     const [showItemsDonationModal, setShowItemsDonationModal] = useState(false)
     const [showVolunteerModal, setShowVolunteerModal] = useState(false)
+    const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
     const donation = mockDonation
+    const images = donation.images || []
+    const totalImages = images.length
+
     const moneyProgressPercentage = donation.goals.money
         ? (donation.goals.money.current / donation.goals.money.target) * 100
         : 0
@@ -268,12 +278,19 @@ export default function DonationDetail({ id }: DonationDetailProps) {
         return colors[type as keyof typeof colors] || "bg-gray-100 text-gray-700 border-gray-200"
     }
 
+    const handlePrevImage = () => {
+        setCurrentImageIndex((prev) => (prev === 0 ? totalImages - 1 : prev - 1))
+    }
+
+    const handleNextImage = () => {
+        setCurrentImageIndex((prev) => (prev === totalImages - 1 ? 0 : prev + 1))
+    }
+
     const unviewedStories = mockStories.filter((story) => !story.isViewed)
     const displayedStories = showAllStories ? mockStories : mockStories.slice(0, 3)
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            {/* Header */}
             <div className="bg-white shadow-sm border-b sticky top-0 z-40">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
@@ -299,14 +316,60 @@ export default function DonationDetail({ id }: DonationDetailProps) {
             </div>
 
             <div className="max-w-4xl mx-auto p-4">
-                {/* Hero Card */}
                 <Card className="mb-6 overflow-hidden">
-                    <div className="aspect-video relative">
-                        <img
-                            src={donation.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
-                            alt={donation.title}
-                            className="w-full h-full object-cover"
-                        />
+                    <div className="relative">
+                        {totalImages > 0 ? (
+                            <>
+                                <img
+                                    src={images[currentImageIndex]}
+                                    alt={`${donation.title} - รูปที่ ${currentImageIndex + 1}`}
+                                    className="w-full h-64 sm:h-96 object-cover"
+                                />
+
+                                {totalImages > 1 && (
+                                    <>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
+                                            onClick={handlePrevImage}
+                                        >
+                                            <ChevronLeft className="w-6 h-6" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
+                                            onClick={handleNextImage}
+                                        >
+                                            <ChevronRight className="w-6 h-6" />
+                                        </Button>
+                                    </>
+                                )}
+
+                                {totalImages > 1 && (
+                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                                        {images.map((_, index) => (
+                                            <div
+                                                key={index}
+                                                className={`w-2 h-2 rounded-full transition-all ${
+                                                    index === currentImageIndex ? "bg-white w-8" : "bg-white/60"
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                                    {currentImageIndex + 1} / {totalImages}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="h-64 sm:h-96 bg-gray-200 flex items-center justify-center">
+                                <span className="text-gray-500 text-lg">ไม่มีรูปภาพ</span>
+                            </div>
+                        )}
+
                         <div className="absolute top-4 left-4 flex gap-2">
                             <Badge className="bg-white/90 text-gray-800 hover:bg-white">{donation.category}</Badge>
                             <Badge variant="outline" className="bg-white/90 text-gray-800 hover:bg-white">
@@ -331,7 +394,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                 </div>
                             </div>
 
-                            {/* Donation Types */}
                             <div className="space-y-3">
                                 <h3 className="font-medium text-gray-800">ประเภทการบริจาค</h3>
                                 <div className="flex flex-wrap gap-2">
@@ -347,9 +409,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                 </div>
                             </div>
 
-                            {/* Progress for each donation type */}
                             <div className="space-y-4">
-                                {/* Money Progress */}
                                 {donation.goals.money && (
                                     <div className="space-y-3 p-4 bg-green-50 rounded-lg">
                                         <div className="flex items-center gap-2">
@@ -372,7 +432,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     </div>
                                 )}
 
-                                {/* Items Progress */}
                                 {donation.goals.items && (
                                     <div className="space-y-3 p-4 bg-blue-50 rounded-lg">
                                         <div className="flex items-center gap-2">
@@ -395,7 +454,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     </div>
                                 )}
 
-                                {/* Volunteer Progress */}
                                 {donation.goals.volunteer && (
                                     <div className="space-y-3 p-4 bg-purple-50 rounded-lg">
                                         <div className="flex items-center gap-2">
@@ -413,10 +471,9 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                 )}
                             </div>
 
-                            {/* Organizer */}
                             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
                                 <Avatar className="w-12 h-12">
-                                    <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
+                                    <AvatarImage src={donation.organizer.avatar} />
                                     <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1">
@@ -428,7 +485,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                 </div>
                             </div>
 
-                            {/* Action Buttons */}
                             <div className="grid grid-cols-2 gap-3">
                                 {donation.donationTypes.includes("money") && (
                                     <Button
@@ -464,7 +520,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     )}
                             </div>
 
-                            {/* Quick Payment Options */}
                             {donation.donationTypes.includes("money") && (
                                 <div className="grid grid-cols-3 gap-3 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg">
                                     <Button
@@ -500,7 +555,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                     </CardContent>
                 </Card>
 
-                {/* Tab Navigation */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <TabsList className="grid w-full grid-cols-3 bg-white">
                         <TabsTrigger value="details">รายละเอียด</TabsTrigger>
@@ -509,7 +563,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                     </TabsList>
 
                     <TabsContent value="details" className="space-y-6">
-                        {/* Description */}
                         <Card>
                             <CardHeader>
                                 <CardTitle>รายละเอียด</CardTitle>
@@ -526,7 +579,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                             </CardContent>
                         </Card>
 
-                        {/* Location */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -546,7 +598,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                             </CardContent>
                         </Card>
 
-                        {/* Stories Section */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -557,11 +608,10 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {/* Story Preview Carousel */}
                                 <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
                                     <div className="relative">
                                         <Avatar className="w-16 h-16 ring-2 ring-pink-300">
-                                            <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
+                                            <AvatarImage src={donation.organizer.avatar} />
                                             <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                         {unviewedStories.length > 0 && (
@@ -586,7 +636,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     </Button>
                                 </div>
 
-                                {/* Story Thumbnails */}
                                 <div className="grid grid-cols-3 gap-3">
                                     {mockStories.slice(0, 3).map((story) => (
                                         <div
@@ -596,7 +645,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                         >
                                             {story.imageUrl ? (
                                                 <img
-                                                    src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
+                                                    src={story.imageUrl}
                                                     alt={story.title}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -617,7 +666,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     ))}
                                 </div>
 
-                                {/* Story List */}
                                 <div className="space-y-3">
                                     <h5 className="font-medium text-gray-800">Stories ล่าสุด</h5>
                                     {displayedStories.map((story) => (
@@ -629,7 +677,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                             <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center">
                                                 {story.imageUrl ? (
                                                     <img
-                                                        src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
+                                                        src={story.imageUrl}
                                                         alt={story.title}
                                                         className="w-full h-full object-cover rounded-lg"
                                                     />
@@ -662,7 +710,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     ))}
                                 </div>
 
-                                {/* Show More/Less Button */}
                                 {mockStories.length > 3 && (
                                     <Button
                                         variant="outline"
@@ -673,7 +720,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     </Button>
                                 )}
 
-                                {/* Quick Stats */}
                                 <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                                     <div className="text-center">
                                         <div className="text-lg font-bold text-gray-800">{mockStories.length}</div>
@@ -695,7 +741,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                             </CardContent>
                         </Card>
 
-                        {/* Payment Methods - Only show if money donation is accepted */}
                         {donation.donationTypes.includes("money") && (
                             <Card>
                                 <CardHeader>
@@ -705,7 +750,6 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    {/* Online Payment Options */}
                                     <div className="space-y-3">
                                         <h4 className="font-medium text-gray-800">การบริจาคออนไลน์</h4>
                                         <div className="grid grid-cols-1 gap-3">
@@ -739,21 +783,20 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                         </div>
                                     </div>
 
-                                    {/* Bank Transfer */}
                                     <div className="space-y-3 pt-4 border-t">
                                         <h4 className="font-medium text-gray-800">โอนเงินผ่านธนาคาร</h4>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <Label className="text-sm text-gray-600">ธนาคาร</Label>
+                                                <p className="text-sm text-gray-600">ธนาคาร</p>
                                                 <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.bank}</p>
                                             </div>
                                             <div>
-                                                <Label className="text-sm text-gray-600">เลขที่บัญชี</Label>
+                                                <p className="text-sm text-gray-600">เลขที่บัญชี</p>
                                                 <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountNumber}</p>
                                             </div>
                                         </div>
                                         <div>
-                                            <Label className="text-sm text-gray-600">ชื่อบัญชี</Label>
+                                            <p className="text-sm text-gray-600">ชื่อบัญชี</p>
                                             <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountName}</p>
                                         </div>
                                     </div>
@@ -831,11 +874,11 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                                 <CardContent className="space-y-4">
                                     <p className="text-gray-700">{update.content}</p>
                                     {update.images && update.images.length > 0 && (
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                             {update.images.map((image, index) => (
                                                 <img
                                                     key={index}
-                                                    src={image || "https://via.placeholder.com/400x300?text=No+Image"}
+                                                    src={image}
                                                     alt={`Update ${update.id} - ${index + 1}`}
                                                     className="w-full h-48 object-cover rounded-lg"
                                                 />
@@ -860,7 +903,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                     goalAmount: donation.goals.money?.target || 0,
                     currentAmount: donation.goals.money?.current || 0,
                     organizer: donation.organizer.name,
-                    image: donation.imageUrl,
+                    image: donation.images?.[0] || "",
                 }}
             />
 

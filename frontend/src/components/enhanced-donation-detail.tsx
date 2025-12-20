@@ -27,6 +27,8 @@ import {
     TrendingUp,
     FileText,
     Plus,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,6 +36,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import { receiptSystem } from "@/lib/receipt-system"
 import { useAuth } from "@/contexts/auth-context"
 import ShareModal from "../../share-modal"
@@ -45,7 +48,7 @@ import ReceiptDetailModal from "./receipt-detail-modal"
 import type { ReceiptData } from "@/types/receipt"
 import axios from "axios"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+const API_URL: string = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
 
 interface EnhancedDonationDetailProps {
     id: string
@@ -63,91 +66,6 @@ interface Story {
     isViewed: boolean
 }
 
-// Helper function to transform API data
-const transformApiData = (apiData: any) => {
-    const calculateDaysLeft = (expiresAt: string | null) => {
-        if (!expiresAt) return 30
-        const expiry = new Date(expiresAt)
-        const now = new Date()
-        const diffTime = expiry.getTime() - now.getTime()
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        return diffDays > 0 ? diffDays : 0
-    }
-
-    const getFirstImage = (images: string | null) => {
-        if (!images) return "https://via.placeholder.com/400x300?text=No+Image"
-        try {
-            const imageArray = JSON.parse(images)
-            return imageArray.length > 0 ? imageArray[0] : "https://via.placeholder.com/400x300?text=No+Image"
-        } catch {
-            return "https://via.placeholder.com/400x300?text=No+Image"
-        }
-    }
-
-    const parsePaymentMethods = (paymentMethods: string | null) => {
-        if (!paymentMethods) {
-            console.log('⚠️ No payment_methods in API response')
-            return { bankAccount: null, promptpay: null }
-        }
-        try {
-            const parsed = JSON.parse(paymentMethods)
-            console.log('💰 Parsed payment methods:', parsed)
-            return parsed
-        } catch {
-            console.log('❌ Failed to parse payment_methods')
-            return { bankAccount: null, promptpay: null }
-        }
-    }
-
-    const donationTypes = []
-    if (apiData.accepts_money) donationTypes.push('money')
-    if (apiData.accepts_items) donationTypes.push('items')
-    if (apiData.accepts_volunteer) donationTypes.push('volunteer')
-
-    return {
-        id: apiData.id,
-        title: apiData.title,
-        description: apiData.description,
-        imageUrl: getFirstImage(apiData.images),
-        category: apiData.category?.name || "ไม่ระบุหมวดหมู่",
-        organizationType: apiData.organization?.type || "องค์กร",
-        donationTypes,
-        goals: {
-            money: apiData.accepts_money ? {
-                target: apiData.target_amount || apiData.goal_amount || 0,
-                current: apiData.current_amount || 0,
-                supporters: apiData.supporters || 0,
-            } : null,
-            items: apiData.accepts_items ? {
-                description: apiData.items_needed || "",
-                received: [],
-                supporters: 0,
-            } : null,
-            volunteer: apiData.accepts_volunteer ? {
-                target: apiData.volunteers_needed || 0,
-                current: apiData.volunteers_received || 0,
-                description: apiData.volunteer_details || "",
-                supporters: apiData.volunteers_received || 0,
-            } : null,
-        },
-        daysLeft: calculateDaysLeft(apiData.expires_at),
-        location: apiData.location || "ไม่ระบุสถานที่",
-        contactPhone: "",
-        organizer: {
-            name: `${apiData.organizer?.first_name || ""} ${apiData.organizer?.last_name || ""}`.trim() || "ไม่ระบุ",
-            organization: apiData.organization?.name || "",
-            avatar: "https://via.placeholder.com/100x100?text=No+Image",
-            verified: true,
-        },
-        createdDate: apiData.created_at ? new Date(apiData.created_at).toISOString().split('T')[0] : "",
-        tags: [],
-        paymentMethods: parsePaymentMethods(apiData.payment_methods),
-        updates: [],
-        donationHistory: [],
-    }
-}
-
-// Mock stories data
 const mockStories: Story[] = [
     {
         id: 1,
@@ -173,7 +91,92 @@ const mockStories: Story[] = [
     },
 ]
 
-// Mock donation data removed - now fetching from API
+const transformApiData = (apiData: any) => {
+    const calculateDaysLeft = (expiresAt: string | null) => {
+        if (!expiresAt) return 30
+        const expiry = new Date(expiresAt)
+        const now = new Date()
+        const diffTime = expiry.getTime() - now.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return diffDays > 0 ? diffDays : 0
+    }
+
+    const getImagesArray = (images: string | null): string[] => {
+        if (!images) return []
+        try {
+            const parsed = JSON.parse(images)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                const baseUrl = API_URL.replace('/api', '')
+                return parsed.map((path: string) => `${baseUrl}/storage/${path}`)
+            }
+        } catch (e) {
+            console.error("Error parsing images:", e)
+        }
+        return []
+    }
+
+    const getFirstImage = (images: string | null): string => {
+        const array = getImagesArray(images)
+        return array.length > 0 ? array[0] : "https://via.placeholder.com/800x600?text=No+Image"
+    }
+
+    const parsePaymentMethods = (paymentMethods: string | null) => {
+        if (!paymentMethods) return { bankAccount: null, promptpay: null }
+        try {
+            return JSON.parse(paymentMethods)
+        } catch {
+            return { bankAccount: null, promptpay: null }
+        }
+    }
+
+    const donationTypes = []
+    if (apiData.accepts_money) donationTypes.push('money')
+    if (apiData.accepts_items) donationTypes.push('items')
+    if (apiData.accepts_volunteer) donationTypes.push('volunteer')
+
+    return {
+        id: apiData.id,
+        title: apiData.title,
+        description: apiData.description,
+        images: getImagesArray(apiData.images),
+        firstImage: getFirstImage(apiData.images),
+        category: apiData.category?.name || "ไม่ระบุหมวดหมู่",
+        organizationType: apiData.organization?.type || "องค์กร",
+        donationTypes,
+        goals: {
+            money: apiData.accepts_money ? {
+                target: apiData.target_amount || apiData.goal_amount || 0,
+                current: apiData.current_amount || 0,
+                supporters: apiData.supporters || 0,
+            } : null,
+            items: apiData.accepts_items ? {
+                description: apiData.items_needed || "",
+                received: [],
+                supporters: 0,
+            } : null,
+            volunteer: apiData.accepts_volunteer ? {
+                target: apiData.volunteers_needed || 0,
+                current: apiData.volunteers_received || 0,
+                description: apiData.volunteer_details || "",
+                supporters: apiData.volunteers_received || 0,
+            } : null,
+        },
+        daysLeft: calculateDaysLeft(apiData.expires_at),
+        location: apiData.location || "ไม่ระบุสถานที่",
+        contactPhone: apiData.contact_phone || "",
+        organizer: {
+            name: `${apiData.organizer?.first_name || ""} ${apiData.organizer?.last_name || ""}`.trim() || "ไม่ระบุ",
+            organization: apiData.organization?.name || "",
+            avatar: "https://via.placeholder.com/100x100?text=No+Image",
+            verified: true,
+        },
+        createdDate: apiData.created_at ? new Date(apiData.created_at).toISOString().split('T')[0] : "",
+        tags: [],
+        paymentMethods: parsePaymentMethods(apiData.payment_methods),
+        updates: [],
+        donationHistory: [],
+    }
+}
 
 export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailProps) {
     const router = useRouter()
@@ -189,26 +192,19 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
     const [showReceiptDetailModal, setShowReceiptDetailModal] = useState(false)
     const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null)
     const [receipts, setReceipts] = useState<ReceiptData[]>([])
-
-    // API data states
     const [donation, setDonation] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
     const isOrganizer = user?.role === "organizer"
 
-    // Fetch donation data from API
     useEffect(() => {
         const fetchDonation = async () => {
             try {
                 setLoading(true)
                 setError(null)
-                const url = `${API_URL}/donation-requests/${id}`
-                console.log('🔍 Fetching donation from:', url)
-                console.log('API_URL:', API_URL)
-                console.log('ID:', id)
-                const response = await axios.get(url)
-                console.log('✅ Response received:', response.data)
+                const response = await axios.get(`${API_URL}/donation-requests/${id}`)
                 const transformedData = transformApiData(response.data)
                 setDonation(transformedData)
             } catch (err: any) {
@@ -218,16 +214,14 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                 setLoading(false)
             }
         }
-
         fetchDonation()
     }, [id])
 
     useEffect(() => {
-        // Load receipts for this donation request
         if (donation) {
             loadReceipts()
         }
-    }, [id, donation])
+    }, [donation])
 
     const loadReceipts = () => {
         try {
@@ -238,6 +232,9 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
         }
     }
 
+    const images = donation?.images || []
+    const totalImages = images.length
+
     const moneyProgressPercentage = donation?.goals?.money
         ? (donation.goals.money.current / donation.goals.money.target) * 100
         : 0
@@ -245,23 +242,12 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
         ? (donation.goals.volunteer.current / donation.goals.volunteer.target) * 100
         : 0
 
-    const formatAmount = (amount: number) => {
-        return new Intl.NumberFormat("th-TH").format(amount)
-    }
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString("th-TH", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-        })
-    }
-
+    const formatAmount = (amount: number) => new Intl.NumberFormat("th-TH").format(amount)
+    const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })
     const getRelativeTime = (dateString: string) => {
         const now = new Date()
         const date = new Date(dateString)
         const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
-
         if (diffInHours < 1) return "เมื่อสักครู่"
         if (diffInHours < 24) return `${diffInHours} ชั่วโมงที่แล้ว`
         const diffInDays = Math.floor(diffInHours / 24)
@@ -290,20 +276,12 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
     }
 
     const getDonationTypeIcon = (type: string) => {
-        const icons = {
-            money: DollarSign,
-            items: Package,
-            volunteer: HandHeart,
-        }
+        const icons = { money: DollarSign, items: Package, volunteer: HandHeart }
         return icons[type as keyof typeof icons] || DollarSign
     }
 
     const getDonationTypeLabel = (type: string) => {
-        const labels = {
-            money: "เงิน",
-            items: "สิ่งของ",
-            volunteer: "อาสาสมัคร",
-        }
+        const labels = { money: "เงิน", items: "สิ่งของ", volunteer: "อาสาสมัคร" }
         return labels[type as keyof typeof labels] || type
     }
 
@@ -314,6 +292,14 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
             volunteer: "bg-purple-100 text-purple-700 border-purple-200",
         }
         return colors[type as keyof typeof colors] || "bg-gray-100 text-gray-700 border-gray-200"
+    }
+
+    const handlePrevImage = () => {
+        setCurrentImageIndex((prev) => (prev === 0 ? totalImages - 1 : prev - 1))
+    }
+
+    const handleNextImage = () => {
+        setCurrentImageIndex((prev) => (prev === totalImages - 1 ? 0 : prev + 1))
     }
 
     const handleViewReceiptDetails = (receipt: ReceiptData) => {
@@ -329,11 +315,9 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
         const totalAmount = receipts
             .filter((r) => r.type === "money" && r.status === "completed")
             .reduce((sum, r) => sum + (r.amount || 0), 0)
-
         const totalReceipts = receipts.length
         const pendingReceipts = receipts.filter((r) => r.status === "pending").length
         const completedReceipts = receipts.filter((r) => r.status === "completed").length
-
         return { totalAmount, totalReceipts, pendingReceipts, completedReceipts }
     }
 
@@ -341,7 +325,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
     const unviewedStories = mockStories.filter((story) => !story.isViewed)
     const displayedStories = showAllStories ? mockStories : mockStories.slice(0, 3)
 
-    // Loading state
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
@@ -354,7 +337,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
         )
     }
 
-    // Error state
     if (error) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
@@ -378,7 +360,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
         )
     }
 
-    // Not found state
     if (!donation) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
@@ -399,7 +380,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            {/* Header */}
             <div className="bg-white shadow-sm border-b sticky top-0 z-40">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
@@ -436,14 +416,63 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
             </div>
 
             <div className="max-w-4xl mx-auto p-4">
-                {/* Hero Card */}
                 <Card className="mb-6 overflow-hidden">
-                    <div className="aspect-video relative">
-                        <img
-                            src={donation.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
-                            alt={donation.title}
-                            className="w-full h-full object-cover"
-                        />
+                    <div className="relative">
+                        {totalImages > 0 ? (
+                            <>
+                                <img
+                                    src={images[currentImageIndex]}
+                                    alt={`${donation.title} - รูปที่ ${currentImageIndex + 1}`}
+                                    className="w-full h-64 sm:h-96 object-cover"
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement
+                                        target.src = "https://via.placeholder.com/800x600?text=No+Image"
+                                    }}
+                                />
+
+                                {totalImages > 1 && (
+                                    <>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
+                                            onClick={handlePrevImage}
+                                        >
+                                            <ChevronLeft className="w-6 h-6" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
+                                            onClick={handleNextImage}
+                                        >
+                                            <ChevronRight className="w-6 h-6" />
+                                        </Button>
+                                    </>
+                                )}
+
+                                {totalImages > 1 && (
+                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                                        {images.map((image: string, index: number) => (
+                                            <div
+                                                key={index}
+                                                className={`w-2 h-2 rounded-full transition-all ${index === currentImageIndex ? "bg-white w-8" : "bg-white/60"
+                                                    }`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                                    {currentImageIndex + 1} / {totalImages}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="h-64 sm:h-96 bg-gray-200 flex items-center justify-center">
+                                <span className="text-gray-500 text-lg">ไม่มีรูปภาพ</span>
+                            </div>
+                        )}
+
                         <div className="absolute top-4 left-4 flex gap-2">
                             <Badge className="bg-white/90 text-gray-800 hover:bg-white">{donation.category}</Badge>
                             <Badge variant="outline" className="bg-white/90 text-gray-800 hover:bg-white">
@@ -468,7 +497,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 </div>
                             </div>
 
-                            {/* Donation Types */}
                             <div className="space-y-3">
                                 <h3 className="font-medium text-gray-800">ประเภทการบริจาค</h3>
                                 <div className="flex flex-wrap gap-2">
@@ -484,9 +512,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 </div>
                             </div>
 
-                            {/* Progress for each donation type */}
                             <div className="space-y-4">
-                                {/* Money Progress */}
                                 {donation.goals.money && (
                                     <div className="space-y-3 p-4 bg-green-50 rounded-lg">
                                         <div className="flex items-center gap-2">
@@ -509,7 +535,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     </div>
                                 )}
 
-                                {/* Items Progress */}
                                 {donation.goals.items && (
                                     <div className="space-y-3 p-4 bg-blue-50 rounded-lg">
                                         <div className="flex items-center gap-2">
@@ -532,7 +557,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     </div>
                                 )}
 
-                                {/* Volunteer Progress */}
                                 {donation.goals.volunteer && (
                                     <div className="space-y-3 p-4 bg-purple-50 rounded-lg">
                                         <div className="flex items-center gap-2">
@@ -550,10 +574,9 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 )}
                             </div>
 
-                            {/* Organizer */}
                             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
                                 <Avatar className="w-12 h-12">
-                                    <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
+                                    <AvatarImage src={donation.organizer.avatar} />
                                     <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1">
@@ -565,7 +588,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 </div>
                             </div>
 
-                            {/* Action Buttons */}
                             <div className="grid grid-cols-2 gap-3">
                                 {donation.donationTypes.includes("money") && (
                                     <Button
@@ -601,7 +623,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     )}
                             </div>
 
-                            {/* Quick Payment Options */}
                             {donation.donationTypes.includes("money") && (
                                 <div className="grid grid-cols-3 gap-3 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg">
                                     <Button
@@ -637,7 +658,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                     </CardContent>
                 </Card>
 
-                {/* Tab Navigation */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <TabsList className={`grid w-full ${isOrganizer ? "grid-cols-4" : "grid-cols-3"} bg-white`}>
                         <TabsTrigger value="details">รายละเอียด</TabsTrigger>
@@ -656,7 +676,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                     </TabsList>
 
                     <TabsContent value="details" className="space-y-6">
-                        {/* Description */}
                         <Card>
                             <CardHeader>
                                 <CardTitle>รายละเอียด</CardTitle>
@@ -673,7 +692,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             </CardContent>
                         </Card>
 
-                        {/* Location */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -688,12 +706,11 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <Phone className="w-4 h-4 text-gray-400" />
-                                    <span className="text-gray-700">{donation.contactPhone}</span>
+                                    <span className="text-gray-700">{donation.contactPhone || "ไม่ระบุ"}</span>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        {/* Stories Section */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -704,11 +721,10 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {/* Story Preview Carousel */}
                                 <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
                                     <div className="relative">
                                         <Avatar className="w-16 h-16 ring-2 ring-pink-300">
-                                            <AvatarImage src={donation.organizer.avatar || "https://via.placeholder.com/100x100?text=No+Image"} />
+                                            <AvatarImage src={donation.organizer.avatar} />
                                             <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                         {unviewedStories.length > 0 && (
@@ -733,7 +749,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     </Button>
                                 </div>
 
-                                {/* Story Thumbnails */}
                                 <div className="grid grid-cols-3 gap-3">
                                     {mockStories.slice(0, 3).map((story) => (
                                         <div
@@ -743,7 +758,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         >
                                             {story.imageUrl ? (
                                                 <img
-                                                    src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
+                                                    src={story.imageUrl}
                                                     alt={story.title}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -764,7 +779,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     ))}
                                 </div>
 
-                                {/* Story List */}
                                 <div className="space-y-3">
                                     <h5 className="font-medium text-gray-800">Stories ล่าสุด</h5>
                                     {displayedStories.map((story) => (
@@ -776,7 +790,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                             <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center">
                                                 {story.imageUrl ? (
                                                     <img
-                                                        src={story.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
+                                                        src={story.imageUrl}
                                                         alt={story.title}
                                                         className="w-full h-full object-cover rounded-lg"
                                                     />
@@ -809,7 +823,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     ))}
                                 </div>
 
-                                {/* Show More/Less Button */}
                                 {mockStories.length > 3 && (
                                     <Button
                                         variant="outline"
@@ -820,7 +833,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     </Button>
                                 )}
 
-                                {/* Quick Stats */}
                                 <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                                     <div className="text-center">
                                         <div className="text-lg font-bold text-gray-800">{mockStories.length}</div>
@@ -842,7 +854,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             </CardContent>
                         </Card>
 
-                        {/* Payment Methods - Only show if money donation is accepted */}
                         {donation.donationTypes.includes("money") && (
                             <Card>
                                 <CardHeader>
@@ -852,7 +863,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    {/* Online Payment Options */}
                                     <div className="space-y-3">
                                         <h4 className="font-medium text-gray-800">การบริจาคออนไลน์</h4>
                                         <div className="grid grid-cols-1 gap-3">
@@ -886,22 +896,21 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         </div>
                                     </div>
 
-                                    {/* Bank Transfer */}
-                                    {donation?.paymentMethods?.bankAccount && (
+                                    {donation.paymentMethods?.bankAccount && (
                                         <div className="space-y-3 pt-4 border-t">
                                             <h4 className="font-medium text-gray-800">โอนเงินผ่านธนาคาร</h4>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
-                                                    <label className="text-sm text-gray-600">ธนาคาร</label>
+                                                    <p className="text-sm text-gray-600">ธนาคาร</p>
                                                     <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.bank}</p>
                                                 </div>
                                                 <div>
-                                                    <label className="text-sm text-gray-600">เลขที่บัญชี</label>
+                                                    <p className="text-sm text-gray-600">เลขที่บัญชี</p>
                                                     <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountNumber}</p>
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-sm text-gray-600">ชื่อบัญชี</label>
+                                                <p className="text-sm text-gray-600">ชื่อบัญชี</p>
                                                 <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountName}</p>
                                             </div>
                                         </div>
@@ -980,11 +989,11 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 <CardContent className="space-y-4">
                                     <p className="text-gray-700">{update.content}</p>
                                     {update.images && update.images.length > 0 && (
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                             {update.images.map((image: string, index: number) => (
                                                 <img
                                                     key={index}
-                                                    src={image || "https://via.placeholder.com/400x300?text=No+Image"}
+                                                    src={image}
                                                     alt={`Update ${update.id} - ${index + 1}`}
                                                     className="w-full h-48 object-cover rounded-lg"
                                                 />
@@ -998,7 +1007,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
 
                     {isOrganizer && (
                         <TabsContent value="receipts" className="space-y-6">
-                            {/* Receipt Stats */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <Card>
                                     <CardContent className="p-4 text-center">
@@ -1009,7 +1017,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         <p className="text-xs text-gray-600">ยอดรวมที่ได้รับ</p>
                                     </CardContent>
                                 </Card>
-
                                 <Card>
                                     <CardContent className="p-4 text-center">
                                         <FileText className="w-6 h-6 text-blue-600 mx-auto mb-2" />
@@ -1017,7 +1024,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         <p className="text-xs text-gray-600">สลิปทั้งหมด</p>
                                     </CardContent>
                                 </Card>
-
                                 <Card>
                                     <CardContent className="p-4 text-center">
                                         <span className="text-2xl block mb-2">⏳</span>
@@ -1025,7 +1031,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         <p className="text-xs text-gray-600">รอดำเนินการ</p>
                                     </CardContent>
                                 </Card>
-
                                 <Card>
                                     <CardContent className="p-4 text-center">
                                         <span className="text-2xl block mb-2">✅</span>
@@ -1035,7 +1040,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 </Card>
                             </div>
 
-                            {/* Upload Button */}
                             <Card>
                                 <CardContent className="p-6 text-center">
                                     <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -1051,7 +1055,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 </CardContent>
                             </Card>
 
-                            {/* Recent Receipts */}
                             {receipts.length > 0 && (
                                 <Card>
                                     <CardHeader>
@@ -1110,7 +1113,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                 </Tabs>
             </div>
 
-            {/* Modals */}
             <ShareModal
                 isOpen={showShareModal}
                 onClose={() => setShowShareModal(false)}
@@ -1121,8 +1123,8 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                     category: donation.category,
                     goalAmount: donation.goals.money?.target || 0,
                     currentAmount: donation.goals.money?.current || 0,
-                    organizer: donation.organizer,
-                    image: donation.imageUrl || "https://via.placeholder.com/400x300?text=No+Image",
+                    organizer: donation.organizer.name,
+                    image: donation.images?.[0] || "https://via.placeholder.com/400x300?text=No+Image",
                 }}
             />
 

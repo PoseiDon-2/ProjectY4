@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class DonationRequestController extends Controller
 {
@@ -131,16 +132,15 @@ class DonationRequestController extends Controller
         }
 
         try {
-            $requests = DonationRequest::with(['organizer']) // โหลด organizer relationship
+            $requests = DonationRequest::with(['organizer'])
                 ->where('organizer_id', $user->id)
                 ->where('status', DonationRequestStatus::APPROVED)
                 ->select('id', 'title', 'current_amount', 'goal_amount', 'created_at')
                 ->withCount(['donations as supporters' => function ($query) {
-                    $query->select(DB::raw('COUNT(DISTINCT donor_id)')); // แก้ไขจาก user_id เป็น donor_id
+                    $query->select(DB::raw('COUNT(DISTINCT donor_id)'));
                 }])
                 ->get()
-                ->map(function ($request) use ($user) { // ใช้ $user จาก Auth
-                    // ใช้ข้อมูลจาก organizer relationship หรือใช้ข้อมูลจาก user ปัจจุบัน
+                ->map(function ($request) use ($user) {
                     $organizerName = $request->organizer
                         ? ($request->organizer->organization_name ?? $request->organizer->name)
                         : ($user->organization_name ?? "{$user->first_name} {$user->last_name}");
@@ -162,9 +162,7 @@ class DonationRequestController extends Controller
             ]);
         } catch (\Exception $e) {
             \Log::error('Error in getOrganizerRequestsForStories: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
 
-            // Fallback: ใช้วิธีที่ไม่ต้องพึ่ง donations table และ organizer relationship
             $requests = DonationRequest::where('organizer_id', $user->id)
                 ->where('status', DonationRequestStatus::APPROVED)
                 ->select('id', 'title', 'current_amount', 'goal_amount', 'created_at', 'supporters')
@@ -176,7 +174,7 @@ class DonationRequestController extends Controller
                         'organizer' => $user->organization_name ?? "{$user->first_name} {$user->last_name}",
                         'currentAmount' => (float) $request->current_amount,
                         'goalAmount' => (float) $request->goal_amount,
-                        'supporters' => $request->supporters ?? 0, // ใช้ค่าจาก column supporters
+                        'supporters' => $request->supporters ?? 0,
                         'createdAt' => $request->created_at->toISOString(),
                     ];
                 });
@@ -216,7 +214,7 @@ class DonationRequestController extends Controller
                 })->sum('amount'),
                 'totalSupporters' => Donation::whereHas('donationRequest', function ($query) use ($user) {
                     $query->where('organizer_id', $user->id);
-                })->distinct('donor_id')->count('donor_id'), // แก้ไขจาก user_id เป็น donor_id
+                })->distinct('donor_id')->count('donor_id'),
                 'totalStories' => Story::whereHas('donationRequest', function ($query) use ($user) {
                     $query->where('organizer_id', $user->id);
                 })->count(),
@@ -228,12 +226,10 @@ class DonationRequestController extends Controller
                 })->sum('likes'),
             ];
 
-            // Calculate engagement rate
             $stats['engagementRate'] = $stats['totalViews'] > 0
                 ? round(($stats['totalLikes'] / $stats['totalViews']) * 100, 2)
                 : 0;
 
-            // Recent activity - last 5 stories
             $stats['recentStories'] = Story::whereHas('donationRequest', function ($query) use ($user) {
                 $query->where('organizer_id', $user->id);
             })
@@ -263,7 +259,6 @@ class DonationRequestController extends Controller
         } catch (\Exception $e) {
             \Log::error('Error in getOrganizerDashboardStats: ' . $e->getMessage());
 
-            // Fallback stats
             $stats = [
                 'totalRequests' => DonationRequest::where('organizer_id', $user->id)->count(),
                 'approvedRequests' => DonationRequest::where('organizer_id', $user->id)
@@ -318,7 +313,6 @@ class DonationRequestController extends Controller
 
         $requests = $query->get()
             ->map(function ($request) use ($user) {
-                // ใช้ข้อมูลจาก organizer หรือใช้ข้อมูลจาก user ปัจจุบัน
                 $organizerName = $request->organizer
                     ? ($request->organizer->organization_name ?? $request->organizer->name)
                     : ($user->organization_name ?? "{$user->first_name} {$user->last_name}");
@@ -417,51 +411,47 @@ class DonationRequestController extends Controller
             ], 403);
         }
 
-        // Log incoming request for debugging
-        \Log::info('Donation Request Data:', $request->all());
+        \Log::info('Incoming donation request data:', $request->all());
+        \Log::info('Incoming files:', $request->hasFile('images') ? $request->file('images') : 'No files');
 
-        // Validation
+        // Validation - รองรับไฟล์จริง
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'category_id' => 'required|string',
+            'category_id' => 'required|exists:categories,id',
             'donation_types' => 'required|array|min:1',
             'donation_types.*' => 'in:money,items,volunteer',
 
-            // Money donation fields
+            // Money
             'goal_amount' => 'nullable|numeric|min:1000',
-            'bank_account' => 'nullable|array',
-            'bank_account.bank' => 'nullable|string',
-            'bank_account.account_number' => 'nullable|string',
-            'bank_account.account_name' => 'nullable|string',
+            'bank_account.bank' => 'required_if:donation_types,money|string',
+            'bank_account.account_number' => 'required_if:donation_types,money|string',
+            'bank_account.account_name' => 'required_if:donation_types,money|string',
             'promptpay_number' => 'nullable|string',
-            'promptpay_qr' => 'nullable|string',
 
-            // Items donation fields
+            // Items
             'items_needed' => 'nullable|string',
 
-            // Volunteer fields
+            // Volunteer
             'volunteers_needed' => 'nullable|integer|min:1',
             'volunteer_details' => 'nullable|string',
-            'volunteer_duration' => 'nullable|string',
-            'volunteer_skills' => 'nullable|string',
 
             // Location & contact
             'location' => 'required|string',
             'detailed_address' => 'nullable|string',
             'contact_phone' => 'required|string',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
 
-            // Organization details
+            // Organization
             'organization_type' => 'required|string',
             'registration_number' => 'required|string',
             'tax_id' => 'nullable|string',
 
-            // Optional fields
+            // Urgency
             'urgency' => 'nullable|in:LOW,MEDIUM,HIGH',
-            'expires_at' => 'nullable|date',
-            'images' => 'nullable|array',
+
+            // Images - สำคัญ! ตรวจสอบไฟล์จริง
+            'images' => 'required|array|min:1|max:10',
+            'images.*' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // 5MB
         ]);
 
         if ($validator->fails()) {
@@ -471,103 +461,64 @@ class DonationRequestController extends Controller
             ], 422);
         }
 
-        $data = $validator->validated();
+        $data = $request->all();
         $donationTypes = $data['donation_types'];
 
-        // Validate category exists
-        $category = Category::find($data['category_id']);
-        if (!$category) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'messages' => ['category_id' => ['หมวดหมู่ที่เลือกไม่ถูกต้อง']]
-            ], 422);
-        }
-
-        // Custom validation for donation-specific fields
+        // Custom validation สำหรับ donation type
         if (in_array('money', $donationTypes)) {
-            if (empty($data['goal_amount']) || $data['goal_amount'] < 1000) {
-                return response()->json([
-                    'error' => 'Validation failed',
-                    'messages' => ['goal_amount' => ['เป้าหมายการระดมทุนต้องไม่น้อยกว่า 1,000 บาท']]
-                ], 422);
+            if (!$request->filled('goal_amount') || $request->goal_amount < 1000) {
+                return response()->json(['error' => 'เป้าหมายเงินต้องไม่น้อยกว่า 1,000 บาท'], 422);
             }
-            if (
-                empty($data['bank_account']) ||
-                empty($data['bank_account']['bank']) ||
-                empty($data['bank_account']['account_number']) ||
-                empty($data['bank_account']['account_name'])
-            ) {
-                return response()->json([
-                    'error' => 'Validation failed',
-                    'messages' => ['bank_account' => ['กรุณากรอกข้อมูลบัญชีธนาคารให้ครบถ้วน']]
-                ], 422);
+            if (!$request->has('bank_account.bank') || !$request->has('bank_account.account_number') || !$request->has('bank_account.account_name')) {
+                return response()->json(['error' => 'กรุณากรอกข้อมูลบัญชีธนาคารให้ครบถ้วน'], 422);
             }
         }
 
-        if (in_array('items', $donationTypes) && empty($data['items_needed'])) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'messages' => ['items_needed' => ['กรุณาระบุสิ่งของที่ต้องการ']]
-            ], 422);
+        if (in_array('items', $donationTypes) && !$request->filled('items_needed')) {
+            return response()->json(['error' => 'กรุณาระบุสิ่งของที่ต้องการ'], 422);
         }
 
         if (in_array('volunteer', $donationTypes)) {
-            if (empty($data['volunteers_needed']) || $data['volunteers_needed'] < 1) {
-                return response()->json([
-                    'error' => 'Validation failed',
-                    'messages' => ['volunteers_needed' => ['กรุณาระบุจำนวนอาสาสมัครที่ต้องการ']]
-                ], 422);
+            if (!$request->filled('volunteers_needed') || $request->volunteers_needed < 1) {
+                return response()->json(['error' => 'กรุณาระบุจำนวนอาสาสมัครที่ต้องการ'], 422);
             }
-            if (empty($data['volunteer_details'])) {
-                return response()->json([
-                    'error' => 'Validation failed',
-                    'messages' => ['volunteer_details' => ['กรุณาระบุรายละเอียดงานอาสาสมัคร']]
-                ], 422);
+            if (!$request->filled('volunteer_details')) {
+                return response()->json(['error' => 'กรุณาระบุรายละเอียดงานอาสาสมัคร'], 422);
             }
         }
 
-        // Create or get organization
-        $organization = null;
-        if ($user->organization_id) {
-            $organization = Organization::find($user->organization_id);
-        }
+        // สร้างหรือดึง Organization (เหมือนเดิม)
+        $organization = Organization::find($user->organization_id);
 
         if (!$organization) {
-            // Create new organization
-            try {
-                $orgData = [
-                    'id' => Str::uuid(),
-                    'name' => $user->organization_name ?? "{$user->first_name} {$user->last_name}",
-                    'type' => $data['organization_type'],
-                    'registration_number' => $data['registration_number'],
-                    'phone' => $data['contact_phone'],
-                    'address' => $data['detailed_address'] ?? null,
-                ];
+            $organization = Organization::create([
+                'id' => Str::uuid(),
+                'name' => $user->organization_name ?? "{$user->first_name} {$user->last_name}",
+                'type' => $data['organization_type'],
+                'registration_number' => $data['registration_number'],
+                'tax_id' => $data['tax_id'] ?? null,
+                'phone' => $data['contact_phone'],
+                'address' => $data['detailed_address'] ?? null,
+            ]);
 
-                \Log::info('Creating organization with data:', $orgData);
+            $user->organization_id = $organization->id;
+            $user->save();
+        }
 
-                $organization = Organization::create($orgData);
-
-                // Update user's organization_id
-                $user->organization_id = $organization->id;
-                $user->save();
-            } catch (\Exception $e) {
-                \Log::error('Error creating organization: ' . $e->getMessage());
-                \Log::error('Full error: ' . $e);
-                return response()->json([
-                    'error' => 'Failed to create organization',
-                    'message' => $e->getMessage(),
-                    'details' => config('app.debug') ? [
-                        'line' => $e->getLine(),
-                        'file' => $e->getFile(),
-                    ] : null
-                ], 500);
+        // อัปโหลดและบันทึก path รูปภาพ
+        $imagePaths = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $image) {
+                $filename = Str::random(10) . '_' . time() . '.' . $image->getClientOriginalExtension();
+                $path = $image->storeAs('donation-images', $filename, 'public');
+                $imagePaths[] = $path; // เช่น donation-images/abc123.jpg
             }
         }
 
-        // Prepare donation request data
+        // สร้าง slug
         $slug = Str::slug($data['title']) . '-' . Str::random(6);
 
+        // สร้าง DonationRequest
         try {
             $donationRequest = DonationRequest::create([
                 'id' => Str::uuid(),
@@ -583,17 +534,14 @@ class DonationRequestController extends Controller
                 'accepts_items' => in_array('items', $donationTypes),
                 'accepts_volunteer' => in_array('volunteer', $donationTypes),
 
-                // Money donation
-                'goal_amount' => $data['goal_amount'] ?? null,
-                'target_amount' => $data['goal_amount'] ?? 0,
+                // Money
+                'goal_amount' => in_array('money', $donationTypes) ? $data['goal_amount'] : null,
+                'target_amount' => in_array('money', $donationTypes) ? ($data['goal_amount'] ?? 0) : 0,
                 'current_amount' => 0,
-                'payment_methods' => isset($data['bank_account'])
-                    ? json_encode($data['bank_account'])
-                    : null,
-                'promptpay_number' => $data['promptpay_number'] ?? null,
-                'promptpay_qr' => $data['promptpay_qr'] ?? null,
+                'payment_methods' => in_array('money', $donationTypes) ? json_encode($request->bank_account) : null,
+                'promptpay_number' => $request->promptpay_number ?? null,
 
-                // Items donation
+                // Items
                 'items_needed' => $data['items_needed'] ?? null,
                 'item_details' => $data['items_needed'] ?? null,
 
@@ -601,31 +549,26 @@ class DonationRequestController extends Controller
                 'volunteers_needed' => $data['volunteers_needed'] ?? 0,
                 'volunteers_received' => 0,
                 'volunteer_details' => $data['volunteer_details'] ?? null,
-                'volunteer_duration' => $data['volunteer_duration'] ?? null,
-                'volunteer_skills' => $data['volunteer_skills'] ?? null,
 
                 // Location
                 'location' => $data['location'],
-                'latitude' => $data['latitude'] ?? null,
-                'longitude' => $data['longitude'] ?? null,
+                'detailed_address' => $data['detailed_address'] ?? null,
+                'contact_phone' => $data['contact_phone'],
 
                 // Status & urgency
                 'status' => DonationRequestStatus::PENDING,
                 'urgency' => $data['urgency'] ?? UrgencyLevel::MEDIUM->value,
-                'expires_at' => $data['expires_at'] ?? null,
 
-                // Images
-                'images' => isset($data['images']) ? json_encode($data['images']) : null,
-                'documents' => null,
+                // Images - เก็บเป็น JSON array ของ path
+                'images' => !empty($imagePaths) ? json_encode($imagePaths) : null,
 
-                // Metadata
                 'supporters' => 0,
                 'view_count' => 0,
                 'recommendation_score' => 0,
             ]);
 
             return response()->json([
-                'message' => 'Donation request created successfully',
+                'message' => 'สร้างคำขอสำเร็จ! กำลังรอการอนุมัติ',
                 'data' => $donationRequest->load(['category', 'organization', 'organizer'])
             ], 201);
         } catch (\Exception $e) {
@@ -633,8 +576,7 @@ class DonationRequestController extends Controller
             \Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'error' => 'Failed to create donation request',
-                'message' => $e->getMessage(),
-                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+                'message' => $e->getMessage()
             ], 500);
         }
     }
@@ -747,7 +689,7 @@ class DonationRequestController extends Controller
                 'progressPercentage' => $donationRequest->goal_amount > 0
                     ? round(($donationRequest->current_amount / $donationRequest->goal_amount) * 100, 2)
                     : 0,
-                'supporters' => $donationRequest->donations()->distinct('donor_id')->count(), // แก้ไขจาก user_id เป็น donor_id
+                'supporters' => $donationRequest->donations()->distinct('donor_id')->count(),
                 'daysRemaining' => $donationRequest->expires_at
                     ? max(0, now()->diffInDays($donationRequest->expires_at, false))
                     : null,

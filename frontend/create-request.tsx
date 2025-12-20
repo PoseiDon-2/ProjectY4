@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import axios from "axios"
 import { ArrowLeft, Upload, MapPin, Phone, CreditCard, Save, Eye, Building, CheckCircle2, Circle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 interface CreateRequestData {
     title: string
@@ -38,7 +40,6 @@ interface CreateRequestData {
         registrationNumber: string
         taxId: string
     }
-    image?: File
 }
 
 const organizationTypes = [
@@ -101,6 +102,8 @@ export default function CreateRequest() {
     const [error, setError] = useState("")
     const [success, setSuccess] = useState(false)
     const [isAuthorized, setIsAuthorized] = useState(false)
+    const [imageFiles, setImageFiles] = useState<File[]>([])
+    const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
     const [formData, setFormData] = useState<CreateRequestData>({
         title: "",
@@ -128,7 +131,54 @@ export default function CreateRequest() {
         },
     })
 
-    // Check authorization in useEffect
+    // รีเซ็ต currentImageIndex เมื่อ imageFiles เปลี่ยน
+    useEffect(() => {
+        if (imageFiles.length === 0) {
+            setCurrentImageIndex(0)
+        } else if (currentImageIndex >= imageFiles.length) {
+            setCurrentImageIndex(imageFiles.length - 1)
+        }
+    }, [imageFiles])
+
+    // โหลดข้อมูลองค์กรและบัญชีธนาคารจาก localStorage
+    useEffect(() => {
+        if (user) {
+            const savedOrg = localStorage.getItem("savedOrganizationDetails")
+            const savedBank = localStorage.getItem("savedBankAccount")
+
+            if (savedOrg) {
+                const org = JSON.parse(savedOrg)
+                setFormData(prev => ({
+                    ...prev,
+                    organizationDetails: { ...org }
+                }))
+            }
+
+            if (savedBank) {
+                const bank = JSON.parse(savedBank)
+                setFormData(prev => ({
+                    ...prev,
+                    bankAccount: { ...bank }
+                }))
+            }
+        }
+    }, [user])
+
+    // บันทึกข้อมูลองค์กรอัตโนมัติ
+    useEffect(() => {
+        if (formData.organizationDetails.organizationType && formData.organizationDetails.registrationNumber) {
+            localStorage.setItem("savedOrganizationDetails", JSON.stringify(formData.organizationDetails))
+        }
+    }, [formData.organizationDetails])
+
+    // บันทึกข้อมูลบัญชีธนาคารอัตโนมัติ
+    useEffect(() => {
+        if (formData.bankAccount.bank && formData.bankAccount.accountNumber && formData.bankAccount.accountName) {
+            localStorage.setItem("savedBankAccount", JSON.stringify(formData.bankAccount))
+        }
+    }, [formData.bankAccount])
+
+    // ตรวจสอบสิทธิ์
     useEffect(() => {
         if (user) {
             if (user.role !== "organizer") {
@@ -139,10 +189,7 @@ export default function CreateRequest() {
         }
     }, [user, router])
 
-    // Show loading while checking authorization
-    if (!user || !isAuthorized) {
-        return null
-    }
+    if (!user || !isAuthorized) return null
 
     const handleInputChange = (field: string, value: string | number) => {
         if (field.startsWith("bankAccount.")) {
@@ -202,14 +249,19 @@ export default function CreateRequest() {
         setError("")
         setIsSubmitting(true)
 
-        // Validation
+        // Validation พื้นฐานรวมรูปภาพ
+        if (imageFiles.length === 0) {
+            setError("กรุณาอัปโหลดรูปภาพประกอบอย่างน้อย 1 รูป")
+            setIsSubmitting(false)
+            return
+        }
+
         if (!formData.title || !formData.description || !formData.category || formData.donationType.length === 0) {
             setError("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน")
             setIsSubmitting(false)
             return
         }
 
-        // Validate donation type specific fields
         if (formData.donationType.includes("money")) {
             if (!formData.goalAmount || formData.goalAmount < 1000) {
                 setError("เป้าหมายการระดมทุนต้องไม่น้อยกว่า 1,000 บาท")
@@ -242,7 +294,6 @@ export default function CreateRequest() {
             }
         }
 
-        // Validate organization details
         if (!formData.organizationDetails.organizationType || !formData.organizationDetails.registrationNumber) {
             setError("กรุณากรอกข้อมูลองค์กรให้ครบถ้วน")
             setIsSubmitting(false)
@@ -250,122 +301,65 @@ export default function CreateRequest() {
         }
 
         try {
-            // Prepare base API data
-            const apiData: any = {
-                title: formData.title,
-                description: formData.description,
-                category_id: formData.category,
-                donation_types: formData.donationType,
+            const formDataToSend = new FormData()
 
-                // Location
-                location: formData.location,
-                contact_phone: formData.contactPhone,
+            formDataToSend.append("title", formData.title)
+            formDataToSend.append("description", formData.description)
+            formDataToSend.append("category_id", formData.category)
+            formDataToSend.append("location", formData.location)
+            formDataToSend.append("contact_phone", formData.contactPhone)
+            formDataToSend.append("organization_type", formData.organizationDetails.organizationType)
+            formDataToSend.append("registration_number", formData.organizationDetails.registrationNumber)
 
-                // Organization
-                organization_type: formData.organizationDetails.organizationType,
-                registration_number: formData.organizationDetails.registrationNumber,
+            if (formData.detailedAddress.trim()) formDataToSend.append("detailed_address", formData.detailedAddress)
+            if (formData.organizationDetails.taxId.trim()) formDataToSend.append("tax_id", formData.organizationDetails.taxId)
 
-                // Optional
-                urgency: "MEDIUM",
-            }
+            formData.donationType.forEach(type => formDataToSend.append("donation_types[]", type))
 
-            // Add optional fields only if they have values
-            if (formData.detailedAddress && formData.detailedAddress.trim()) {
-                apiData.detailed_address = formData.detailedAddress
-            }
-
-            if (formData.organizationDetails.taxId && formData.organizationDetails.taxId.trim()) {
-                apiData.tax_id = formData.organizationDetails.taxId
-            }
-
-            // Money donation
             if (formData.donationType.includes("money")) {
-                apiData.goal_amount = formData.goalAmount
-
-                // Only include bank account if all fields are filled
-                if (formData.bankAccount.bank && formData.bankAccount.accountNumber && formData.bankAccount.accountName) {
-                    apiData.bank_account = {
-                        bank: formData.bankAccount.bank,
-                        account_number: formData.bankAccount.accountNumber,
-                        account_name: formData.bankAccount.accountName
-                    }
-                }
-
-                // PromptPay (optional)
-                if (formData.promptpayNumber && formData.promptpayNumber.trim()) {
-                    apiData.promptpay_number = formData.promptpayNumber
-                }
-                if (formData.promptpayQR && formData.promptpayQR.trim()) {
-                    apiData.promptpay_qr = formData.promptpayQR
-                }
+                formDataToSend.append("goal_amount", formData.goalAmount!.toString())
+                formDataToSend.append("bank_account[bank]", formData.bankAccount.bank)
+                formDataToSend.append("bank_account[account_number]", formData.bankAccount.accountNumber)
+                formDataToSend.append("bank_account[account_name]", formData.bankAccount.accountName)
+                if (formData.promptpayNumber?.trim()) formDataToSend.append("promptpay_number", formData.promptpayNumber)
             }
 
-            // Items donation
-            if (formData.donationType.includes("items")) {
-                apiData.items_needed = formData.goalItems
+            if (formData.donationType.includes("items") && formData.goalItems) {
+                formDataToSend.append("items_needed", formData.goalItems)
             }
 
-            // Volunteer
             if (formData.donationType.includes("volunteer")) {
-                apiData.volunteers_needed = formData.goalVolunteers
-                apiData.volunteer_details = formData.volunteerDetails
+                formDataToSend.append("volunteers_needed", formData.goalVolunteers!.toString())
+                if (formData.volunteerDetails) formDataToSend.append("volunteer_details", formData.volunteerDetails)
             }
 
-            console.log("Sending API data:", apiData)
+            // เพิ่มรูปภาพหลายไฟล์
+            imageFiles.forEach(file => formDataToSend.append("images[]", file))
 
-            // Import API helper
-            const { donationRequestsAPI } = await import("@/lib/api")
-
-            const response = await donationRequestsAPI.create(apiData)
-
-            console.log("Donation request created:", response.data)
+            const response = await axios.post(`${API_URL}/donation-requests`, formDataToSend, {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                    Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+                },
+            })
 
             setSuccess(true)
             setIsSubmitting(false)
-
-            // Redirect after success
-            setTimeout(() => {
-                router.push("/organizer-dashboard")
-            }, 2000)
-        } catch (error: any) {
-            console.error("Error creating donation request:", error)
-            console.error("Error response:", error.response?.data)
-
-            if (error.response?.data?.error) {
-                setError(error.response.data.error)
-            } else if (error.response?.data?.messages) {
-                // Validation errors from backend
-                const messages = error.response.data.messages
-                console.error("Validation errors:", messages)
-
-                // Show all errors
-                const errorList = Object.entries(messages)
-                    .map(([field, errors]: [string, any]) => {
-                        const errorMsg = Array.isArray(errors) ? errors[0] : errors
-                        return `${field}: ${errorMsg}`
-                    })
-                    .join('\n')
-
-                setError(errorList || "ข้อมูลไม่ถูกต้อง")
-            } else {
-                setError("เกิดข้อผิดพลาดในการสร้างคำขอ กรุณาลองใหม่อีกครั้ง")
-            }
-
+            setTimeout(() => router.push("/organizer-dashboard"), 2000)
+        } catch (err: any) {
+            console.error(err)
+            setError(err.response?.data?.message || err.response?.data?.error || "เกิดข้อผิดพลาดในการสร้างคำขอ")
             setIsSubmitting(false)
         }
     }
 
-    const formatAmount = (amount: number) => {
-        return new Intl.NumberFormat("th-TH").format(amount)
-    }
+    const formatAmount = (amount: number) => new Intl.NumberFormat("th-TH").format(amount)
 
-    const getOrganizationTypeLabel = (type: string) => {
-        return organizationTypes.find((t) => t.value === type)?.label || type
-    }
+    const getOrganizationTypeLabel = (type: string) =>
+        organizationTypes.find(t => t.value === type)?.label || type
 
-    const getCategoryLabel = (category: string) => {
-        return categories.find((c) => c.value === category)?.label || category
-    }
+    const getCategoryLabel = (category: string) =>
+        categories.find(c => c.value === category)?.label || category
 
     if (success) {
         return (
@@ -386,7 +380,6 @@ export default function CreateRequest() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            {/* Header */}
             <div className="bg-white shadow-sm border-b">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center gap-4">
@@ -425,7 +418,7 @@ export default function CreateRequest() {
                                             id="title"
                                             placeholder="เช่น ช่วยเหลือครอบครัวที่ประสบอุทกภัย"
                                             value={formData.title}
-                                            onChange={(e) => handleInputChange("title", e.target.value)}
+                                            onChange={e => handleInputChange("title", e.target.value)}
                                             required
                                         />
                                     </div>
@@ -437,7 +430,7 @@ export default function CreateRequest() {
                                             placeholder="อธิบายสถานการณ์และความต้องการความช่วยเหลือ..."
                                             rows={6}
                                             value={formData.description}
-                                            onChange={(e) => handleInputChange("description", e.target.value)}
+                                            onChange={e => handleInputChange("description", e.target.value)}
                                             required
                                         />
                                         <p className="text-xs text-gray-500">อธิบายให้ละเอียดเพื่อให้ผู้บริจาคเข้าใจสถานการณ์</p>
@@ -446,12 +439,12 @@ export default function CreateRequest() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="category">หมวดหมู่ *</Label>
-                                            <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                                            <Select value={formData.category} onValueChange={value => handleInputChange("category", value)}>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="เลือกหมวดหมู่" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {categories.map((category) => (
+                                                    {categories.map(category => (
                                                         <SelectItem key={category.value} value={category.value}>
                                                             <div className="flex items-center gap-2">
                                                                 <span>{category.icon}</span>
@@ -467,13 +460,13 @@ export default function CreateRequest() {
                                             <Label htmlFor="organizationType">ประเภทองค์กร *</Label>
                                             <Select
                                                 value={formData.organizationDetails.organizationType}
-                                                onValueChange={(value) => handleInputChange("organizationDetails.organizationType", value)}
+                                                onValueChange={value => handleInputChange("organizationDetails.organizationType", value)}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="เลือกประเภทองค์กร" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {organizationTypes.map((type) => (
+                                                    {organizationTypes.map(type => (
                                                         <SelectItem key={type.value} value={type.value}>
                                                             <div className="flex items-center gap-2">
                                                                 <span>{type.icon}</span>
@@ -486,13 +479,142 @@ export default function CreateRequest() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="image">รูปภาพประกอบ</Label>
-                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                            <p className="text-sm text-gray-600">คลิกเพื่อเลือกรูปภาพ หรือลากไฟล์มาวาง</p>
-                                            <p className="text-xs text-gray-500 mt-1">รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 5MB</p>
-                                        </div>
+                                    {/* รูปภาพประกอบ - เวอร์ชันใหม่ */}
+                                    <div className="space-y-4">
+                                        <Label>รูปภาพประกอบ (สูงสุด 10 รูป) *</Label>
+
+                                        {imageFiles.length === 0 ? (
+                                            <label className="flex flex-col items-center justify-center w-full h-96 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-all">
+                                                <Upload className="w-16 h-16 text-gray-400 mb-4" />
+                                                <span className="text-lg font-medium text-gray-700">คลิกเพื่อเพิ่มรูปภาพ</span>
+                                                <span className="text-sm text-gray-500 mt-2">รองรับ JPG, PNG, WEBP • สูงสุด 5MB ต่อรูป</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    multiple
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const files = Array.from(e.target.files || [])
+                                                        const validFiles = files.filter(file => {
+                                                            if (file.size > 5 * 1024 * 1024) {
+                                                                setError(`ไฟล์ ${file.name} ใหญ่เกิน 5MB`)
+                                                                return false
+                                                            }
+                                                            return true
+                                                        })
+                                                        if (imageFiles.length + validFiles.length > 10) {
+                                                            setError("อัปโหลดได้สูงสุด 10 รูปเท่านั้น")
+                                                            return
+                                                        }
+                                                        setImageFiles(prev => [...prev, ...validFiles])
+                                                    }}
+                                                />
+                                            </label>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {/* รูปหลัก - ปุ่มลบสวย ๆ แบบใหม่ */}
+                                                <div className="relative rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50">
+                                                    <img
+                                                        src={URL.createObjectURL(imageFiles[currentImageIndex])}
+                                                        alt="รูปหลัก"
+                                                        className="w-full h-96 object-cover"
+                                                    />
+                                                    {/* ปุ่มลบ - ดีไซน์ใหม่ สวย นุ่มนวล */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newFiles = imageFiles.filter((_, i) => i !== currentImageIndex)
+                                                            setImageFiles(newFiles)
+                                                            if (currentImageIndex >= newFiles.length && newFiles.length > 0) {
+                                                                setCurrentImageIndex(newFiles.length - 1)
+                                                            } else if (newFiles.length === 0) {
+                                                                setCurrentImageIndex(0)
+                                                            }
+                                                        }}
+                                                        className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-red-500 rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-white hover:scale-110 transition-all duration-200 border border-gray-200"
+                                                        title="ลบรูปนี้"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+
+                                                {/* Thumbnail - ขนาดเท่ากันหมด */}
+                                                <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                                                    {imageFiles.map((file, index) => (
+                                                        <div key={index} className="relative group">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCurrentImageIndex(index)}
+                                                                className={`flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-3 transition-all shadow-md ${index === currentImageIndex
+                                                                        ? 'border-pink-500 ring-4 ring-pink-200'
+                                                                        : 'border-gray-300 hover:border-gray-400'
+                                                                    }`}
+                                                            >
+                                                                <img
+                                                                    src={URL.createObjectURL(file)}
+                                                                    alt={`รูปย่อย ${index + 1}`}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            </button>
+
+                                                            {/* ปุ่มลบ thumbnail - สวย นุ่มนวล */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    const newFiles = imageFiles.filter((_, i) => i !== index)
+                                                                    setImageFiles(newFiles)
+                                                                    if (index === currentImageIndex && newFiles.length > 0) {
+                                                                        setCurrentImageIndex(Math.max(0, index - 1))
+                                                                    }
+                                                                }}
+                                                                className="absolute -top-2 -right-2 bg-white text-red-500 rounded-full w-8 h-8 flex items-center justify-center shadow-xl hover:bg-gray-100 hover:scale-110 transition-all duration-200 border border-gray-200 opacity-0 group-hover:opacity-100"
+                                                                title="ลบรูปนี้"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+
+                                                    {/* ปุ่มเพิ่มรูป */}
+                                                    {imageFiles.length < 10 && (
+                                                        <label className="flex-shrink-0 w-24 h-24 border-3 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition bg-white">
+                                                            <Upload className="w-10 h-10 text-gray-400" />
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                multiple
+                                                                className="hidden"
+                                                                onChange={(e) => {
+                                                                    const files = Array.from(e.target.files || [])
+                                                                    const validFiles = files.filter(file => {
+                                                                        if (file.size > 5 * 1024 * 1024) {
+                                                                            setError(`ไฟล์ ${file.name} ใหญ่เกิน 5MB`)
+                                                                            return false
+                                                                        }
+                                                                        return true
+                                                                    })
+                                                                    if (imageFiles.length + validFiles.length > 10) {
+                                                                        setError("อัปโหลดได้สูงสุด 10 รูปเท่านั้น")
+                                                                        return
+                                                                    }
+                                                                    setImageFiles(prev => [...prev, ...validFiles])
+                                                                }}
+                                                            />
+                                                        </label>
+                                                    )}
+                                                </div>
+
+                                                <p className="text-sm text-gray-600">
+                                                    อัปโหลดแล้ว {imageFiles.length}/10 รูป
+                                                    {imageFiles.length > 0 && <span className="text-green-600 ml-2">✓ พร้อมใช้งาน</span>}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -506,22 +628,10 @@ export default function CreateRequest() {
                                             <p className="text-sm text-gray-600 mt-1">เลือกประเภทการบริจาคที่ต้องการรับ (เลือกได้หลายประเภท)</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={handleSelectAllDonationTypes}
-                                                className="text-xs bg-transparent"
-                                            >
+                                            <Button type="button" variant="outline" size="sm" onClick={handleSelectAllDonationTypes}>
                                                 เลือกทั้งหมด
                                             </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={handleClearAllDonationTypes}
-                                                className="text-xs bg-transparent"
-                                            >
+                                            <Button type="button" variant="outline" size="sm" onClick={handleClearAllDonationTypes}>
                                                 ยกเลิกทั้งหมด
                                             </Button>
                                         </div>
@@ -533,8 +643,8 @@ export default function CreateRequest() {
                                             <div
                                                 key={type.value}
                                                 className={`border rounded-lg p-4 cursor-pointer transition-all ${formData.donationType.includes(type.value)
-                                                        ? `${type.color} border-2`
-                                                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                                    ? `${type.color} border-2`
+                                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                                                     }`}
                                                 onClick={() => handleDonationTypeToggle(type.value)}
                                             >
@@ -565,7 +675,6 @@ export default function CreateRequest() {
                                         ))}
                                     </div>
 
-                                    {/* Conditional Fields Based on Donation Type */}
                                     {formData.donationType.includes("money") && (
                                         <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
                                             <div className="flex items-center gap-2 mb-2">
@@ -598,13 +707,12 @@ export default function CreateRequest() {
                                                 <Label htmlFor="goalItems">รายการสิ่งของที่ต้องการ *</Label>
                                                 <Textarea
                                                     id="goalItems"
-                                                    placeholder="เช่น หนังสือเรียน 100 เล่ม, เครื่องเขียน 50 ชุด, อุปกรณ์กีฬา (ลูกฟุตบอล 5 ลูก, ตาข่ายวอลเลย์บอล 2 ผืน)"
+                                                    placeholder="เช่น หนังสือเรียน 100 เล่ม, เครื่องเขียน 50 ชุด..."
                                                     rows={4}
                                                     value={formData.goalItems}
                                                     onChange={(e) => handleInputChange("goalItems", e.target.value)}
                                                     required
                                                 />
-                                                <p className="text-xs text-blue-700">ระบุรายการสิ่งของและจำนวนให้ละเอียด</p>
                                             </div>
                                         </div>
                                     )}
@@ -628,33 +736,17 @@ export default function CreateRequest() {
                                                         required
                                                     />
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label>ระยะเวลาที่ต้องการ</Label>
-                                                    <Select>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="เลือกระยะเวลา" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="1day">1 วัน</SelectItem>
-                                                            <SelectItem value="weekend">สุดสัปดาห์</SelectItem>
-                                                            <SelectItem value="1week">1 สัปดาห์</SelectItem>
-                                                            <SelectItem value="1month">1 เดือน</SelectItem>
-                                                            <SelectItem value="ongoing">ต่อเนื่อง</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="volunteerDetails">รายละเอียดงานที่ต้องการ *</Label>
                                                 <Textarea
                                                     id="volunteerDetails"
-                                                    placeholder="เช่น ช่วยงานก่อสร้าง (ไม่ต้องมีประสบการณ์), สอนหนังสือให้เด็ก (ต้องมีความรู้พื้นฐาน), ดูแลผู้ป่วย (ต้องมีใจรักการบริการ), ทำความสะอาด"
+                                                    placeholder="เช่น ช่วยงานก่อสร้าง, สอนหนังสือให้เด็ก..."
                                                     rows={4}
                                                     value={formData.volunteerDetails}
                                                     onChange={(e) => handleInputChange("volunteerDetails", e.target.value)}
                                                     required
                                                 />
-                                                <p className="text-xs text-purple-700">ระบุประเภทงาน ความรู้ที่ต้องการ และเงื่อนไขต่างๆ</p>
                                             </div>
                                         </div>
                                     )}
@@ -666,7 +758,7 @@ export default function CreateRequest() {
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Building className="w-5 h-5 text-blue-500" />
-                                        ข้อมูลองค์กร
+                                        ข้อมูลองค์กร (บันทึกอัตโนมัติ)
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
@@ -681,7 +773,6 @@ export default function CreateRequest() {
                                                 required
                                             />
                                         </div>
-
                                         <div className="space-y-2">
                                             <Label htmlFor="taxId">เลขประจำตัวผู้เสียภาษี</Label>
                                             <Input
@@ -708,13 +799,12 @@ export default function CreateRequest() {
                                         <Label htmlFor="location">จังหวัด/พื้นที่ *</Label>
                                         <Input
                                             id="location"
-                                            placeholder="เช่น กรุงเทพมหานคร, จังหวัดเชียงใหม่"
+                                            placeholder="เช่น กรุงเทพมหานคร"
                                             value={formData.location}
                                             onChange={(e) => handleInputChange("location", e.target.value)}
                                             required
                                         />
                                     </div>
-
                                     <div className="space-y-2">
                                         <Label htmlFor="detailedAddress">ที่อยู่ละเอียด</Label>
                                         <Textarea
@@ -725,7 +815,6 @@ export default function CreateRequest() {
                                             onChange={(e) => handleInputChange("detailedAddress", e.target.value)}
                                         />
                                     </div>
-
                                     <div className="space-y-2">
                                         <Label htmlFor="contactPhone">เบอร์โทรติดต่อ *</Label>
                                         <div className="relative">
@@ -744,15 +833,14 @@ export default function CreateRequest() {
                                 </CardContent>
                             </Card>
 
-                            {/* Bank Account Information - Only show if money donation is selected */}
+                            {/* Bank Account */}
                             {formData.donationType.includes("money") && (
                                 <Card>
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2">
                                             <CreditCard className="w-5 h-5 text-green-500" />
-                                            ข้อมูลบัญชีธนาคาร
+                                            ข้อมูลบัญชีธนาคาร (บันทึกอัตโนมัติ)
                                         </CardTitle>
-                                        <p className="text-sm text-gray-600">สำหรับรับเงินบริจาค</p>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
                                         <div className="space-y-2">
@@ -773,7 +861,6 @@ export default function CreateRequest() {
                                                 </SelectContent>
                                             </Select>
                                         </div>
-
                                         <div className="space-y-2">
                                             <Label htmlFor="accountNumber">เลขที่บัญชี *</Label>
                                             <Input
@@ -784,7 +871,6 @@ export default function CreateRequest() {
                                                 required
                                             />
                                         </div>
-
                                         <div className="space-y-2">
                                             <Label htmlFor="accountName">ชื่อบัญชี *</Label>
                                             <Input
@@ -796,9 +882,9 @@ export default function CreateRequest() {
                                             />
                                         </div>
 
+                                        {/* PromptPay */}
                                         <div className="border-t pt-4 mt-4">
                                             <h4 className="text-sm font-medium text-gray-700 mb-3">พร้อมเพย์ (PromptPay)</h4>
-
                                             <div className="space-y-2">
                                                 <Label htmlFor="promptpayNumber">หมายเลขพร้อมเพย์</Label>
                                                 <Input
@@ -807,55 +893,6 @@ export default function CreateRequest() {
                                                     value={formData.promptpayNumber}
                                                     onChange={(e) => handleInputChange("promptpayNumber", e.target.value)}
                                                 />
-                                                <p className="text-xs text-gray-500">เบอร์โทรศัพท์หรือเลขบัตรประชาชน 13 หลัก</p>
-                                            </div>
-
-                                            <div className="space-y-2 mt-3">
-                                                <Label htmlFor="promptpayQR">อัปโหลด QR Code พร้อมเพย์</Label>
-                                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                                                    <Upload className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-                                                    <p className="text-sm text-gray-600">คลิกเพื่ออัปโหลด QR Code</p>
-                                                    <p className="text-xs text-gray-500 mt-1">รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 2MB</p>
-                                                    <input
-                                                        id="promptpayQR"
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="hidden"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0]
-                                                            if (file) {
-                                                                // Convert to base64 or handle file upload
-                                                                const reader = new FileReader()
-                                                                reader.onloadend = () => {
-                                                                    setFormData({
-                                                                        ...formData,
-                                                                        promptpayQR: reader.result as string
-                                                                    })
-                                                                }
-                                                                reader.readAsDataURL(file)
-                                                            }
-                                                        }}
-                                                    />
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="mt-2"
-                                                        onClick={() => document.getElementById('promptpayQR')?.click()}
-                                                    >
-                                                        เลือกไฟล์
-                                                    </Button>
-                                                </div>
-                                                {formData.promptpayQR && (
-                                                    <div className="mt-2">
-                                                        <img
-                                                            src={formData.promptpayQR}
-                                                            alt="QR Code Preview"
-                                                            className="w-32 h-32 object-contain border rounded mx-auto"
-                                                        />
-                                                        <p className="text-xs text-green-600 text-center mt-1">✓ อัปโหลดสำเร็จ</p>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     </CardContent>
@@ -863,9 +900,9 @@ export default function CreateRequest() {
                             )}
                         </div>
 
-                        {/* Preview Sidebar */}
+                        {/* Sidebar */}
                         <div className="space-y-6">
-                            <Card className="sticky top-4">
+                            <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Eye className="w-5 h-5 text-blue-500" />
@@ -873,16 +910,21 @@ export default function CreateRequest() {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                                        <span className="text-gray-400">รูปภาพประกอบ</span>
-                                    </div>
-
-                                    <div>
-                                        <h3 className="font-bold text-gray-800 line-clamp-2">{formData.title || "หัวข้อคำขอบริจาค"}</h3>
-                                        <p className="text-sm text-gray-600 mt-1 line-clamp-3">
-                                            {formData.description || "รายละเอียดคำขอบริจาค..."}
-                                        </p>
-                                    </div>
+                                    {imageFiles.length > 0 ? (
+                                        <div className="aspect-video rounded-lg overflow-hidden border-2 border-gray-200">
+                                            <img
+                                                src={URL.createObjectURL(imageFiles[0])}
+                                                alt="รูปตัวอย่าง"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
+                                            <span className="text-gray-400">ยังไม่มีรูปภาพ</span>
+                                        </div>
+                                    )}
+                                    <h3 className="font-bold text-gray-800 line-clamp-2">{formData.title || "หัวข้อคำขอบริจาค"}</h3>
+                                    <p className="text-sm text-gray-600 line-clamp-3">{formData.description || "รายละเอียดคำขอบริจาค..."}</p>
 
                                     <div className="flex flex-wrap gap-2">
                                         {formData.category && (
@@ -898,51 +940,23 @@ export default function CreateRequest() {
                                     </div>
 
                                     {formData.donationType.length > 0 && (
-                                        <div className="space-y-2">
-                                            <h4 className="text-sm font-medium text-gray-700">ประเภทการบริจาค:</h4>
-                                            <div className="flex flex-wrap gap-1">
-                                                {formData.donationType.map((type) => {
-                                                    const typeInfo = donationTypes.find((t) => t.value === type)
-                                                    return (
-                                                        <span
-                                                            key={type}
-                                                            className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full flex items-center gap-1"
-                                                        >
-                                                            <span>{typeInfo?.icon}</span>
-                                                            <span>{typeInfo?.label}</span>
-                                                        </span>
-                                                    )
-                                                })}
-                                            </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {formData.donationType.map((type) => {
+                                                const info = donationTypes.find(t => t.value === type)
+                                                return (
+                                                    <span key={type} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full flex items-center gap-1">
+                                                        <span>{info?.icon}</span>
+                                                        <span>{info?.label}</span>
+                                                    </span>
+                                                )
+                                            })}
                                         </div>
                                     )}
 
-                                    {formData.goalAmount && formData.goalAmount > 0 && (
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-gray-600">เป้าหมาย</span>
-                                                <span className="font-semibold">฿{formatAmount(formData.goalAmount)}</span>
-                                            </div>
-                                            <div className="w-full bg-gray-200 rounded-full h-2">
-                                                <div className="bg-pink-500 h-2 rounded-full w-0"></div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {formData.goalItems && (
-                                        <div className="space-y-1">
-                                            <span className="text-sm font-medium text-gray-700">สิ่งของที่ต้องการ:</span>
-                                            <p className="text-xs text-gray-600 line-clamp-2">{formData.goalItems}</p>
-                                        </div>
-                                    )}
-
-                                    {formData.goalVolunteers && formData.goalVolunteers > 0 && (
-                                        <div className="space-y-1">
-                                            <span className="text-sm font-medium text-gray-700">อาสาสมัคร:</span>
-                                            <p className="text-xs text-gray-600">{formData.goalVolunteers} คน</p>
-                                            {formData.volunteerDetails && (
-                                                <p className="text-xs text-gray-500 line-clamp-2">{formData.volunteerDetails}</p>
-                                            )}
+                                    {formData.goalAmount && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">เป้าหมาย</span>
+                                            <span className="font-semibold">฿{formatAmount(formData.goalAmount)}</span>
                                         </div>
                                     )}
 
@@ -977,14 +991,13 @@ export default function CreateRequest() {
                                         </>
                                     )}
                                 </Button>
-
-                                <Button type="button" variant="outline" className="w-full bg-transparent">
+                                <Button type="button" variant="outline" className="w-full">
                                     บันทึกร่าง
                                 </Button>
                             </div>
 
                             <div className="bg-blue-50 p-4 rounded-lg">
-                                <h4 className="font-medium text-blue-800 mb-2">💡 เคล็ดลับ</h4>
+                                <h4 className="font-medium text-blue-800 mb-2">เคล็ดลับ</h4>
                                 <ul className="text-sm text-blue-700 space-y-1">
                                     <li>• เขียนหัวข้อที่ชัดเจนและน่าสนใจ</li>
                                     <li>• อธิบายสถานการณ์อย่างละเอียด</li>
