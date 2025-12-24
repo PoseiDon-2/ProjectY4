@@ -37,12 +37,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
-import OrganizerReceiptManagement from "@/components/organizer-receipt-management" // Import receipt management component
+import OrganizerReceiptManagement from "@/components/organizer-receipt-management"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 interface DonationRequest {
-    id: string // UUID
+    id: string
     title: string
     description: string
     category: {
@@ -52,12 +52,13 @@ interface DonationRequest {
     target_amount: number
     current_amount: number
     supporters: number
-    status: string // PENDING, APPROVED, REJECTED, DRAFT, etc.
+    status: string
     created_at: string
     expires_at: string | null
     accepts_money: boolean
     accepts_items: boolean
     accepts_volunteer: boolean
+    images?: string | null // JSON string ของ array path รูปภาพ
 }
 
 interface VolunteerApplication {
@@ -77,10 +78,9 @@ interface VolunteerApplication {
     duration: "half-day" | "full-day" | "multiple-days" | "flexible"
     status: "pending" | "approved" | "rejected"
     appliedDate: string
-    requestId: number // Added requestId to link to a specific donation request
+    requestId: number
 }
 
-// Mock data for volunteer applications
 const mockVolunteerApplications: VolunteerApplication[] = [
     {
         id: 101,
@@ -99,7 +99,7 @@ const mockVolunteerApplications: VolunteerApplication[] = [
         duration: "full-day",
         status: "pending",
         appliedDate: "2025-08-01T10:00:00Z",
-        requestId: 1, // Linked to "ช่วยเหลือครอบครัวที่ประสบอุทกภัย"
+        requestId: 1,
     },
     {
         id: 102,
@@ -118,7 +118,7 @@ const mockVolunteerApplications: VolunteerApplication[] = [
         duration: "half-day",
         status: "pending",
         appliedDate: "2025-08-02T14:30:00Z",
-        requestId: 2, // Linked to "สร้างห้องสมุดให้โรงเรียนชนบท"
+        requestId: 2,
     },
     {
         id: 103,
@@ -137,24 +137,20 @@ const mockVolunteerApplications: VolunteerApplication[] = [
         duration: "multiple-days",
         status: "approved",
         appliedDate: "2025-08-03T09:00:00Z",
-        requestId: 3, // Linked to "ซื้ออุปกรณ์การแพทย์"
+        requestId: 3,
     },
 ]
 
 export default function OrganizerDashboard() {
     const router = useRouter()
     const { user } = useAuth()
-    const [activeTab, setActiveTab] = useState<
-        "overview" | "requests" | "volunteer-applicants" | "analytics" | "receipts"
-    >("overview")
+    const [activeTab, setActiveTab] = useState<"overview" | "requests" | "volunteer-applicants" | "analytics" | "receipts">("overview")
     const [selectedRequestForReceipts, setSelectedRequestForReceipts] = useState<DonationRequest | null>(null)
 
-    // State for API data
     const [organizerRequests, setOrganizerRequests] = useState<DonationRequest[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    // Edit dialog state
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [editingRequest, setEditingRequest] = useState<DonationRequest | null>(null)
     const [editTitle, setEditTitle] = useState("")
@@ -165,14 +161,12 @@ export default function OrganizerDashboard() {
     const [saving, setSaving] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
 
-    // Redirect if not organizer
     useEffect(() => {
         if (!user || user.role !== "organizer") {
             router.push("/")
         }
     }, [user, router])
 
-    // Fetch organizer's donation requests
     useEffect(() => {
         const fetchRequests = async () => {
             try {
@@ -190,9 +184,6 @@ export default function OrganizerDashboard() {
                     },
                 })
 
-                console.log("📊 Organizer requests:", response.data)
-
-                // API returns paginated data
                 const requests = response.data.data || response.data
                 setOrganizerRequests(Array.isArray(requests) ? requests : [])
             } catch (err: any) {
@@ -208,27 +199,17 @@ export default function OrganizerDashboard() {
         }
     }, [user])
 
-    // Show loading while checking auth
-    if (!user) {
-        return null
-    }
-
-    // Don't render if not organizer (will redirect via useEffect)
-    if (user.role !== "organizer") {
-        return null
-    }
+    if (!user) return null
+    if (user.role !== "organizer") return null
 
     const formatAmount = (amount: number | null | undefined) => {
-        // Handle NaN, null, undefined
         const validAmount = Number(amount)
-        if (isNaN(validAmount) || amount == null) {
-            return "0"
-        }
+        if (isNaN(validAmount) || amount == null) return "0"
         return new Intl.NumberFormat("th-TH").format(validAmount)
     }
 
     const getStatusColor = (status: string) => {
-        const statusUpper = status?.toUpperCase()
+        const s = status?.toUpperCase()
         const colors: Record<string, string> = {
             PENDING: "bg-yellow-100 text-yellow-700",
             APPROVED: "bg-green-100 text-green-700",
@@ -236,11 +217,11 @@ export default function OrganizerDashboard() {
             DRAFT: "bg-gray-100 text-gray-700",
             COMPLETED: "bg-blue-100 text-blue-700",
         }
-        return colors[statusUpper] || "bg-gray-100 text-gray-700"
+        return colors[s] || "bg-gray-100 text-gray-700"
     }
 
     const getStatusText = (status: string) => {
-        const statusUpper = status?.toUpperCase()
+        const s = status?.toUpperCase()
         const texts: Record<string, string> = {
             PENDING: "รอการอนุมัติ",
             APPROVED: "อนุมัติแล้ว",
@@ -248,7 +229,7 @@ export default function OrganizerDashboard() {
             DRAFT: "แบบร่าง",
             COMPLETED: "เสร็จสิ้น",
         }
-        return texts[statusUpper] || status
+        return texts[s] || status
     }
 
     const canEditStatus = (status: string) => {
@@ -298,7 +279,6 @@ export default function OrganizerDashboard() {
                 headers: { Authorization: `Bearer ${token}` },
             })
 
-            // Refresh local list optimistically
             setOrganizerRequests((prev) =>
                 prev.map((r) => (r.id === editingRequest.id ? { ...r, ...payload, target_amount: payload.goal_amount ?? r.target_amount } : r))
             )
@@ -325,7 +305,7 @@ export default function OrganizerDashboard() {
             case "pickup":
                 return <Truck className="w-4 h-4 text-gray-500" />
             case "van":
-                return <Car className="w-4 h-4 text-gray-500" /> // Using car icon for van for simplicity
+                return <Car className="w-4 h-4 text-gray-500" />
             default:
                 return null
         }
@@ -350,9 +330,25 @@ export default function OrganizerDashboard() {
         }
     }
 
+    // ฟังก์ชันดึง URL รูปหลัก
+    const getMainImageUrl = (request: DonationRequest): string | null => {
+        if (!request.images) return null
+
+        try {
+            const images = JSON.parse(request.images as string)
+            if (Array.isArray(images) && images.length > 0) {
+                const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api").replace('/api', '')
+                return `${baseUrl}/storage/${images[0]}`
+            }
+        } catch (e) {
+            console.error("Failed to parse images:", e)
+        }
+
+        return null
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            {/* Header */}
             <div className="bg-white shadow-sm border-b">
                 <div className="max-w-6xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
@@ -388,7 +384,6 @@ export default function OrganizerDashboard() {
             </div>
 
             <div className="max-w-6xl mx-auto p-4">
-                {/* Loading State */}
                 {loading && (
                     <div className="flex items-center justify-center py-12">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
@@ -396,7 +391,6 @@ export default function OrganizerDashboard() {
                     </div>
                 )}
 
-                {/* Error State */}
                 {error && (
                     <Card className="mb-6 border-red-200 bg-red-50">
                         <CardContent className="p-6">
@@ -405,75 +399,73 @@ export default function OrganizerDashboard() {
                     </Card>
                 )}
 
-                {/* Tab Navigation */}
                 {!loading && (
-                <Card className="mb-6">
-                    <CardContent className="p-0">
-                        <div className="flex border-b">
-                            <button
-                                onClick={() => setActiveTab("overview")}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "overview"
+                    <Card className="mb-6">
+                        <CardContent className="p-0">
+                            <div className="flex border-b">
+                                <button
+                                    onClick={() => setActiveTab("overview")}
+                                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "overview"
                                         ? "border-b-2 border-pink-500 text-pink-600 bg-pink-50"
                                         : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                                    }`}
-                            >
-                                <BarChart3 className="w-4 h-4 mr-2 inline" />
-                                ภาพรวม
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("requests")}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "requests"
+                                        }`}
+                                >
+                                    <BarChart3 className="w-4 h-4 mr-2 inline" />
+                                    ภาพรวม
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("requests")}
+                                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "requests"
                                         ? "border-b-2 border-pink-500 text-pink-600 bg-pink-50"
                                         : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                                    }`}
-                            >
-                                <Eye className="w-4 h-4 mr-2 inline" />
-                                คำขอของฉัน
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("volunteer-applicants")}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "volunteer-applicants"
+                                        }`}
+                                >
+                                    <Eye className="w-4 h-4 mr-2 inline" />
+                                    คำขอของฉัน
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("volunteer-applicants")}
+                                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "volunteer-applicants"
                                         ? "border-b-2 border-pink-500 text-pink-600 bg-pink-50"
                                         : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                                    }`}
-                            >
-                                <UserCheck className="w-4 h-4 mr-2 inline" />
-                                ผู้สมัครอาสา
-                                {pendingVolunteerApplications > 0 && (
-                                    <Badge className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                                        {pendingVolunteerApplications}
-                                    </Badge>
-                                )}
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("receipts")}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "receipts"
+                                        }`}
+                                >
+                                    <UserCheck className="w-4 h-4 mr-2 inline" />
+                                    ผู้สมัครอาสา
+                                    {pendingVolunteerApplications > 0 && (
+                                        <Badge className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                            {pendingVolunteerApplications}
+                                        </Badge>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("receipts")}
+                                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "receipts"
                                         ? "border-b-2 border-pink-500 text-pink-600 bg-pink-50"
                                         : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                                    }`}
-                            >
-                                <Receipt className="w-4 h-4 mr-2 inline" />
-                                จัดการสลิป
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("analytics")}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "analytics"
+                                        }`}
+                                >
+                                    <Receipt className="w-4 h-4 mr-2 inline" />
+                                    จัดการสลิป
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("analytics")}
+                                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "analytics"
                                         ? "border-b-2 border-pink-500 text-pink-600 bg-pink-50"
                                         : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                                    }`}
-                            >
-                                <BarChart3 className="w-4 h-4 mr-2 inline" />
-                                สถิติ
-                            </button>
-                        </div>
-                    </CardContent>
-                </Card>
+                                        }`}
+                                >
+                                    <BarChart3 className="w-4 h-4 mr-2 inline" />
+                                    สถิติ
+                                </button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {/* Tab Content */}
                 {!loading && activeTab === "overview" && (
                     <div className="space-y-6">
-                        {/* Stats Cards */}
                         <div className="grid gap-6 md:grid-cols-4">
                             <Card>
                                 <CardContent className="p-6">
@@ -522,6 +514,7 @@ export default function OrganizerDashboard() {
                                     </div>
                                 </CardContent>
                             </Card>
+
                             <Card>
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
@@ -533,6 +526,7 @@ export default function OrganizerDashboard() {
                                     </div>
                                 </CardContent>
                             </Card>
+
                             <Card>
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
@@ -546,7 +540,6 @@ export default function OrganizerDashboard() {
                             </Card>
                         </div>
 
-                        {/* Recent Requests */}
                         <Card>
                             <CardHeader>
                                 <CardTitle>คำขอล่าสุด</CardTitle>
@@ -598,7 +591,7 @@ export default function OrganizerDashboard() {
                                 </div>
                             </CardContent>
                         </Card>
-                        {/* Recent Volunteer Applications */}
+
                         <Card>
                             <CardHeader>
                                 <CardTitle>ผู้สมัครอาสาสมัครล่าสุด</CardTitle>
@@ -659,6 +652,7 @@ export default function OrganizerDashboard() {
                                 </div>
                             </CardContent>
                         </Card>
+
                         <Card>
                             <CardHeader>
                                 <CardTitle>การดำเนินการด่วน</CardTitle>
@@ -690,7 +684,7 @@ export default function OrganizerDashboard() {
                             <h2 className="text-xl font-bold text-gray-800">คำขอบริจาคทั้งหมด</h2>
                             <Button
                                 onClick={() => router.push("/create-request")}
-                                className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-pink-600"
+                                className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                             >
                                 <Plus className="w-4 h-4 mr-2" />
                                 สร้างคำขอใหม่
@@ -698,109 +692,124 @@ export default function OrganizerDashboard() {
                         </div>
 
                         {organizerRequests.length === 0 ? (
-                            <Card className="p-8">
-                                <div className="text-center">
-                                    <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                                    <h3 className="text-lg font-semibold text-gray-700 mb-2">ยังไม่มีคำขอบริจาค</h3>
-                                    <p className="text-gray-500 mb-4">สร้างคำขอบริจาคแรกของคุณเพื่อเริ่มต้น</p>
-                                    <Button
-                                        onClick={() => router.push("/create-request")}
-                                        className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-                                    >
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        สร้างคำขอใหม่
-                                    </Button>
-                                </div>
+                            <Card className="p-8 text-center">
+                                <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-gray-700 mb-2">ยังไม่มีคำขอบริจาค</h3>
+                                <p className="text-gray-500 mb-4">สร้างคำขอบริจาคแรกของคุณเพื่อเริ่มต้น</p>
+                                <Button
+                                    onClick={() => router.push("/create-request")}
+                                    className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                                >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    สร้างคำขอใหม่
+                                </Button>
                             </Card>
                         ) : (
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {organizerRequests.map((request) => {
-                                const currentAmount = request.current_amount || 0
-                                const targetAmount = request.target_amount || 1
-                                const progressPercentage = targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0
+                            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                                {organizerRequests.map((request) => {
+                                    const currentAmount = request.current_amount || 0
+                                    const targetAmount = request.target_amount || 1
+                                    const progressPercentage = targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0
+                                    const daysLeft = request.expires_at
+                                        ? Math.ceil((new Date(request.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                                        : 0
 
-                                // Calculate days left
-                                const daysLeft = request.expires_at
-                                    ? Math.ceil((new Date(request.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-                                    : 0
+                                    const mainImageUrl = getMainImageUrl(request)
 
-                                return (
-                                    <Card key={request.id} className="overflow-hidden">
-                                        <div className="aspect-video bg-gray-100 flex items-center justify-center">
-                                            <span className="text-gray-400">รูปภาพ</span>
-                                        </div>
-
-                                        <CardContent className="p-4">
-                                            <div className="space-y-3">
-                                                <div className="flex items-start justify-between">
-                                                    <h3 className="font-bold text-gray-800 line-clamp-2 flex-1">{request.title}</h3>
-                                                    <Badge className={getStatusColor(request.status)}>{getStatusText(request.status)}</Badge>
+                                    return (
+                                        <Card key={request.id} className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
+                                            {mainImageUrl ? (
+                                                <div className="aspect-video rounded-t-lg overflow-hidden">
+                                                    <img
+                                                        src={mainImageUrl}
+                                                        alt={request.title}
+                                                        className="w-full h-full object-cover"
+                                                    />
                                                 </div>
+                                            ) : (
+                                                <div className="aspect-video bg-gray-100 rounded-t-lg flex items-center justify-center">
+                                                    <span className="text-gray-400 text-lg">ยังไม่มีรูปภาพ</span>
+                                                </div>
+                                            )}
 
-                                                <p className="text-sm text-gray-600 line-clamp-2">{request.description}</p>
-
-                                                {request.accepts_money && (
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between text-sm">
-                                                        <span className="text-gray-600">ระดมทุนได้</span>
-                                                        <span className="font-semibold">
-                                                            ฿{formatAmount(currentAmount)} / ฿{formatAmount(targetAmount)}
-                                                        </span>
+                                            {/* เนื้อหา - ใช้ flex-1 และ flex flex-col เพื่อให้ขยายเต็มที่ */}
+                                            <CardContent className="p-4 flex-1 flex flex-col justify-between">
+                                                {/* เนื้อหาด้านบน - ชื่อ + คำอธิบาย */}
+                                                <div className="space-y-3 mb-4">
+                                                    <div className="flex items-start justify-between">
+                                                        <h3 className="font-bold text-gray-800 line-clamp-2 flex-1">{request.title}</h3>
+                                                        <Badge className={getStatusColor(request.status)}>{getStatusText(request.status)}</Badge>
                                                     </div>
-                                                    <Progress value={progressPercentage} className="h-2" />
-                                                    <div className="flex justify-between text-xs text-gray-500">
-                                                        <span>{request.supporters || 0} ผู้สนับสนุน</span>
-                                                        {daysLeft > 0 && <span>เหลือ {daysLeft} วัน</span>}
+
+                                                    <p className="text-sm text-gray-600 line-clamp-2">{request.description}</p>
+                                                </div>
+
+                                                {/* ส่วนที่ต้องการให้ชิดล่าง - ใช้ mt-auto และ pt-4 สำหรับเว้นระยะห่าง */}
+                                                <div className="mt-auto pt-4">
+                                                    {/* Progress ระดมทุน */}
+                                                    {request.accepts_money && (
+                                                        <div className="space-y-2 mb-3">
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-gray-600">ระดมทุนได้</span>
+                                                                <span className="font-semibold">
+                                                                    ฿{formatAmount(currentAmount)} / ฿{formatAmount(targetAmount)}
+                                                                </span>
+                                                            </div>
+                                                            <Progress value={progressPercentage} className="h-2" />
+                                                            <div className="flex justify-between text-xs text-gray-500">
+                                                                <span>{request.supporters || 0} ผู้สนับสนุน</span>
+                                                                {daysLeft > 0 && <span>เหลือ {daysLeft} วัน</span>}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* ปุ่ม 4 ตัว - ชิดล่างสุด */}
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="flex-1"
+                                                            onClick={() => router.push(`/requests/${request.id}`)}
+                                                        >
+                                                            <Eye className="w-4 h-4 mr-1" />
+                                                            ดู
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="flex-1"
+                                                            onClick={() => {
+                                                                setSelectedRequestForReceipts(request)
+                                                                setActiveTab("receipts")
+                                                            }}
+                                                        >
+                                                            <Receipt className="w-4 h-4 mr-1" />
+                                                            สลิป
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="flex-1"
+                                                            onClick={() => openEdit(request)}
+                                                            disabled={!canEditStatus(request.status)}
+                                                        >
+                                                            <Edit className="w-4 h-4 mr-1" />
+                                                            แก้ไข
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-red-600 border-red-200 hover:bg-red-50"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
                                                     </div>
                                                 </div>
-                                                )}
-
-                                                <div className="flex gap-2 pt-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="flex-1 bg-transparent"
-                                                        onClick={() => router.push(`/requests/${request.id}`)}
-                                                    >
-                                                        <Eye className="w-4 h-4 mr-1" />
-                                                        ดู
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="flex-1 bg-transparent"
-                                                        onClick={() => {
-                                                            setSelectedRequestForReceipts(request)
-                                                            setActiveTab("receipts")
-                                                        }}
-                                                    >
-                                                        <Receipt className="w-4 h-4 mr-1" />
-                                                        สลิป
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="flex-1 bg-transparent"
-                                                        onClick={() => openEdit(request)}
-                                                        disabled={!canEditStatus(request.status)}
-                                                    >
-                                                        <Edit className="w-4 h-4 mr-1" />
-                                                        แก้ไข
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                )
-                            })}
-                        </div>
+                                            </CardContent>
+                                        </Card>
+                                    )
+                                })}
+                            </div>
                         )}
                     </div>
                 )}

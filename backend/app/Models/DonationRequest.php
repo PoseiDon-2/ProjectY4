@@ -16,13 +16,43 @@ class DonationRequest extends Model
     protected $table = 'donation_requests';
 
     protected $fillable = [
-        'id', 'title', 'slug', 'description', 'images', 'category_id', 'accepts_money',
-        'accepts_items', 'accepts_volunteer', 'target_amount', 'current_amount', 'supporters',
-        'documents', 'status', 'goal_amount', 'organizer_id', 'organization_id', 'urgency',
-        'approved_by', 'approved_at', 'volunteers_received', 'item_details', 'volunteer_details',
-        'donation_type', 'payment_methods', 'promptpay_number', 'promptpay_qr', 'view_count',
-        'expires_at', 'volunteers_needed', 'volunteer_skills', 'volunteer_duration', 'items_needed',
-        'recommendation_score', 'location', 'latitude', 'longitude'
+        'id',
+        'title',
+        'slug',
+        'description',
+        'images',
+        'category_id',
+        'accepts_money',
+        'accepts_items',
+        'accepts_volunteer',
+        'target_amount',
+        'current_amount',
+        'supporters',
+        'documents',
+        'status',
+        'goal_amount',
+        'organizer_id',
+        'organization_id',
+        'urgency',
+        'approved_by',
+        'approved_at',
+        'volunteers_received',
+        'item_details',
+        'volunteer_details',
+        'donation_type',
+        'payment_methods',
+        'promptpay_number',
+        'promptpay_qr',
+        'view_count',
+        'expires_at',
+        'volunteers_needed',
+        'volunteer_skills',
+        'volunteer_duration',
+        'items_needed',
+        'recommendation_score',
+        'location',
+        'latitude',
+        'longitude'
     ];
 
     protected $casts = [
@@ -31,6 +61,8 @@ class DonationRequest extends Model
         'donation_type' => DonationType::class,
         'expires_at' => 'datetime',
         'approved_at' => 'datetime',
+        'images' => 'array',
+        'payment_methods' => 'array',
     ];
 
     public function category(): BelongsTo
