@@ -84,19 +84,49 @@ const transformApiData = (apiData: any) => {
         }
     }
 
-    const parsePaymentMethods = (paymentMethods: string | null) => {
-        if (!paymentMethods) {
-            console.log('⚠️ No payment_methods in API response')
-            return { bankAccount: null, promptpay: null }
+    const parsePaymentMethods = (paymentMethods: any) => {
+        if (!paymentMethods) return { bankAccount: null, promptpay: null }
+
+        // Accept both stringified JSON and plain object from API
+        let raw: any = paymentMethods
+        if (typeof paymentMethods === "string") {
+            try {
+                raw = JSON.parse(paymentMethods)
+            } catch {
+                // If string is not JSON, give up gracefully
+                return { bankAccount: null, promptpay: null }
+            }
         }
-        try {
-            const parsed = JSON.parse(paymentMethods)
-            console.log('💰 Parsed payment methods:', parsed)
-            return parsed
-        } catch {
-            console.log('❌ Failed to parse payment_methods')
-            return { bankAccount: null, promptpay: null }
-        }
+
+        // Normalize known shapes/keys
+        const bank = raw?.bankAccount?.bank
+            ?? raw?.bank_account?.bank
+            ?? raw?.bank_name
+            ?? raw?.bank
+            ?? ""
+
+        const accountNumber = raw?.bankAccount?.accountNumber
+            ?? raw?.bank_account?.account_number
+            ?? raw?.account_number
+            ?? raw?.accountNumber
+            ?? ""
+
+        const accountName = raw?.bankAccount?.accountName
+            ?? raw?.bank_account?.account_name
+            ?? raw?.account_name
+            ?? raw?.accountName
+            ?? ""
+
+        const bankAccount = bank || accountNumber || accountName ? { bank, accountNumber, accountName } : null
+
+        const promptpay = raw?.promptpay
+            ?? raw?.promptpay_number
+            ?? raw?.promptPayId
+            ?? raw?.prompt_pay_number
+            ?? raw?.promptpayNumber
+            ?? null
+
+        return { bankAccount, promptpay }
     }
 
     const donationTypes = []

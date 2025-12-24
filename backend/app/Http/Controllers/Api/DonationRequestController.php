@@ -587,9 +587,7 @@ class DonationRequestController extends Controller
                 'goal_amount' => $data['goal_amount'] ?? null,
                 'target_amount' => $data['goal_amount'] ?? 0,
                 'current_amount' => 0,
-                'payment_methods' => isset($data['bank_account'])
-                    ? json_encode($data['bank_account'])
-                    : null,
+                'payment_methods' => $this->buildPaymentMethods($data),
                 'promptpay_number' => $data['promptpay_number'] ?? null,
                 'promptpay_qr' => $data['promptpay_qr'] ?? null,
 
@@ -769,5 +767,25 @@ class DonationRequestController extends Controller
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
+    }
+
+    /**
+     * Build payment methods JSON from request data
+     */
+    private function buildPaymentMethods(array $data): ?string
+    {
+        $paymentMethods = [];
+
+        // Add bank account info if exists
+        if (isset($data['bank_account'])) {
+            $paymentMethods = array_merge($paymentMethods, $data['bank_account']);
+        }
+
+        // Add promptpay number if exists
+        if (isset($data['promptpay_number']) && !empty($data['promptpay_number'])) {
+            $paymentMethods['promptpay_number'] = $data['promptpay_number'];
+        }
+
+        return !empty($paymentMethods) ? json_encode($paymentMethods) : null;
     }
 }

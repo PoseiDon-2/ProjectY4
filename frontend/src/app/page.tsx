@@ -188,12 +188,9 @@
 
                 // Process donation requests
                 const apiRequests = donationResponse.data.data || donationResponse.data || []
-                if (apiRequests.length === 0) {
-                    setError("ไม่มีคำขอบริจาคในขณะนี้")
-                    return
-                }
-
-                const transformedRequests = apiRequests.map(transformApiData)
+                
+                // ถ้าไม่มีข้อมูล ให้ set เป็น array ว่าง ไม่ต้อง error
+                const transformedRequests = apiRequests.length > 0 ? apiRequests.map(transformApiData) : []
                 setDonationRequests(transformedRequests)
 
                 // Process stories
@@ -430,24 +427,7 @@
             )
         }
 
-        if (error && donationRequests.length === 0) {
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
-                    <div className="text-center max-w-md">
-                        <Heart className="w-16 h-16 text-pink-500 mx-auto mb-4" />
-                        <h2 className="text-2xl font-bold text-gray-800 mb-2">เกิดข้อผิดพลาด</h2>
-                        <p className="text-gray-600 mb-6">{error}</p>
-                        <Button 
-                            onClick={handleRetry}
-                            className="bg-pink-500 hover:bg-pink-600 text-white"
-                        >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            โหลดใหม่
-                        </Button>
-                    </div>
-                </div>
-            )
-        }
+        // ลบ fullscreen error state - ให้แสดง content ปกติแทน
 
         return (
             <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
@@ -533,17 +513,17 @@
 
                     {/* Main Card with Side Buttons and Swipe */}
                     {!currentRequest || donationRequests.length === 0 ? (
-                        <Card className="shadow-lg border-0 bg-white p-8 max-w-md mx-auto">
+                        <Card className="shadow-sm border bg-white p-6 max-w-sm mx-auto">
                             <div className="text-center">
-                                <Heart className="w-12 h-12 text-pink-500 mx-auto mb-3" />
-                                <h3 className="text-lg font-semibold text-gray-800 mb-2">ไม่มีคำขอบริจาคในขณะนี้</h3>
-                                <p className="text-sm text-gray-600 mb-4">ใช้เมนูด้านบนเพื่อดูรายการหรือสร้างคำขอใหม่</p>
+                                <Heart className="w-8 h-8 text-pink-400 mx-auto mb-2" />
+                                <p className="text-sm text-gray-600 mb-3">ยังไม่มีคำขอบริจาค</p>
                                 <Button 
                                     onClick={handleRetry}
+                                    size="sm"
                                     variant="outline"
                                     className="border-pink-200 text-pink-600 hover:bg-pink-50"
                                 >
-                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                    <RefreshCw className="w-3 h-3 mr-1" />
                                     โหลดใหม่
                                 </Button>
                             </div>

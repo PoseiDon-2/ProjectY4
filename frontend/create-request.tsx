@@ -31,7 +31,6 @@ interface CreateRequestData {
         accountNumber: string
         accountName: string
     }
-    promptpayQR?: string
     promptpayNumber?: string
     organizationDetails: {
         organizationType: string
@@ -119,7 +118,6 @@ export default function CreateRequest() {
             accountNumber: "",
             accountName: "",
         },
-        promptpayQR: "",
         promptpayNumber: "",
         organizationDetails: {
             organizationType: "",
@@ -291,12 +289,9 @@ export default function CreateRequest() {
                     }
                 }
 
-                // PromptPay (optional)
+                // PromptPay (optional) - เลขพร้อมเพย์เท่านั้น, ไม่ต้องอัปโหลด QR
                 if (formData.promptpayNumber && formData.promptpayNumber.trim()) {
                     apiData.promptpay_number = formData.promptpayNumber
-                }
-                if (formData.promptpayQR && formData.promptpayQR.trim()) {
-                    apiData.promptpay_qr = formData.promptpayQR
                 }
             }
 
@@ -810,52 +805,12 @@ export default function CreateRequest() {
                                                 <p className="text-xs text-gray-500">เบอร์โทรศัพท์หรือเลขบัตรประชาชน 13 หลัก</p>
                                             </div>
 
-                                            <div className="space-y-2 mt-3">
-                                                <Label htmlFor="promptpayQR">อัปโหลด QR Code พร้อมเพย์</Label>
-                                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                                                    <Upload className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-                                                    <p className="text-sm text-gray-600">คลิกเพื่ออัปโหลด QR Code</p>
-                                                    <p className="text-xs text-gray-500 mt-1">รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 2MB</p>
-                                                    <input
-                                                        id="promptpayQR"
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="hidden"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0]
-                                                            if (file) {
-                                                                // Convert to base64 or handle file upload
-                                                                const reader = new FileReader()
-                                                                reader.onloadend = () => {
-                                                                    setFormData({
-                                                                        ...formData,
-                                                                        promptpayQR: reader.result as string
-                                                                    })
-                                                                }
-                                                                reader.readAsDataURL(file)
-                                                            }
-                                                        }}
-                                                    />
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="mt-2"
-                                                        onClick={() => document.getElementById('promptpayQR')?.click()}
-                                                    >
-                                                        เลือกไฟล์
-                                                    </Button>
-                                                </div>
-                                                {formData.promptpayQR && (
-                                                    <div className="mt-2">
-                                                        <img
-                                                            src={formData.promptpayQR}
-                                                            alt="QR Code Preview"
-                                                            className="w-32 h-32 object-contain border rounded mx-auto"
-                                                        />
-                                                        <p className="text-xs text-green-600 text-center mt-1">✓ อัปโหลดสำเร็จ</p>
-                                                    </div>
-                                                )}
+                                            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                                <p className="text-xs text-blue-800">
+                                                    💡 <strong>QR Code จะถูกสร้างอัตโนมัติ</strong>
+                                                    <br />
+                                                    เมื่อผู้บริจาคเลือกชำระผ่าน QR Code พร้อมเพย์ ระบบจะสร้าง QR Code จากเลขที่คุณกรอกโดยอัตโนมัติ
+                                                </p>
                                             </div>
                                         </div>
                                     </CardContent>

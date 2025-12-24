@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, QrCode, CreditCard, Smartphone, Copy, Check, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { pointsSystem } from "@/lib/points-system"
 import { receiptSystem } from "@/lib/receipt-system"
+import { generatePromptPayPayload } from "@/lib/promptpay-qr"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
@@ -42,8 +43,17 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     const [copied, setCopied] = useState(false)
     const [isProcessing, setIsProcessing] = useState(false)
     const [pointsEarned, setPointsEarned] = useState(0)
+    const [qrCodeUrl, setQrCodeUrl] = useState<string>("")
+    const [qrError, setQrError] = useState<string>("")
 
     const { user } = useAuth()
+
+    // Safe fallback when bank account is missing from API
+    const bankAccount = donation.paymentMethods?.bankAccount || {
+        bank: "-",
+        accountNumber: "-",
+        accountName: "-",
+    }
 
     const [cardNumber, setCardNumber] = useState("")
     const [expiryDate, setExpiryDate] = useState("")
@@ -56,9 +66,48 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         return new Intl.NumberFormat("th-TH").format(Number(amount))
     }
 
-    const generateQRCode = (amount: string) => {
-        return `https://via.placeholder.com/400x300?text=No+Image?height=200&width=200&text=QR+Code+${amount}+THB`
-    }
+    // Generate QR Code from PromptPay number (client-only dynamic import)
+    useEffect(() => {
+        const shouldGenerate = step === "payment" && paymentMethod === "qr" && !!amount
+        if (!shouldGenerate) return
+
+        const generateQRCode = async () => {
+            try {
+                setQrError("")
+                setQrCodeUrl("")
+
+                const rawPromptPay = donation.paymentMethods?.promptpay
+                const sanitized = (rawPromptPay ? String(rawPromptPay) : "").replace(/\D/g, "")
+
+                if (!sanitized) {
+                    setQrError("ไม่มีเลขพร้อมเพย์สำหรับคำขอนี้")
+                    return
+                }
+
+                // Robust dynamic import (handles CJS/ESM)
+                const mod: any = await import("qrcode")
+                const QRCode = mod?.default ?? mod
+
+                // Generate EMVCo PromptPay payload
+                const payload = generatePromptPayPayload({
+                    phoneOrId: sanitized,
+                    amount: Number(amount),
+                })
+
+                const qrUrl = await QRCode.toDataURL(payload, {
+                    width: 300,
+                    margin: 2,
+                    color: { dark: "#000000", light: "#FFFFFF" },
+                })
+                setQrCodeUrl(qrUrl)
+            } catch (error) {
+                console.error("Error generating QR code:", error)
+                setQrError("ไม่สามารถสร้าง QR Code ได้")
+            }
+        }
+
+        generateQRCode()
+    }, [step, paymentMethod, amount, donation.paymentMethods?.promptpay])
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text)
@@ -343,25 +392,65 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                             {paymentMethod === "qr" && (
                                 <div className="space-y-4">
                                     <div className="text-center">
+                                        <h4 className="font-medium text-gray-800 mb-3">หน้าชำระเงิน QR Code</h4>
                                         <div className="bg-white p-4 rounded-lg border inline-block">
-                                            <img
-                                                src={generateQRCode(amount) || "https://via.placeholder.com/400x300?text=No+Image"}
-                                                alt="QR Code"
-                                                className="w-48 h-48 mx-auto"
-                                            />
+                                            {qrCodeUrl ? (
+                                                <img
+                                                    src={qrCodeUrl}
+                                                    alt="QR Code PromptPay"
+                                                    className="w-48 h-48 mx-auto"
+                                                />
+                                            ) : (
+                                                <div className="w-48 h-48 flex items-center justify-center bg-gray-100 animate-pulse">
+                                                    <QrCode className="w-12 h-12 text-gray-400" />
+                                                </div>
+                                            )}
                                         </div>
-                                        <p className="text-sm text-gray-600 mt-2">สแกน QR Code ด้วยแอปธนาคารของคุณ</p>
+                                        <p className="text-sm text-gray-600 mt-2 font-medium">สแกน QR Code ด้วยแอปธนาคารของคุณ</p>
+                                        {qrError && <p className="text-xs text-red-600 mt-1">{qrError}</p>}
+                                    </div>
+
+                                    {/* Bank Account Information */}
+                                    <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                        <h5 className="font-medium text-blue-900 flex items-center gap-2">
+                                            <Smartphone className="w-4 h-4" />
+                                            ข้อมูลบัญชีธนาคารสำหรับรับเงินบริจาค
+                                        </h5>
+                                        <div className="space-y-2">
+                                            <div className="flex items-start justify-between">
+                                                <span className="text-sm text-gray-600 font-medium">ธนาคาร *</span>
+                                                <span className="font-medium text-gray-800 text-right">{bankAccount.bank}</span>
+                                            </div>
+                                            <div className="flex items-start justify-between">
+                                                <span className="text-sm text-gray-600 font-medium">เลขที่บัญชี *</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono font-medium text-gray-800">{bankAccount.accountNumber}</span>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-6 w-6 p-0"
+                                                        onClick={() => copyToClipboard(bankAccount.accountNumber)}
+                                                    >
+                                                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-start justify-between">
+                                                <span className="text-sm text-gray-600 font-medium">ชื่อบัญชี *</span>
+                                                <span className="font-medium text-gray-800 text-right">{bankAccount.accountName}</span>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                             <span className="text-sm text-gray-600">PromptPay ID</span>
                                             <div className="flex items-center gap-2">
-                                                <span className="font-mono">{donation.paymentMethods.promptpay}</span>
+                                                <span className="font-mono">{donation.paymentMethods?.promptpay || '-'}</span>
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => copyToClipboard(donation.paymentMethods.promptpay)}
+                                                    onClick={() => donation.paymentMethods?.promptpay && copyToClipboard(donation.paymentMethods.promptpay)}
                                                 >
                                                     {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                                 </Button>

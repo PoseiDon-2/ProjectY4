@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
     ArrowLeft,
@@ -24,9 +24,9 @@ import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/contexts/auth-context"
 
 interface DonationRequestDetailProps {
-    params: {
+    params: Promise<{
         id: string
-    }
+    }>
 }
 
 interface ItemDonationRecord {
@@ -173,9 +173,10 @@ const mockDonationRequests: DonationRequest[] = [
 export default function RequestDetail({ params }: DonationRequestDetailProps) {
     const router = useRouter()
     const { user } = useAuth()
+    const resolvedParams = use(params)
 
     const [currentRequest, setCurrentRequest] = useState<DonationRequest | undefined>(
-        mockDonationRequests.find((req) => req.id === Number.parseInt(params.id)),
+        mockDonationRequests.find((req) => req.id === Number.parseInt(resolvedParams.id)),
     )
 
     if (!currentRequest) {
