@@ -66,120 +66,6 @@ interface Story {
     isViewed: boolean
 }
 
-// Helper function to transform API data
-const transformApiData = (apiData: any) => {
-    const calculateDaysLeft = (expiresAt: string | null) => {
-        if (!expiresAt) return 30
-        const expiry = new Date(expiresAt)
-        const now = new Date()
-        const diffTime = expiry.getTime() - now.getTime()
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        return diffDays > 0 ? diffDays : 0
-    }
-
-    const getFirstImage = (images: string | null) => {
-        if (!images) return "https://via.placeholder.com/400x300?text=No+Image"
-        try {
-            const imageArray = JSON.parse(images)
-            return imageArray.length > 0 ? imageArray[0] : "https://via.placeholder.com/400x300?text=No+Image"
-        } catch {
-            return "https://via.placeholder.com/400x300?text=No+Image"
-        }
-    }
-
-    const parsePaymentMethods = (paymentMethods: any) => {
-        if (!paymentMethods) return { bankAccount: null, promptpay: null }
-
-        // Accept both stringified JSON and plain object from API
-        let raw: any = paymentMethods
-        if (typeof paymentMethods === "string") {
-            try {
-                raw = JSON.parse(paymentMethods)
-            } catch {
-                // If string is not JSON, give up gracefully
-                return { bankAccount: null, promptpay: null }
-            }
-        }
-
-        // Normalize known shapes/keys
-        const bank = raw?.bankAccount?.bank
-            ?? raw?.bank_account?.bank
-            ?? raw?.bank_name
-            ?? raw?.bank
-            ?? ""
-
-        const accountNumber = raw?.bankAccount?.accountNumber
-            ?? raw?.bank_account?.account_number
-            ?? raw?.account_number
-            ?? raw?.accountNumber
-            ?? ""
-
-        const accountName = raw?.bankAccount?.accountName
-            ?? raw?.bank_account?.account_name
-            ?? raw?.account_name
-            ?? raw?.accountName
-            ?? ""
-
-        const bankAccount = bank || accountNumber || accountName ? { bank, accountNumber, accountName } : null
-
-        const promptpay = raw?.promptpay
-            ?? raw?.promptpay_number
-            ?? raw?.promptPayId
-            ?? raw?.prompt_pay_number
-            ?? raw?.promptpayNumber
-            ?? null
-
-        return { bankAccount, promptpay }
-    }
-
-    const donationTypes = []
-    if (apiData.accepts_money) donationTypes.push('money')
-    if (apiData.accepts_items) donationTypes.push('items')
-    if (apiData.accepts_volunteer) donationTypes.push('volunteer')
-
-    return {
-        id: apiData.id,
-        title: apiData.title,
-        description: apiData.description,
-        imageUrl: getFirstImage(apiData.images),
-        category: apiData.category?.name || "ไม่ระบุหมวดหมู่",
-        organizationType: apiData.organization?.type || "องค์กร",
-        donationTypes,
-        goals: {
-            money: apiData.accepts_money ? {
-                target: apiData.target_amount || apiData.goal_amount || 0,
-                current: apiData.current_amount || 0,
-                supporters: apiData.supporters || 0,
-            } : null,
-            items: apiData.accepts_items ? {
-                description: apiData.items_needed || "",
-                received: [],
-                supporters: 0,
-            } : null,
-            volunteer: apiData.accepts_volunteer ? {
-                target: apiData.volunteers_needed || 0,
-                current: apiData.volunteers_received || 0,
-                description: apiData.volunteer_details || "",
-                supporters: apiData.volunteers_received || 0,
-            } : null,
-        },
-        daysLeft: calculateDaysLeft(apiData.expires_at),
-        location: apiData.location || "ไม่ระบุสถานที่",
-        contactPhone: "",
-        organizer: {
-            name: `${apiData.organizer?.first_name || ""} ${apiData.organizer?.last_name || ""}`.trim() || "ไม่ระบุ",
-            organization: apiData.organization?.name || "",
-            avatar: "https://via.placeholder.com/100x100?text=No+Image",
-            verified: true,
-        },
-        createdDate: apiData.created_at ? new Date(apiData.created_at).toISOString().split('T')[0] : "",
-        tags: [],
-        paymentMethods: parsePaymentMethods(apiData.payment_methods),
-        updates: [],
-        donationHistory: [],
-    }
-}
-
 // Mock stories data
 const mockStories: Story[] = [
     {
@@ -206,6 +92,7 @@ const mockStories: Story[] = [
     },
 ]
 
+// Helper function to transform API data
 const transformApiData = (apiData: any) => {
     const calculateDaysLeft = (expiresAt: string | null) => {
         if (!expiresAt) return 30

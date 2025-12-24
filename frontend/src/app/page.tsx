@@ -54,14 +54,6 @@ interface Story {
     created_at: string
     type?: string
     duration?: number
-    donationRequest?: {
-        id: string
-        title: string
-        organizer?: {
-            name: string
-            organization_name?: string
-        }
-    }
 }
 
 interface StoryGroup {
@@ -163,9 +155,11 @@ export default function DonationSwipe() {
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null)
     const [startX, setStartX] = useState(0)
     const [currentX, setCurrentX] = useState(0)
+    const [showShareModal, setShowShareModal] = useState(false)
 
     const cardRef = useRef<HTMLDivElement>(null)
     const { user } = useAuth()
+    const router = useRouter()
 
     useEffect(() => {
         fetchData()
@@ -189,7 +183,7 @@ export default function DonationSwipe() {
             ])
 
             const apiRequests = donationResponse.data.data || donationResponse.data || []
-            const transformedRequests = apiRequests.map(transformApiData)
+            const transformedRequests = apiRequests.length > 0 ? apiRequests.map(transformApiData) : []
             setDonationRequests(transformedRequests)
 
             const apiStories = storiesResponse.data.data || storiesResponse.data || []
@@ -218,193 +212,6 @@ export default function DonationSwipe() {
                 const donationRequest = donationRequests.find(req => req.id === donationRequestId)
                 if (!donationRequest) return
 
-        const getCategoryName = (category: any) => {
-            return category?.name || "ไม่ระบุหมวดหมู่"
-        }
-
-        const parsePaymentMethods = (paymentMethods: string | null) => {
-            if (!paymentMethods) return { bank: "", accountNumber: "", accountName: "" }
-            try {
-                const methods = JSON.parse(paymentMethods)
-                return {
-                    bank: methods.bank || "",
-                    accountNumber: methods.account_number || "",
-                    accountName: methods.account_name || ""
-                }
-            } catch {
-                return { bank: "", accountNumber: "", accountName: "" }
-            }
-        }
-
-        return {
-            id: apiData.id,
-            title: apiData.title,
-            description: apiData.description,
-            category: getCategoryName(apiData.category),
-            location: apiData.location || "ไม่ระบุสถานที่",
-            goalAmount: apiData.goal_amount || apiData.target_amount || 0,
-            currentAmount: apiData.current_amount || 0,
-            daysLeft: calculateDaysLeft(apiData.expires_at),
-            supporters: apiData.supporters_count || apiData.supporters || 0,
-            image: getFirstImage(apiData.images),
-            organizer: getOrganizerName(apiData.organizer),
-            detailedAddress: apiData.detailed_address || apiData.location || "ไม่ระบุที่อยู่",
-            contactPhone: apiData.contact_phone || "",
-            bankAccount: parsePaymentMethods(apiData.payment_methods),
-            qrCodeUrl: "https://via.placeholder.com/400x300?text=No+Image",
-            coordinates: apiData.latitude && apiData.longitude
-                ? { lat: apiData.latitude, lng: apiData.longitude }
-                : undefined
-        }
-    }
-
-    // Function to handle image loading errors
-    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-        const target = e.target as HTMLImageElement
-        target.src = "https://via.placeholder.com/400x300?text=No+Image"
-    }
-
-    export default function DonationSwipe() {
-        const [currentIndex, setCurrentIndex] = useState(0)
-        const [likedRequests, setLikedRequests] = useState<string[]>([])
-        const [donationRequests, setDonationRequests] = useState<DonationRequest[]>([])
-        const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([])
-        const [loading, setLoading] = useState(true)
-        const [storiesLoading, setStoriesLoading] = useState(true)
-        const [error, setError] = useState<string | null>(null)
-        const [isSwiping, setIsSwiping] = useState(false)
-        const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null)
-        const [startX, setStartX] = useState(0)
-        const [currentX, setCurrentX] = useState(0)
-        
-        const cardRef = useRef<HTMLDivElement>(null)
-        const { user } = useAuth()
-
-        // Fetch donation requests and stories from API
-        useEffect(() => {
-            fetchData()
-        }, [])
-
-        useEffect(() => {
-            const stored = localStorage.getItem("likedDonations")
-            if (stored) {
-                setLikedRequests(JSON.parse(stored))
-            }
-        }, [])
-
-        const fetchData = async () => {
-            try {
-                setLoading(true)
-                setError(null)
-                
-                // ดึงข้อมูลทั้ง donation requests และ stories พร้อมกัน
-                const [donationResponse, storiesResponse] = await Promise.all([
-                    axios.get(`${API_URL}/donation-requests`),
-                    axios.get(`${API_URL}/stories`)
-                ])
-
-                // Process donation requests
-                const apiRequests = donationResponse.data.data || donationResponse.data || []
-                
-                // ถ้าไม่มีข้อมูล ให้ set เป็น array ว่าง ไม่ต้อง error
-                const transformedRequests = apiRequests.length > 0 ? apiRequests.map(transformApiData) : []
-                setDonationRequests(transformedRequests)
-
-                // Process stories
-                const apiStories = storiesResponse.data.data || storiesResponse.data || []
-                const storyGroups = groupStoriesByDonationRequest(apiStories, transformedRequests)
-                setStoryGroups(storyGroups)
-
-            } catch (error) {
-                console.error("Failed to fetch data:", error)
-                setError("ไม่สามารถโหลดข้อมูลได้")
-                
-                // ใช้ข้อมูลตัวอย่างถ้า API ล้มเหลว
-                setStoryGroups(getFallbackStoryGroups())
-            } finally {
-                setLoading(false)
-                setStoriesLoading(false)
-            }
-        }
-
-        const groupStoriesByDonationRequest = (stories: any[], donationRequests: DonationRequest[]): StoryGroup[] => {
-            const groups: { [key: string]: StoryGroup } = {}
-
-            // สร้าง groups จาก donation requests ที่มี stories
-            stories.forEach(story => {
-                // กรองเฉพาะ stories ที่เผยแพร่แล้ว
-                if (story.status !== 'PUBLISHED') return
-
-                const donationRequestId = story.donation_request_id
-
-                if (!groups[donationRequestId]) {
-                    // หาข้อมูล donation request ที่ตรงกัน
-                    const donationRequest = donationRequests.find(req => req.id === donationRequestId)
-                    
-                    if (!donationRequest) return // ข้ามถ้าไม่พบ donation request
-
-                    groups[donationRequestId] = {
-                        donationRequestId,
-                        organizer: donationRequest.organizer,
-                        avatar: donationRequest.image,
-                        hasUnviewed: story.views === 0, // ถ้า views = 0 ถือว่ายังไม่ได้ดู
-                        storyCount: 0,
-                        stories: []
-                    }
-                }
-
-                // เพิ่ม story เข้า group
-                const transformedStory: Story = {
-                    id: story.id,
-                    title: story.title,
-                    content: story.content,
-                    images: story.images,
-                    status: story.status,
-                    author_id: story.author_id,
-                    donation_request_id: story.donation_request_id,
-                    published_at: story.published_at,
-                    views: story.views,
-                    created_at: story.created_at,
-                    type: story.type,
-                    duration: story.duration
-                }
-
-                groups[donationRequestId].stories.push(transformedStory)
-                groups[donationRequestId].storyCount = groups[donationRequestId].stories.length
-                
-                // อัพเดท hasUnviewed ถ้ามี story ใดๆ ที่ยังไม่ได้ดู
-                if (story.views === 0) {
-                    groups[donationRequestId].hasUnviewed = true
-                }
-            })
-
-            return Object.values(groups)
-        }
-
-        const getFallbackStoryGroups = (): StoryGroup[] => {
-            return [
-                {
-                    donationRequestId: "1",
-                    organizer: "สมชาย ใจดี",
-                    avatar: "https://via.placeholder.com/400x300?text=No+Image",
-                    hasUnviewed: true,
-                    storyCount: 3,
-                    stories: []
-                },
-                {
-                    donationRequestId: "2",
-                    organizer: "มูลนิธิเด็กไทย",
-                    avatar: "https://via.placeholder.com/400x300?text=No+Image",
-                    hasUnviewed: true,
-                    storyCount: 2,
-                    stories: []
-                },
-                {
-                    donationRequestId: "3",
-                    organizer: "โรงเรียนบ้านดอนตาล",
-                    avatar: "https://via.placeholder.com/400x300?text=No+Image",
-                    hasUnviewed: false,
-                    storyCount: 1,
                 groups[donationRequestId] = {
                     donationRequestId,
                     organizer: donationRequest.organizer,
@@ -468,9 +275,6 @@ export default function DonationSwipe() {
             }
         ]
     }
-
-    const [showShareModal, setShowShareModal] = useState(false)
-    const router = useRouter()
 
     const currentRequest = donationRequests[currentIndex]
     const progressPercentage = currentRequest ? (currentRequest.currentAmount / currentRequest.goalAmount) * 100 : 0
@@ -563,55 +367,23 @@ export default function DonationSwipe() {
         router.push(`/stories/donation-request/${storyGroup.donationRequestId}`)
     }
 
-    const formatAmount = (amount: number) => {
-        return new Intl.NumberFormat("th-TH").format(amount)
-    }
-
     const handleRetry = () => {
         fetchData()
     }
 
     const getCardTransform = () => {
         if (!isSwiping || !swipeDirection) return 'translateX(0)'
-
         const diff = currentX - startX
         return `translateX(${diff}px) rotate(${diff * 0.1}deg)`
     }
 
-        const handleRetry = () => {
-            fetchData()
-        }
-
-        // Calculate transform for swipe animation
-        const getCardTransform = () => {
-            if (!isSwiping || !swipeDirection) return 'translateX(0)'
-            
-            const diff = currentX - startX
-            return `translateX(${diff}px) rotate(${diff * 0.1}deg)`
-        }
-
-        // Get background color based on swipe direction
-        const getSwipeBackground = () => {
-            if (!isSwiping || !swipeDirection) return ''
-            return swipeDirection === 'right' ? 'bg-green-50' : 'bg-red-50'
-        }
-
-        if (loading) {
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-pink-500 mx-auto mb-4"></div>
-                        <h2 className="text-2xl font-bold text-gray-800 mb-2">กำลังโหลดข้อมูล...</h2>
-                        <p className="text-gray-600">โปรดรอสักครู่</p>
-                    </div>
-                </div>
-            )
-        }
-
-        // ลบ fullscreen error state - ให้แสดง content ปกติแทน
     const getSwipeBackground = () => {
         if (!isSwiping || !swipeDirection) return ''
         return swipeDirection === 'right' ? 'bg-green-50' : 'bg-red-50'
+    }
+
+    const formatAmount = (amount: number) => {
+        return new Intl.NumberFormat("th-TH").format(amount)
     }
 
     if (loading) {
@@ -794,7 +566,6 @@ export default function DonationSwipe() {
                                         <div className="space-y-4 flex-1">
                                             <div className="flex-shrink-0">
                                                 <h2 className="text-xl font-bold text-gray-800 mb-2 line-clamp-2 leading-tight">{currentRequest.title}</h2>
-                                                {/* จำกัดคำอธิบายให้เหลือ 1 บรรทัด */}
                                                 <p className="text-gray-600 text-sm line-clamp-1">{currentRequest.description}</p>
                                             </div>
 
@@ -868,162 +639,6 @@ export default function DonationSwipe() {
                             )}
                         </div>
 
-                    {/* Main Card with Side Buttons and Swipe */}
-                    {!currentRequest || donationRequests.length === 0 ? (
-                        <Card className="shadow-sm border bg-white p-6 max-w-sm mx-auto">
-                            <div className="text-center">
-                                <Heart className="w-8 h-8 text-pink-400 mx-auto mb-2" />
-                                <p className="text-sm text-gray-600 mb-3">ยังไม่มีคำขอบริจาค</p>
-                                <Button 
-                                    onClick={handleRetry}
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-pink-200 text-pink-600 hover:bg-pink-50"
-                                >
-                                    <RefreshCw className="w-3 h-3 mr-1" />
-                                    โหลดใหม่
-                                </Button>
-                            </div>
-                        </Card>
-                    ) : (
-                        <div className={`flex items-center justify-center gap-6 transition-colors duration-200 ${getSwipeBackground()}`}>
-                            {/* ปุ่มกากบาทด้านซ้าย */}
-                            <div className="flex-shrink-0">
-                                <Button
-                                    size="lg"
-                                    variant="outline"
-                                    className="w-20 h-20 rounded-full border-4 border-red-300 hover:border-red-500 hover:bg-red-50 bg-white shadow-xl transition-all duration-200 hover:scale-110"
-                                    onClick={() => handleSwipe(false)}
-                                >
-                                    <X className="w-10 h-10 text-red-500" />
-                                </Button>
-                            </div>
-
-                            {/* การ์ดหลักที่สามารถปัดได้ */}
-                            <div className="flex-1 max-w-md">
-                                <div
-                                    ref={cardRef}
-                                    className="cursor-grab active:cursor-grabbing transition-transform duration-200"
-                                    style={{ transform: getCardTransform() }}
-                                    onTouchStart={handleTouchStart}
-                                    onTouchMove={handleTouchMove}
-                                    onTouchEnd={handleTouchEnd}
-                                    onMouseDown={handleMouseDown}
-                                    onMouseMove={handleMouseMove}
-                                    onMouseUp={handleMouseUp}
-                                    onMouseLeave={handleMouseUp}
-                                >
-                                    <Card className="overflow-hidden shadow-2xl border-0 bg-white">
-                                        <div className="relative">
-                                            <img
-                                                src={currentRequest.image}
-                                                alt={currentRequest.title}
-                                                className="w-full h-64 object-cover"
-                                                onError={handleImageError}
-                                            />
-                                            <Badge className="absolute top-4 left-4 bg-white/90 text-gray-800 hover:bg-white/90">
-                                                {currentRequest.category}
-                                            </Badge>
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="absolute top-4 right-4 bg-white/90 hover:bg-white"
-                                                onClick={() => setShowShareModal(true)}
-                                            >
-                                                <Share2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-
-                                        <CardContent className="p-6">
-                                            <div className="space-y-4">
-                                                <div>
-                                                    <h2 className="text-xl font-bold text-gray-800 mb-2">{currentRequest.title}</h2>
-                                                    <p className="text-gray-600 text-sm leading-relaxed">{currentRequest.description}</p>
-                                                </div>
-
-                                                <div className="flex items-center gap-4 text-sm text-gray-500">
-                                                    <div className="flex items-center gap-1">
-                                                        <MapPin className="w-4 h-4" />
-                                                        <span>{currentRequest.location}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <Users className="w-4 h-4" />
-                                                        <span>{currentRequest.supporters} คน</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <Calendar className="w-4 h-4" />
-                                                        <span>{currentRequest.daysLeft} วัน</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between text-sm">
-                                                        <span className="text-gray-600">ระดมทุนได้</span>
-                                                        <span className="font-semibold text-gray-800">
-                                                            ฿{formatAmount(currentRequest.currentAmount)} / ฿{formatAmount(currentRequest.goalAmount)}
-                                                        </span>
-                                                    </div>
-                                                    <Progress value={progressPercentage} className="h-2" />
-                                                    <div className="text-right text-xs text-gray-500">{Math.round(progressPercentage)}% ของเป้าหมาย</div>
-                                                </div>
-
-                                                <div className="text-sm text-gray-600">
-                                                    <span className="font-medium">ผู้จัดการ:</span> {currentRequest.organizer}
-                                                </div>
-
-                                                <Separator />
-
-                                                <Button
-                                                    variant="outline"
-                                                    className="w-full mt-2 border-pink-200 text-pink-600 hover:bg-pink-50 bg-transparent"
-                                                    onClick={() => router.push(`/donation/${currentRequest.id}`)}
-                                                >
-                                                    <ExternalLink className="w-4 h-4 mr-2" />
-                                                    ดูรายละเอียดเพิ่มเติม
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-
-                                {/* Swipe Instructions */}
-                                <div className="flex justify-between items-center mt-4 px-2">
-                                    <div className="text-center flex-1">
-                                        <X className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                                        <span className="text-xs text-gray-600">ปัดซ้ายเพื่อข้าม</span>
-                                    </div>
-                                    <div className="text-center flex-1">
-                                        <Heart className="w-5 h-5 text-green-500 mx-auto mb-1" />
-                                        <span className="text-xs text-gray-600">ปัดขวาเพื่อสนับสนุน</span>
-                                    </div>
-                                </div>
-
-                                {/* Progress Indicator */}
-                                {donationRequests.length > 1 && (
-                                    <div className="flex justify-center mt-4 gap-2">
-                                        {donationRequests.map((_, index) => (
-                                            <div
-                                                key={index}
-                                                className={`w-2 h-2 rounded-full transition-colors ${
-                                                    index === currentIndex ? "bg-pink-500" : 
-                                                    index < currentIndex ? "bg-pink-300" : "bg-gray-300"
-                                                }`}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* ปุ่มถูกใจด้านขวา */}
-                            <div className="flex-shrink-0">
-                                <Button
-                                    size="lg"
-                                    className="w-20 h-20 rounded-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-xl transition-all duration-200 hover:scale-110"
-                                    onClick={() => handleSwipe(true)}
-                                >
-                                    <Heart className="w-10 h-10 text-white" />
-                                </Button>
-                            </div>
                         <div className="flex-shrink-0">
                             <Button
                                 size="lg"

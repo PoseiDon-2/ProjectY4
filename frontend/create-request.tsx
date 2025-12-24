@@ -312,29 +312,27 @@ export default function CreateRequest() {
             if (formData.detailedAddress.trim()) formDataToSend.append("detailed_address", formData.detailedAddress)
             if (formData.organizationDetails.taxId.trim()) formDataToSend.append("tax_id", formData.organizationDetails.taxId)
 
-            formData.donationType.forEach(type => formDataToSend.append("donation_types[]", type))
+            // Send donation_types as array notation (Laravel expects this for FormData arrays)
+            formData.donationType.forEach(type => {
+                formDataToSend.append("donation_types[]", type)
+            })
 
             if (formData.donationType.includes("money")) {
-                apiData.goal_amount = formData.goalAmount
+                formDataToSend.append("goal_amount", formData.goalAmount!.toString())
 
                 // Only include bank account if all fields are filled
                 if (formData.bankAccount.bank && formData.bankAccount.accountNumber && formData.bankAccount.accountName) {
-                    apiData.bank_account = {
+                    formDataToSend.append("bank_account", JSON.stringify({
                         bank: formData.bankAccount.bank,
                         account_number: formData.bankAccount.accountNumber,
                         account_name: formData.bankAccount.accountName
-                    }
+                    }))
                 }
 
                 // PromptPay (optional) - เลขพร้อมเพย์เท่านั้น, ไม่ต้องอัปโหลด QR
                 if (formData.promptpayNumber && formData.promptpayNumber.trim()) {
-                    apiData.promptpay_number = formData.promptpayNumber
+                    formDataToSend.append("promptpay_number", formData.promptpayNumber)
                 }
-                formDataToSend.append("goal_amount", formData.goalAmount!.toString())
-                formDataToSend.append("bank_account[bank]", formData.bankAccount.bank)
-                formDataToSend.append("bank_account[account_number]", formData.bankAccount.accountNumber)
-                formDataToSend.append("bank_account[account_name]", formData.bankAccount.accountName)
-                if (formData.promptpayNumber?.trim()) formDataToSend.append("promptpay_number", formData.promptpayNumber)
             }
 
             if (formData.donationType.includes("items") && formData.goalItems) {
@@ -351,7 +349,6 @@ export default function CreateRequest() {
 
             const response = await axios.post(`${API_URL}/donation-requests`, formDataToSend, {
                 headers: {
-                    "Content-Type": "multipart/form-data",
                     Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
                 },
             })
@@ -360,8 +357,18 @@ export default function CreateRequest() {
             setIsSubmitting(false)
             setTimeout(() => router.push("/organizer-dashboard"), 2000)
         } catch (err: any) {
-            console.error(err)
-            setError(err.response?.data?.message || err.response?.data?.error || "เกิดข้อผิดพลาดในการสร้างคำขอ")
+            console.error("Full error response:", JSON.stringify(err.response?.data, null, 2))
+            console.error("Status:", err.response?.status)
+            console.error("Full axios error:", err)
+            
+            // ลองแสดง error message หลายรูปแบบ
+            const errorMsg = 
+                err.response?.data?.message || 
+                err.response?.data?.error || 
+                err.response?.data?.errors?.join(", ") ||
+                "เกิดข้อผิดพลาดในการสร้างคำขอ"
+            
+            setError(errorMsg)
             setIsSubmitting(false)
         }
     }
