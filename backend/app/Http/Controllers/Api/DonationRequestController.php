@@ -538,11 +538,7 @@ class DonationRequestController extends Controller
                 'goal_amount' => in_array('money', $donationTypes) ? $data['goal_amount'] : null,
                 'target_amount' => in_array('money', $donationTypes) ? ($data['goal_amount'] ?? 0) : 0,
                 'current_amount' => 0,
-                'payment_methods' => $this->buildPaymentMethods($data),
-                'promptpay_number' => $data['promptpay_number'] ?? null,
-                'promptpay_qr' => $data['promptpay_qr'] ?? null,
-                'payment_methods' => in_array('money', $donationTypes) ? json_encode($request->bank_account) : null,
-                'promptpay_number' => $request->promptpay_number ?? null,
+                'payment_methods' => in_array('money', $donationTypes) ? $this->buildPaymentMethods($data) : null,
 
                 // Items
                 'items_needed' => $data['items_needed'] ?? null,
@@ -721,18 +717,47 @@ class DonationRequestController extends Controller
      */
     private function buildPaymentMethods(array $data): ?string
     {
-        $paymentMethods = [];
+        $methods = [
+            'promptpay'     => null,
+            'bankAccount'   => null,
+            'truewallet'    => null, // เผื่ออนาคต
+        ];
 
-        // Add bank account info if exists
-        if (isset($data['bank_account'])) {
-            $paymentMethods = array_merge($paymentMethods, $data['bank_account']);
+        // PromptPay - ทำความสะอาดและตรวจสอบคร่าว ๆ
+        if (!empty($data['promptpay_number'])) {
+            $pp = trim($data['promptpay_number']);
+            $pp = preg_replace('/[^0-9@.-]/', '', $pp); // อนุญาต @ . - เฉพาะ email
+
+            // ตรวจสอบรูปแบบที่ PromptPay ไทยยอมรับ
+            if (
+                preg_match('/^0\d{9}$/', $pp) ||          // เบอร์โทร 10 หลัก
+                preg_match('/^\d{13}$/', $pp) ||          // บัตรประชาชน 13 หลัก
+                filter_var($pp, FILTER_VALIDATE_EMAIL)
+            ) { // อีเมล
+                $methods['promptpay'] = $pp;
+            }
         }
 
-        // Add promptpay number if exists
-        if (isset($data['promptpay_number']) && !empty($data['promptpay_number'])) {
-            $paymentMethods['promptpay_number'] = $data['promptpay_number'];
+        // Bank Account
+        $bankInput = $data['bank_account'] ?? [];
+        if (is_array($bankInput) && !empty($bankInput)) {
+            $bank = [
+                'bank'         => trim($bankInput['bank'] ?? $bankInput['bankName'] ?? ''),
+                'accountNumber' => trim($bankInput['account_number'] ?? $bankInput['accountNumber'] ?? ''),
+                'accountName'  => trim($bankInput['account_name'] ?? $bankInput['accountName'] ?? ''),
+            ];
+
+            // ถ้ามีข้อมูลครบ 3 อย่างค่อยเก็บ
+            if ($bank['bank'] && $bank['accountNumber'] && $bank['accountName']) {
+                $methods['bankAccount'] = $bank;
+            }
         }
 
-        return !empty($paymentMethods) ? json_encode($paymentMethods) : null;
+        // ถ้าไม่มีข้อมูล payment เลย → return null
+        if (!$methods['promptpay'] && !$methods['bankAccount']) {
+            return null;
+        }
+
+        return json_encode($methods);
     }
 }

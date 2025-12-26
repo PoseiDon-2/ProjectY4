@@ -48,8 +48,10 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
     const { user } = useAuth()
 
-    // Safe fallback when bank account is missing from API
-    const bankAccount = donation.paymentMethods?.bankAccount || {
+    // Safe extraction + fallback
+    const paymentMethods = donation.paymentMethods || {}
+    const promptpayId = paymentMethods.promptpay?.trim() || ""
+    const bankAccount = paymentMethods.bankAccount || {
         bank: "-",
         accountNumber: "-",
         accountName: "-",
@@ -62,52 +64,86 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
     const quickAmounts = ["100", "500", "1000", "2000", "5000"]
 
-    const formatAmount = (amount: string) => {
-        return new Intl.NumberFormat("th-TH").format(Number(amount))
+    const formatAmount = (amt: string | number) => {
+        return new Intl.NumberFormat("th-TH").format(Number(amt))
     }
 
-    // Generate QR Code from PromptPay number (client-only dynamic import)
+    // Generate QR Code
     useEffect(() => {
-        const shouldGenerate = step === "payment" && paymentMethod === "qr" && !!amount
-        if (!shouldGenerate) return
+        const shouldGenerate =
+            step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
+
+        if (!shouldGenerate) {
+            setQrCodeUrl("")
+            setQrError("")
+            return
+        }
+
+        let isCurrent = true
 
         const generateQRCode = async () => {
             try {
                 setQrError("")
                 setQrCodeUrl("")
 
-                const rawPromptPay = donation.paymentMethods?.promptpay
-                const sanitized = (rawPromptPay ? String(rawPromptPay) : "").replace(/\D/g, "")
-
-                if (!sanitized) {
-                    setQrError("ไม่มีเลขพร้อมเพย์สำหรับคำขอนี้")
-                    return
+                if (!promptpayId) {
+                    throw new Error("ไม่มีเลขพร้อมเพย์สำหรับคำขอบริจาคนี้")
                 }
 
-                // Robust dynamic import (handles CJS/ESM)
-                const mod: any = await import("qrcode")
-                const QRCode = mod?.default ?? mod
+                // Sanitize PromptPay (รองรับทั้งเบอร์และอีเมล)
+                let target = promptpayId
+                const isEmail = target.includes("@")
 
-                // Generate EMVCo PromptPay payload
+                if (!isEmail) {
+                    target = target.replace(/\D/g, "") // ลบทุกอย่างที่ไม่ใช่ตัวเลข
+                }
+
+                if (!target || (!isEmail && target.length !== 10 && target.length !== 13)) {
+                    throw new Error("รูปแบบพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นเบอร์ 10 หลัก, บัตร 13 หลัก หรืออีเมล)")
+                }
+
+                // Dynamic import qrcode
+                const { default: QRCode } = await import("qrcode")
+
                 const payload = generatePromptPayPayload({
-                    phoneOrId: sanitized,
+                    phoneOrId: target,
                     amount: Number(amount),
                 })
 
-                const qrUrl = await QRCode.toDataURL(payload, {
-                    width: 300,
-                    margin: 2,
-                    color: { dark: "#000000", light: "#FFFFFF" },
-                })
-                setQrCodeUrl(qrUrl)
-            } catch (error) {
-                console.error("Error generating QR code:", error)
-                setQrError("ไม่สามารถสร้าง QR Code ได้")
+                // Timeout + high quality
+                const qrDataUrl = await Promise.race([
+                    QRCode.toDataURL(payload, {
+                        width: 320,
+                        margin: 1,
+                        errorCorrectionLevel: "H", // High = สแกนง่ายที่สุด
+                        color: { dark: "#000000", light: "#ffffff" },
+                    }),
+                    new Promise<string>((_, reject) =>
+                        setTimeout(() => reject(new Error("Timeout generating QR")), 10000)
+                    ),
+                ])
+
+                if (isCurrent) {
+                    setQrCodeUrl(qrDataUrl)
+                }
+            } catch (error: any) {
+                console.error("QR generation error:", error)
+                if (isCurrent) {
+                    setQrError(
+                        error.message?.includes("Timeout")
+                            ? "สร้าง QR ช้าเกินไป กรุณาลองใหม่"
+                            : error.message || "ไม่สามารถสร้าง QR Code ได้ กรุณาติดต่อแอดมิน"
+                    )
+                }
             }
         }
 
         generateQRCode()
-    }, [step, paymentMethod, amount, donation.paymentMethods?.promptpay])
+
+        return () => {
+            isCurrent = false
+        }
+    }, [step, paymentMethod, amount, promptpayId])
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text)
@@ -128,12 +164,19 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     const handlePayment = async () => {
         setIsProcessing(true)
 
+        // จำลองการตรวจสอบการชำระเงิน (ใน production ควรเรียก API จริง)
         await new Promise((resolve) => setTimeout(resolve, 3000))
 
         if (user && amount) {
             const donationAmount = Number(amount)
             const earnedPoints = pointsSystem.calculateDonationPoints(donationAmount, "money")
-            pointsSystem.addPoints(user.id, earnedPoints, "donation", `Money donation ฿${donationAmount}`, `donation_${Date.now()}`)
+            pointsSystem.addPoints(
+                user.id,
+                earnedPoints,
+                "donation",
+                `Money donation ฿${donationAmount}`,
+                `donation_${Date.now()}`
+            )
             setPointsEarned(earnedPoints)
 
             const receipt = receiptSystem.createReceipt({
@@ -145,14 +188,18 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                 amount: donationAmount,
                 type: "money",
                 paymentMethod:
-                    paymentMethod === "qr" ? "PromptPay" : paymentMethod === "credit" ? "Credit Card" : "Bank Transfer",
+                    paymentMethod === "qr"
+                        ? "PromptPay"
+                        : paymentMethod === "credit"
+                            ? "Credit Card"
+                            : "Bank Transfer",
                 transactionId: `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
                 message,
                 isAnonymous,
                 pointsEarned: earnedPoints,
             })
 
-            // Keep existing localStorage logic for backward compatibility
+            // LocalStorage logic (backward compatibility)
             const donationRecord = {
                 id: receipt.donationId,
                 userId: user.id,
@@ -163,11 +210,17 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                 date: new Date().toISOString(),
                 status: "completed" as const,
                 paymentMethod:
-                    paymentMethod === "qr" ? "PromptPay" : paymentMethod === "credit" ? "Credit Card" : "Bank Transfer",
+                    paymentMethod === "qr"
+                        ? "PromptPay"
+                        : paymentMethod === "credit"
+                            ? "Credit Card"
+                            : "Bank Transfer",
                 pointsEarned: earnedPoints,
             }
 
-            const existingDonations = JSON.parse(localStorage.getItem(`user_donations_${user.id}`) || "[]")
+            const existingDonations = JSON.parse(
+                localStorage.getItem(`user_donations_${user.id}`) || "[]"
+            )
             existingDonations.push(donationRecord)
             localStorage.setItem(`user_donations_${user.id}`, JSON.stringify(existingDonations))
 
@@ -202,6 +255,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         setCardName("")
         setIsProcessing(false)
         setPointsEarned(0)
+        setQrCodeUrl("")
+        setQrError("")
     }
 
     const handleClose = () => {
@@ -253,7 +308,9 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                                 <div className="space-y-2">
                                     <button
-                                        className={`w-full p-4 border rounded-lg text-left transition-all ${paymentMethod === "qr" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                                        className={`w-full p-4 border rounded-lg text-left transition-all ${paymentMethod === "qr"
+                                                ? "border-blue-500 bg-blue-50"
+                                                : "border-gray-200 hover:border-gray-300"
                                             }`}
                                         onClick={() => setPaymentMethod("qr")}
                                     >
@@ -406,7 +463,9 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                 </div>
                                             )}
                                         </div>
-                                        <p className="text-sm text-gray-600 mt-2 font-medium">สแกน QR Code ด้วยแอปธนาคารของคุณ</p>
+                                        <p className="text-sm text-gray-600 mt-2 font-medium">
+                                            สแกน QR Code ด้วยแอปธนาคารของคุณ
+                                        </p>
                                         {qrError && <p className="text-xs text-red-600 mt-1">{qrError}</p>}
                                     </div>
 
@@ -424,7 +483,9 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                             <div className="flex items-start justify-between">
                                                 <span className="text-sm text-gray-600 font-medium">เลขที่บัญชี *</span>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-medium text-gray-800">{bankAccount.accountNumber}</span>
+                                                    <span className="font-mono font-medium text-gray-800">
+                                                        {bankAccount.accountNumber}
+                                                    </span>
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
@@ -437,7 +498,9 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                             </div>
                                             <div className="flex items-start justify-between">
                                                 <span className="text-sm text-gray-600 font-medium">ชื่อบัญชี *</span>
-                                                <span className="font-medium text-gray-800 text-right">{bankAccount.accountName}</span>
+                                                <span className="font-medium text-gray-800 text-right">
+                                                    {bankAccount.accountName}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -446,14 +509,23 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                             <span className="text-sm text-gray-600">PromptPay ID</span>
                                             <div className="flex items-center gap-2">
-                                                <span className="font-mono">{donation.paymentMethods?.promptpay || '-'}</span>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={() => donation.paymentMethods?.promptpay && copyToClipboard(donation.paymentMethods.promptpay)}
-                                                >
-                                                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                                </Button>
+                                                <span className="font-mono">
+                                                    {promptpayId
+                                                        ? promptpayId.includes("@")
+                                                            ? promptpayId
+                                                            : promptpayId.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")
+                                                        : "-"}
+                                                </span>
+                                                {promptpayId && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-6 w-6 p-0"
+                                                        onClick={() => copyToClipboard(promptpayId)}
+                                                    >
+                                                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
 
@@ -471,14 +543,14 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                             <li>1. เปิดแอปธนาคารของคุณ</li>
                                             <li>2. เลือกสแกน QR Code</li>
                                             <li>3. สแกน QR Code ด้านบน</li>
-                                            <li>4. ยืนยันการชำระเงิน</li>
+                                            <li>4. ยืนยันการชำระเงิน (ยอดเงินควรตรงกับ ฿{formatAmount(amount)})</li>
                                         </ol>
                                     </div>
 
                                     <Button
                                         className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                                         onClick={handlePayment}
-                                        disabled={isProcessing}
+                                        disabled={isProcessing || !!qrError}
                                     >
                                         {isProcessing ? (
                                             <>
@@ -494,6 +566,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                             {paymentMethod === "credit" && (
                                 <div className="space-y-4">
+                                    {/* ส่วน credit เดิมเหมือนเดิม */}
                                     <div className="space-y-3">
                                         <div className="space-y-2">
                                             <Label htmlFor="cardNumber">หมายเลขบัตร</Label>
@@ -566,22 +639,23 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                             {paymentMethod === "bank" && (
                                 <div className="space-y-4">
+                                    {/* ส่วน bank เดิมเหมือนเดิม */}
                                     <div className="space-y-3">
                                         <h4 className="font-medium text-gray-800">ข้อมูลการโอนเงิน</h4>
 
                                         <div className="space-y-2 p-3 bg-gray-50 rounded-lg">
                                             <div className="flex justify-between">
                                                 <span className="text-sm text-gray-600">ธนาคาร</span>
-                                                <span className="font-medium">{donation.paymentMethods.bankAccount.bank}</span>
+                                                <span className="font-medium">{bankAccount.bank}</span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-sm text-gray-600">เลขที่บัญชี</span>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-mono">{donation.paymentMethods.bankAccount.accountNumber}</span>
+                                                    <span className="font-mono">{bankAccount.accountNumber}</span>
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        onClick={() => copyToClipboard(donation.paymentMethods.bankAccount.accountNumber)}
+                                                        onClick={() => copyToClipboard(bankAccount.accountNumber)}
                                                     >
                                                         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                                     </Button>
@@ -589,7 +663,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-sm text-gray-600">ชื่อบัญชี</span>
-                                                <span className="font-medium">{donation.paymentMethods.bankAccount.accountName}</span>
+                                                <span className="font-medium">{bankAccount.accountName}</span>
                                             </div>
                                             <div className="flex justify-between border-t pt-2">
                                                 <span className="text-sm text-gray-600">จำนวนเงิน</span>
@@ -606,7 +680,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                             <li>1. เปิดแอปธนาคารของคุณ</li>
                                             <li>2. เลือกโอนเงิน</li>
                                             <li>3. กรอกข้อมูลบัญชีปลายทาง</li>
-                                            <li>4. ระบุจำนวนเงินที่ต้องการโอน</li>
+                                            <li>4. ระบุจำนวนเงินที่ต้องการโอน ฿{formatAmount(amount)}</li>
                                             <li>5. ยืนยันการโอนเงิน</li>
                                         </ol>
                                     </div>
@@ -647,7 +721,9 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                         <span className="text-2xl">🪙</span>
                                         <span className="text-xl font-bold text-yellow-700">+{pointsEarned} คะแนน!</span>
                                     </div>
-                                    <p className="text-sm text-yellow-600">คุณได้รับคะแนนจากการบริจาค สามารถนำไปแลกรางวัลได้</p>
+                                    <p className="text-sm text-yellow-600">
+                                        คุณได้รับคะแนนจากการบริจาค สามารถนำไปแลกรางวัลได้
+                                    </p>
                                 </div>
                             )}
 

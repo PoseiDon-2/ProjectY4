@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
     ArrowLeft,
@@ -35,13 +35,13 @@ interface ItemDonationRecord {
     donorPhone: string
     donorEmail?: string
     isAnonymous: boolean
-    itemDetails: string // e.g., "เสื้อผ้าเด็กชาย อายุ 5-10 ปี สภาพดี จำนวน 20 ชุด"
-    quantity?: string // e.g., "20 ชุด"
-    condition?: string // e.g., "good"
+    itemDetails: string
+    quantity?: string
+    condition?: string
     deliveryMethod: "send-to-address" | "drop-off"
     trackingNumber?: string
     donationDate: string
-    status: "pending" | "received" | "not_received" // Added status for item donation record
+    status: "pending" | "received" | "not_received"
 }
 
 interface DonationRequest {
@@ -64,21 +64,22 @@ interface DonationRequest {
         deliveryAddress?: string
         deliveryContact?: string
     }
-    itemDonations?: ItemDonationRecord[] // Added for tracking individual item donations
+    itemDonations?: ItemDonationRecord[]
     volunteerDetails?: {
         skillsNeeded: string[]
         location: string
         contact: string
     }
+    // เพิ่มฟิลด์สำหรับระบุว่าใครเป็นเจ้าของ request
+    organizerId?: string
 }
 
-// Mock data for donation requests (expanded to include item/volunteer details and itemDonations)
+// Mock data with organizer information
 const mockDonationRequests: DonationRequest[] = [
     {
         id: 1,
         title: "ช่วยเหลือครอบครัวที่ประสบอุทกภัย",
-        description:
-            "ครอบครัวของเราประสบอุทกภัยใหญ่ ทำให้บ้านและข้าวของเสียหายหมด ต้องการความช่วยเหลือเร่งด่วนสำหรับที่พักชั่วคราวและสิ่งของจำเป็น",
+        description: "ครอบครัวของเราประสบอุทกภัยใหญ่ ทำให้บ้านและข้าวของเสียหายหมด ต้องการความช่วยเหลือเร่งด่วน",
         category: "ภัยพิบัติ",
         goalAmount: 50000,
         currentAmount: 23500,
@@ -87,24 +88,29 @@ const mockDonationRequests: DonationRequest[] = [
         createdDate: "2024-01-10",
         daysLeft: 15,
         donationType: "money",
+        organizerId: "org_001",
     },
     {
         id: 2,
         title: "สร้างห้องสมุดให้โรงเรียนชนบท",
         description: "โรงเรียนบ้านดอนตาลต้องการสร้างห้องสมุดใหม่ เพื่อให้นักเรียนมีแหล่งเรียนรู้และพัฒนาตนเอง",
         category: "การศึกษา",
-        goalAmount: 120000, // This goal is for money, but this request is for items. This might need clarification in a real app.
+        goalAmount: 120000,
         currentAmount: 67000,
         supporters: 89,
         status: "active",
         createdDate: "2024-01-05",
         daysLeft: 30,
         donationType: "items",
+        organizerId: "org_002", // ตรงกับ user.id ใน auth-context
         itemDetails: {
             type: "หนังสือเรียน, อุปกรณ์การเรียน",
             condition: "ใหม่หรือสภาพดีมาก",
             quantity: 500,
-            images: ["https://via.placeholder.com/400x300?text=No+Image", "https://via.placeholder.com/400x300?text=No+Image"],
+            images: [
+                "https://via.placeholder.com/400x300?text=No+Image",
+                "https://via.placeholder.com/400x300?text=No+Image",
+            ],
             deliveryAddress: "โรงเรียนบ้านดอนตาล, 123 หมู่ 4, ต.หนองบัว, อ.เมือง, จ.ขอนแก่น 40000",
             deliveryContact: "ครูสมศรี 089-123-4567",
         },
@@ -121,7 +127,7 @@ const mockDonationRequests: DonationRequest[] = [
                 deliveryMethod: "send-to-address",
                 trackingNumber: "TH1234567890",
                 donationDate: "2024-01-12T10:30:00Z",
-                status: "pending", // Default status
+                status: "pending",
             },
             {
                 id: "item-002",
@@ -134,7 +140,7 @@ const mockDonationRequests: DonationRequest[] = [
                 condition: "like-new",
                 deliveryMethod: "drop-off",
                 donationDate: "2024-01-13T14:00:00Z",
-                status: "received", // Example received status
+                status: "received",
             },
             {
                 id: "item-003",
@@ -146,7 +152,7 @@ const mockDonationRequests: DonationRequest[] = [
                 condition: "new",
                 deliveryMethod: "drop-off",
                 donationDate: "2024-01-14T09:00:00Z",
-                status: "not_received", // Example not received status
+                status: "not_received",
             },
         ],
     },
@@ -162,6 +168,7 @@ const mockDonationRequests: DonationRequest[] = [
         createdDate: "2024-01-15",
         daysLeft: 45,
         donationType: "volunteer",
+        organizerId: "org_003",
         volunteerDetails: {
             skillsNeeded: ["งานเฉพาะทาง (แพทย์/พยาบาล)", "งานประสานงาน"],
             location: "โรงพยาบาลประจำจังหวัด",
@@ -173,11 +180,37 @@ const mockDonationRequests: DonationRequest[] = [
 export default function RequestDetail({ params }: DonationRequestDetailProps) {
     const router = useRouter()
     const { user } = useAuth()
-    const resolvedParams = use(params)
+    const [currentRequest, setCurrentRequest] = useState<DonationRequest | undefined>(undefined)
+    const [isLoading, setIsLoading] = useState(true)
 
-    const [currentRequest, setCurrentRequest] = useState<DonationRequest | undefined>(
-        mockDonationRequests.find((req) => req.id === Number.parseInt(resolvedParams.id)),
-    )
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const { id } = await params
+                const request = mockDonationRequests.find((req) => req.id === Number.parseInt(id))
+                setCurrentRequest(request)
+            } catch (error) {
+                console.error("Error fetching request:", error)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        fetchData()
+    }, [params])
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
+                <Card className="w-full max-w-md text-center">
+                    <CardContent className="p-8">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+                        <p className="text-gray-600">กำลังโหลดข้อมูล...</p>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
 
     if (!currentRequest) {
         return (
@@ -187,7 +220,10 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                         <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
                         <h2 className="text-2xl font-bold text-gray-800 mb-2">ไม่พบคำขอ</h2>
                         <p className="text-gray-600 mb-4">ไม่พบข้อมูลคำขอบริจาคที่คุณกำลังมองหา</p>
-                        <Button onClick={() => router.push("/organizer-dashboard")} className="bg-pink-500 hover:bg-pink-600">
+                        <Button 
+                            onClick={() => router.push("/organizer-dashboard")} 
+                            className="bg-pink-500 hover:bg-pink-600"
+                        >
                             กลับแดชบอร์ด
                         </Button>
                     </CardContent>
@@ -196,10 +232,8 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
         )
     }
 
-    // Check if user has permission to view this page (only organizer or admin)
-    // For mock purposes, assuming user.id matches organizer.id or user.role is admin
-    // In a real app, you'd fetch the actual organizer ID from the request data
-    const isOrganizer = user?.role === "organizer" && currentRequest.id === 2 // Mocking organizer for request ID 2
+    // Check if user has permission to view this page
+    const isOrganizer = user?.role === "organizer" && currentRequest.organizerId === user.id
     const isAdmin = user?.role === "admin"
 
     if (!user || (!isOrganizer && !isAdmin)) {
@@ -210,7 +244,10 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                         <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
                         <h2 className="text-2xl font-bold text-gray-800 mb-2">ไม่มีสิทธิ์เข้าถึง</h2>
                         <p className="text-gray-600 mb-4">คุณไม่มีสิทธิ์ในการดูรายละเอียดคำขอบริจาคนี้</p>
-                        <Button onClick={() => router.push("/")} className="bg-pink-500 hover:bg-pink-600">
+                        <Button 
+                            onClick={() => router.push("/")} 
+                            className="bg-pink-500 hover:bg-pink-600"
+                        >
                             กลับหน้าหลัก
                         </Button>
                     </CardContent>
@@ -253,30 +290,47 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
 
     const getItemDonationStatus = (status: ItemDonationRecord["status"]) => {
         const statusConfig = {
-            pending: { label: "รอดำเนินการ", color: "bg-yellow-100 text-yellow-700", icon: Hourglass },
-            received: { label: "ได้รับแล้ว", color: "bg-green-100 text-green-700", icon: CheckCircle },
-            not_received: { label: "ไม่ได้รับ", color: "bg-red-100 text-red-700", icon: XCircle },
+            pending: { 
+                label: "รอดำเนินการ", 
+                color: "bg-yellow-100 text-yellow-700", 
+                icon: Hourglass 
+            },
+            received: { 
+                label: "ได้รับแล้ว", 
+                color: "bg-green-100 text-green-700", 
+                icon: CheckCircle 
+            },
+            not_received: { 
+                label: "ไม่ได้รับ", 
+                color: "bg-red-100 text-red-700", 
+                icon: XCircle 
+            },
         }
         return statusConfig[status] || statusConfig.pending
     }
 
-    const handleUpdateItemDonationStatus = async (itemId: string, newStatus: ItemDonationRecord["status"]) => {
+    const handleUpdateItemDonationStatus = async (
+        itemId: string, 
+        newStatus: ItemDonationRecord["status"]
+    ) => {
         // Simulate API call
         console.log(`Updating item donation ${itemId} to status: ${newStatus}`)
-        await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate network delay
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
         setCurrentRequest((prevRequest) => {
             if (!prevRequest || !prevRequest.itemDonations) return prevRequest
             return {
                 ...prevRequest,
                 itemDonations: prevRequest.itemDonations.map((donation) =>
-                    donation.id === itemId ? { ...donation, status: newStatus } : donation,
+                    donation.id === itemId ? { ...donation, status: newStatus } : donation
                 ),
             }
         })
     }
 
-    const progressPercentage = (currentRequest.currentAmount / currentRequest.goalAmount) * 100
+    const progressPercentage = currentRequest.goalAmount > 0 
+        ? (currentRequest.currentAmount / currentRequest.goalAmount) * 100 
+        : 0
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
@@ -285,16 +339,25 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <Button variant="ghost" size="sm" onClick={() => router.back()} className="hover:bg-pink-50">
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => router.back()} 
+                                className="hover:bg-pink-50"
+                            >
                                 <ArrowLeft className="w-4 h-4 mr-2" />
                                 กลับ
                             </Button>
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-800">รายละเอียดคำขอ #{currentRequest.id}</h1>
+                                <h1 className="text-2xl font-bold text-gray-800">
+                                    รายละเอียดคำขอ #{currentRequest.id}
+                                </h1>
                                 <p className="text-sm text-gray-600">ตรวจสอบข้อมูลคำขอบริจาค</p>
                             </div>
                         </div>
-                        <Badge className={getStatusColor(currentRequest.status)}>{getStatusText(currentRequest.status)}</Badge>
+                        <Badge className={getStatusColor(currentRequest.status)}>
+                            {getStatusText(currentRequest.status)}
+                        </Badge>
                     </div>
                 </div>
             </div>
@@ -327,7 +390,9 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-600">วันที่สร้าง</label>
-                                <p className="text-gray-800">{new Date(currentRequest.createdDate).toLocaleDateString("th-TH")}</p>
+                                <p className="text-gray-800">
+                                    {new Date(currentRequest.createdDate).toLocaleDateString("th-TH")}
+                                </p>
                             </div>
                         </div>
                     </CardContent>
@@ -346,11 +411,15 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-sm font-medium text-gray-600">ยอดเป้าหมาย</label>
-                                    <p className="text-xl font-bold text-green-600">฿{formatAmount(currentRequest.goalAmount)}</p>
+                                    <p className="text-xl font-bold text-green-600">
+                                        ฿{formatAmount(currentRequest.goalAmount)}
+                                    </p>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-600">ยอดระดมทุนปัจจุบัน</label>
-                                    <p className="text-xl font-bold text-green-600">฿{formatAmount(currentRequest.currentAmount)}</p>
+                                    <p className="text-xl font-bold text-green-600">
+                                        ฿{formatAmount(currentRequest.currentAmount)}
+                                    </p>
                                 </div>
                             </div>
                             <div>
@@ -435,7 +504,9 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                                                     <CardContent className="p-4 space-y-3">
                                                         <div className="flex items-center justify-between">
                                                             <h4 className="font-medium text-purple-800">
-                                                                {itemDonation.isAnonymous ? "บริจาคแบบไม่ระบุชื่อ" : itemDonation.donorName}
+                                                                {itemDonation.isAnonymous 
+                                                                    ? "บริจาคแบบไม่ระบุชื่อ" 
+                                                                    : itemDonation.donorName}
                                                             </h4>
                                                             <span className="text-xs text-gray-500">
                                                                 {new Date(itemDonation.donationDate).toLocaleDateString("th-TH")}
@@ -469,7 +540,12 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                                                                         variant="outline"
                                                                         size="sm"
                                                                         className="bg-green-50 text-green-700 hover:bg-green-100"
-                                                                        onClick={() => handleUpdateItemDonationStatus(itemDonation.id, "received")}
+                                                                        onClick={() => 
+                                                                            handleUpdateItemDonationStatus(
+                                                                                itemDonation.id, 
+                                                                                "received"
+                                                                            )
+                                                                        }
                                                                     >
                                                                         <CheckCircle className="w-3 h-3 mr-1" />
                                                                         ได้รับแล้ว
@@ -478,7 +554,12 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                                                                         variant="outline"
                                                                         size="sm"
                                                                         className="bg-red-50 text-red-700 hover:bg-red-100"
-                                                                        onClick={() => handleUpdateItemDonationStatus(itemDonation.id, "not_received")}
+                                                                        onClick={() => 
+                                                                            handleUpdateItemDonationStatus(
+                                                                                itemDonation.id, 
+                                                                                "not_received"
+                                                                            )
+                                                                        }
                                                                     >
                                                                         <XCircle className="w-3 h-3 mr-1" />
                                                                         ไม่ได้รับ
@@ -510,7 +591,11 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                                 <label className="text-sm font-medium text-gray-600">ทักษะที่ต้องการ</label>
                                 <div className="flex flex-wrap gap-2 mt-1">
                                     {currentRequest.volunteerDetails.skillsNeeded.map((skill, index) => (
-                                        <Badge key={index} variant="outline" className="border-blue-200 text-blue-700">
+                                        <Badge 
+                                            key={index} 
+                                            variant="outline" 
+                                            className="border-blue-200 text-blue-700"
+                                        >
                                             {skill}
                                         </Badge>
                                     ))}
@@ -528,8 +613,8 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                     </Card>
                 )}
 
-                {/* Action Buttons (Example: Approve/Reject for pending requests) */}
-                {currentRequest.status === "pending" && (
+                {/* Action Buttons */}
+                {currentRequest.status === "pending" && (isOrganizer || isAdmin) && (
                     <Card>
                         <CardHeader>
                             <CardTitle>การจัดการคำขอ</CardTitle>
@@ -539,7 +624,10 @@ export default function RequestDetail({ params }: DonationRequestDetailProps) {
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 อนุมัติคำขอ
                             </Button>
-                            <Button variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50 bg-transparent">
+                            <Button 
+                                variant="outline" 
+                                className="w-full text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
+                            >
                                 <XCircle className="w-4 h-4 mr-2" />
                                 ปฏิเสธคำขอ
                             </Button>

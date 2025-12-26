@@ -307,11 +307,11 @@ export default function CreateRequest() {
             // ข้อมูลพื้นฐาน
             formDataToSend.append("title", formData.title.trim())
             formDataToSend.append("description", formData.description.trim())
-            
+
             // แปลง category จาก string value เป็น ID
             const categoryObj = categories.find(cat => cat.value === formData.category)
             formDataToSend.append("category_id", categoryObj ? categoryObj.value : formData.category)
-            
+
             formDataToSend.append("location", formData.location.trim())
             formDataToSend.append("contact_phone", formData.contactPhone.trim())
             formDataToSend.append("organization_type", formData.organizationDetails.organizationType)
@@ -331,21 +331,29 @@ export default function CreateRequest() {
 
             // เงินบริจาค
             if (formData.donationType.includes("money") && formData.goalAmount) {
-                formDataToSend.append("goal_amount", formData.goalAmount.toString())
-                
-                // ใช้ข้อมูลจากฟอร์ม
-                const bankAccount = {
-                    bank: formData.bankName || "",
-                    account_number: formData.accountNumber || "",
-                    account_name: formData.accountName || user?.organizationName || `${user?.firstName} ${user?.lastName}`
-                }
-                
-                formDataToSend.append("bank_account[bank]", bankAccount.bank)
-                formDataToSend.append("bank_account[account_number]", bankAccount.account_number)
-                formDataToSend.append("bank_account[account_name]", bankAccount.account_name)
-                
+                formDataToSend.append("goal_amount", formData.goalAmount.toString());
+
+                // สร้าง payment_methods object ให้ตรงกับที่ Donation Modal คาดหวัง
+                const paymentMethodsData = {
+                    bank_account: {
+                        bank: formData.bankName || "",
+                        account_number: formData.accountNumber || "",
+                        account_name: formData.accountName || user?.organizationName || `${user?.firstName} ${user?.lastName}`
+                    },
+                    promptpay_number: formData.promptpayNumber || "",
+                    truewallet: "" // ถ้ามี
+                };
+
+                // ส่งเป็น JSON string
+                formDataToSend.append("payment_methods", JSON.stringify(paymentMethodsData));
+
+                // ส่งแยก field สำหรับความเข้ากันได้
+                formDataToSend.append("bank_account[bank]", paymentMethodsData.bank_account.bank);
+                formDataToSend.append("bank_account[account_number]", paymentMethodsData.bank_account.account_number);
+                formDataToSend.append("bank_account[account_name]", paymentMethodsData.bank_account.account_name);
+
                 if (formData.promptpayNumber?.trim()) {
-                    formDataToSend.append("promptpay_number", formData.promptpayNumber.trim())
+                    formDataToSend.append("promptpay_number", formData.promptpayNumber.trim());
                 }
             }
 
@@ -386,7 +394,7 @@ export default function CreateRequest() {
             setSuccess(true)
             localStorage.removeItem("savedOrganizationDetails")
             setTimeout(() => router.push("/organizer-dashboard"), 2000)
-            
+
         } catch (err: any) {
             console.error("เกิดข้อผิดพลาด:", err)
             console.error("Response data:", err.response?.data)
@@ -609,8 +617,8 @@ export default function CreateRequest() {
                                                                 type="button"
                                                                 onClick={() => setCurrentImageIndex(index)}
                                                                 className={`flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 transition-all ${index === currentImageIndex
-                                                                        ? "border-pink-500 ring-2 ring-pink-200"
-                                                                        : "border-gray-300 hover:border-gray-400"
+                                                                    ? "border-pink-500 ring-2 ring-pink-200"
+                                                                    : "border-gray-300 hover:border-gray-400"
                                                                     }`}
                                                             >
                                                                 <img
@@ -704,8 +712,8 @@ export default function CreateRequest() {
                                             <div
                                                 key={type.value}
                                                 className={`border rounded-lg p-4 cursor-pointer transition-all ${formData.donationType.includes(type.value)
-                                                        ? `${type.color} border-2`
-                                                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                                    ? `${type.color} border-2`
+                                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                                                     }`}
                                                 onClick={() => handleDonationTypeToggle(type.value)}
                                             >
