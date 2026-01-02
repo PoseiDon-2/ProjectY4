@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Upload, Camera, ImageIcon, Save, Eye, X } from "lucide-react"
+import { ArrowLeft, Upload, Camera, ImageIcon, Save, Eye, X, VideoIcon, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,19 +13,30 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/contexts/auth-context"
+import { format } from "date-fns"
+import { th } from "date-fns/locale"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 interface StoryFormData {
     title: string
     content: string
     type: "progress" | "milestone" | "thank_you" | "completion"
     image?: File
+    video?: File
     duration: number
-    donation_request_id: string // เปลี่ยนจาก number เป็น string
+    donation_request_id: string
+    show_time: string
+    is_scheduled: boolean
+    scheduled_time?: string
+    media_type: "image" | "video"
 }
 
 interface DonationRequest {
-    id: string // เปลี่ยนจาก number เป็น string
+    id: string
     title: string
     organizer: string
     currentAmount: number
@@ -78,10 +89,20 @@ class StoryApiService {
         formDataToSend.append('type', formData.type)
         formDataToSend.append('duration', formData.duration.toString())
         formDataToSend.append('donation_request_id', formData.donation_request_id)
+        formDataToSend.append('show_time', formData.show_time)
+        formDataToSend.append('is_scheduled', formData.is_scheduled.toString())
+        formDataToSend.append('media_type', formData.media_type)
 
-        // Append image if exists
-        if (formData.image) {
-            formDataToSend.append('image', formData.image)
+        // Append scheduled time if exists
+        if (formData.scheduled_time) {
+            formDataToSend.append('scheduled_time', formData.scheduled_time)
+        }
+
+        // Append image or video
+        if (formData.media_type === 'image' && formData.image) {
+            formDataToSend.append('media', formData.image)
+        } else if (formData.media_type === 'video' && formData.video) {
+            formDataToSend.append('media', formData.video)
         }
 
         return this.request('/organizer/stories', {
@@ -97,22 +118,29 @@ export default function CreateStory() {
     const router = useRouter()
     const { user } = useAuth()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const videoInputRef = useRef<HTMLInputElement>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState("")
     const [success, setSuccess] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
+    const [previewVideo, setPreviewVideo] = useState<string | null>(null)
     const [organizerRequests, setOrganizerRequests] = useState<DonationRequest[]>([])
+    const [date, setDate] = useState<Date>()
+    const [time, setTime] = useState<string>("12:00")
 
     const [formData, setFormData] = useState<StoryFormData>({
         title: "",
         content: "",
         type: "progress",
         duration: 5,
-        donation_request_id: "", // เปลี่ยนจาก 0 เป็น ""
+        donation_request_id: "",
+        show_time: "immediately",
+        is_scheduled: false,
+        media_type: "image",
     })
 
-    // Redirect if not organizer - ใช้ useEffect แทน
+    // Redirect if not organizer
     useEffect(() => {
         if (!user || user.role !== "organizer") {
             router.push("/")
@@ -124,13 +152,26 @@ export default function CreateStory() {
         fetchOrganizerRequests()
     }, [])
 
+    // Update scheduled_time when date or time changes
+    useEffect(() => {
+        if (date && time && formData.is_scheduled) {
+            const [hours, minutes] = time.split(':')
+            const scheduledDate = new Date(date)
+            scheduledDate.setHours(parseInt(hours), parseInt(minutes))
+            const formattedDate = scheduledDate.toISOString()
+            setFormData(prev => ({
+                ...prev,
+                scheduled_time: formattedDate
+            }))
+        }
+    }, [date, time, formData.is_scheduled])
+
     const fetchOrganizerRequests = async () => {
         try {
             setIsLoading(true)
             const requests = await storyApiService.getOrganizerRequests()
             setOrganizerRequests(requests)
 
-            // Auto-select the first request if available
             if (requests.length > 0 && !formData.donation_request_id) {
                 setFormData(prev => ({
                     ...prev,
@@ -145,44 +186,72 @@ export default function CreateStory() {
         }
     }
 
-    const handleInputChange = (field: string, value: string | number) => {
+    const handleInputChange = (field: string, value: string | number | boolean) => {
         setFormData(prev => ({
             ...prev,
             [field]: value,
         }))
     }
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
         const file = e.target.files?.[0]
-        if (file) {
+        if (!file) return
+
+        // Validation based on type
+        if (type === 'image') {
             if (file.size > 5 * 1024 * 1024) {
                 setError("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 5MB")
                 return
             }
-
-            // Check file type
             if (!file.type.startsWith('image/')) {
                 setError("กรุณาเลือกไฟล์รูปภาพเท่านั้น")
                 return
             }
 
-            setFormData(prev => ({ ...prev, image: file }))
-            setError("")
+            setFormData(prev => ({ ...prev, image: file, media_type: 'image' }))
+            setPreviewVideo(null)
 
-            // Create preview
             const reader = new FileReader()
             reader.onload = (e) => {
                 setPreviewImage(e.target?.result as string)
             }
             reader.readAsDataURL(file)
+        } else {
+            if (file.size > 50 * 1024 * 1024) {
+                setError("ไฟล์วิดีโอต้องมีขนาดไม่เกิน 50MB")
+                return
+            }
+            if (!file.type.startsWith('video/')) {
+                setError("กรุณาเลือกไฟล์วิดีโอเท่านั้น")
+                return
+            }
+
+            setFormData(prev => ({ ...prev, video: file, media_type: 'video' }))
+            setPreviewImage(null)
+
+            const reader = new FileReader()
+            reader.onload = (e) => {
+                setPreviewVideo(e.target?.result as string)
+            }
+            reader.readAsDataURL(file)
         }
+
+        setError("")
     }
 
-    const removeImage = () => {
-        setFormData(prev => ({ ...prev, image: undefined }))
-        setPreviewImage(null)
-        if (fileInputRef.current) {
-            fileInputRef.current.value = ""
+    const removeMedia = () => {
+        if (formData.media_type === 'image') {
+            setFormData(prev => ({ ...prev, image: undefined }))
+            setPreviewImage(null)
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ""
+            }
+        } else {
+            setFormData(prev => ({ ...prev, video: undefined }))
+            setPreviewVideo(null)
+            if (videoInputRef.current) {
+                videoInputRef.current.value = ""
+            }
         }
     }
 
@@ -222,20 +291,23 @@ export default function CreateStory() {
             return
         }
 
-        if (!formData.image) {
-            setError("กรุณาเลือกรูปภาพสำหรับ Story")
+        if (!formData.image && !formData.video) {
+            setError("กรุณาเลือกรูปภาพหรือวิดีโอสำหรับ Story")
+            setIsSubmitting(false)
+            return
+        }
+
+        if (formData.is_scheduled && !formData.scheduled_time) {
+            setError("กรุณากำหนดเวลาที่ต้องการเผยแพร่")
             setIsSubmitting(false)
             return
         }
 
         try {
-            // Call API to create story
             const response = await storyApiService.createStory(formData)
 
             if (response.success) {
                 setSuccess(true)
-
-                // Redirect after success
                 setTimeout(() => {
                     router.push("/story-management")
                 }, 2000)
@@ -270,6 +342,16 @@ export default function CreateStory() {
         return texts[type as keyof typeof texts] || type
     }
 
+    const getShowTimeText = (showTime: string) => {
+        const texts = {
+            immediately: "เผยแพร่ทันที",
+            "24_hours": "24 ชั่วโมง",
+            "3_days": "3 วัน",
+            "1_week": "1 สัปดาห์",
+        }
+        return texts[showTime as keyof typeof texts] || showTime
+    }
+
     const selectedRequest = organizerRequests.find((req) => req.id === formData.donation_request_id)
 
     // Redirect if not organizer
@@ -286,7 +368,11 @@ export default function CreateStory() {
                             <span className="text-2xl">✅</span>
                         </div>
                         <h2 className="text-2xl font-bold text-gray-800 mb-2">สร้าง Story สำเร็จ!</h2>
-                        <p className="text-gray-600 mb-4">Story ของคุณได้ถูกเผยแพร่แล้ว</p>
+                        <p className="text-gray-600 mb-4">
+                            {formData.is_scheduled
+                                ? `Story ของคุณจะถูกเผยแพร่ในวันที่ ${format(new Date(formData.scheduled_time!), 'dd/MM/yyyy HH:mm', { locale: th })}`
+                                : "Story ของคุณได้ถูกเผยแพร่แล้ว"}
+                        </p>
                         <p className="text-sm text-gray-500">กำลังนำคุณไปยังหน้าจัดการ...</p>
                     </CardContent>
                 </Card>
@@ -309,7 +395,7 @@ export default function CreateStory() {
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 font-sans">
             {/* Header */}
             <div className="bg-white shadow-sm border-b">
-                <div className="max-w-4xl mx-auto px-4 py-4">
+                <div className="max-w-7xl mx-auto px-4 py-4">
                     <div className="flex items-center gap-4">
                         <Button variant="ghost" size="sm" onClick={() => router.back()} className="hover:bg-pink-50">
                             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -323,18 +409,18 @@ export default function CreateStory() {
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto p-4">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {error && (
-                        <Alert className="border-red-200 bg-red-50">
-                            <AlertDescription className="text-red-700">{error}</AlertDescription>
-                        </Alert>
-                    )}
+            <div className="max-w-7xl mx-auto p-4 lg:p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Main Form (2 columns on large screens) */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <form id="story-form" onSubmit={handleSubmit} className="space-y-6">
+                            {error && (
+                                <Alert className="border-red-200 bg-red-50">
+                                    <AlertDescription className="text-red-700">{error}</AlertDescription>
+                                </Alert>
+                            )}
 
-                    <div className="grid gap-6 lg:grid-cols-3">
-                        {/* Main Form */}
-                        <div className="lg:col-span-2 space-y-6">
-                            {/* Basic Information */}
+                            {/* Basic Information Card */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle>ข้อมูล Story</CardTitle>
@@ -399,7 +485,7 @@ export default function CreateStory() {
                                         <p className="text-xs text-gray-500">{formData.content.length}/500 ตัวอักษร (อย่างน้อย 10 ตัวอักษร)</p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="type">ประเภท Story *</Label>
                                             <Select value={formData.type} onValueChange={(value) => handleInputChange("type", value)}>
@@ -429,93 +515,231 @@ export default function CreateStory() {
                                                     <SelectItem value="5">5 วินาที</SelectItem>
                                                     <SelectItem value="7">7 วินาที</SelectItem>
                                                     <SelectItem value="10">10 วินาที</SelectItem>
+                                                    <SelectItem value="15">15 วินาที</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
                                     </div>
+
+                                    {/* Display Time Settings */}
+                                    <div className="space-y-4 pt-4 border-t">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <Label className="text-base font-medium">กำหนดเวลาแสดงผล</Label>
+                                                <p className="text-sm text-gray-500">เลือกเวลาแสดงผลของ Story</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    checked={formData.is_scheduled}
+                                                    onCheckedChange={(checked) => handleInputChange("is_scheduled", checked)}
+                                                />
+                                                <Label>กำหนดเวลาเผยแพร่</Label>
+                                            </div>
+                                        </div>
+
+                                        {!formData.is_scheduled ? (
+                                            <div className="space-y-2">
+                                                <Label>ระยะเวลาการแสดงผล</Label>
+                                                <Select
+                                                    value={formData.show_time}
+                                                    onValueChange={(value) => handleInputChange("show_time", value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="เลือกระยะเวลาแสดงผล" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="immediately">เผยแพร่ทันที</SelectItem>
+                                                        <SelectItem value="24_hours">แสดง 24 ชั่วโมง</SelectItem>
+                                                        <SelectItem value="3_days">แสดง 3 วัน</SelectItem>
+                                                        <SelectItem value="1_week">แสดง 1 สัปดาห์</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label>วันที่เผยแพร่ *</Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                className={cn(
+                                                                    "w-full justify-start text-left font-normal",
+                                                                    !date && "text-muted-foreground"
+                                                                )}
+                                                            >
+                                                                <Clock className="mr-2 h-4 w-4" />
+                                                                {date ? format(date, "dd/MM/yyyy", { locale: th }) : "เลือกวันที่"}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0">
+                                                            <Calendar
+                                                                mode="single"
+                                                                selected={date}
+                                                                onSelect={setDate}
+                                                                initialFocus
+                                                                locale={th}
+                                                                disabled={(date) => date < new Date()}
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>เวลา *</Label>
+                                                    <Input
+                                                        type="time"
+                                                        value={time}
+                                                        onChange={(e) => setTime(e.target.value)}
+                                                        required={formData.is_scheduled}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
 
-                            {/* Image Upload */}
+                            {/* Media Upload Card */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <ImageIcon className="w-5 h-5 text-blue-500" />
-                                        รูปภาพ Story
+                                        สื่อประกอบ Story
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    {!previewImage ? (
-                                        <div className="space-y-4">
-                                            <div
-                                                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-pink-400 transition-colors"
-                                                onClick={() => fileInputRef.current?.click()}
-                                            >
-                                                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                                <p className="text-gray-600 mb-2">คลิกเพื่อเลือกรูปภาพ หรือลากไฟล์มาวาง</p>
-                                                <p className="text-sm text-gray-500">รองรับไฟล์ JPG, PNG, GIF, WEBP ขนาดไม่เกิน 5MB</p>
-                                                <p className="text-xs text-gray-400 mt-2">แนะนำขนาด 9:16 (เหมาะสำหรับมือถือ)</p>
-                                            </div>
+                                    <div className="flex gap-2 mb-4">
+                                        <Button
+                                            type="button"
+                                            variant={formData.media_type === 'image' ? "default" : "outline"}
+                                            onClick={() => handleInputChange("media_type", "image")}
+                                            className="flex-1"
+                                        >
+                                            <ImageIcon className="w-4 h-4 mr-2" />
+                                            รูปภาพ
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant={formData.media_type === 'video' ? "default" : "outline"}
+                                            onClick={() => handleInputChange("media_type", "video")}
+                                            className="flex-1"
+                                        >
+                                            <VideoIcon className="w-4 h-4 mr-2" />
+                                            วิดีโอ
+                                        </Button>
+                                    </div>
 
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    onClick={() => fileInputRef.current?.click()}
-                                                    className="flex-1"
-                                                >
-                                                    <ImageIcon className="w-4 h-4 mr-2" />
-                                                    เลือกจากแกลเลอรี่
-                                                </Button>
-                                                <Button type="button" variant="outline" className="flex-1" disabled>
-                                                    <Camera className="w-4 h-4 mr-2" />
-                                                    ถ่ายรูป
-                                                </Button>
-                                            </div>
-                                        </div>
+                                    {formData.media_type === 'image' ? (
+                                        <>
+                                            {!previewImage ? (
+                                                <div className="space-y-4">
+                                                    <div
+                                                        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-pink-400 transition-colors"
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                    >
+                                                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                                        <p className="text-gray-600 mb-2">คลิกเพื่อเลือกรูปภาพ</p>
+                                                        <p className="text-sm text-gray-500">รองรับไฟล์ JPG, PNG, GIF, WEBP ขนาดไม่เกิน 5MB</p>
+                                                        <p className="text-xs text-gray-400 mt-2">แนะนำขนาด 9:16 (เหมาะสำหรับมือถือ)</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    <div className="relative">
+                                                        <img
+                                                            src={previewImage}
+                                                            alt="Preview"
+                                                            className="w-full max-w-xs mx-auto rounded-lg shadow-lg object-cover aspect-[9/16]"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={removeMedia}
+                                                            className="absolute top-2 right-2 bg-black/50 text-white hover:bg-black/70"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                        className="w-full"
+                                                    >
+                                                        เปลี่ยนรูปภาพ
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => handleMediaUpload(e, 'image')}
+                                                className="hidden"
+                                            />
+                                        </>
                                     ) : (
-                                        <div className="space-y-4">
-                                            <div className="relative">
-                                                <img
-                                                    src={previewImage || "https://via.placeholder.com/400x300?text=No+Image"}
-                                                    alt="Preview"
-                                                    className="w-full max-w-xs mx-auto rounded-lg shadow-lg object-cover aspect-[9/16]"
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={removeImage}
-                                                    className="absolute top-2 right-2 bg-black/50 text-white hover:bg-black/70"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="w-full"
-                                            >
-                                                เปลี่ยนรูปภาพ
-                                            </Button>
-                                        </div>
+                                        <>
+                                            {!previewVideo ? (
+                                                <div className="space-y-4">
+                                                    <div
+                                                        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-pink-400 transition-colors"
+                                                        onClick={() => videoInputRef.current?.click()}
+                                                    >
+                                                        <VideoIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                                        <p className="text-gray-600 mb-2">คลิกเพื่อเลือกวิดีโอ</p>
+                                                        <p className="text-sm text-gray-500">รองรับไฟล์ MP4, MOV, AVI ขนาดไม่เกิน 50MB</p>
+                                                        <p className="text-xs text-gray-400 mt-2">แนะนำความยาวไม่เกิน 15 วินาที</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    <div className="relative">
+                                                        <video
+                                                            src={previewVideo}
+                                                            controls
+                                                            className="w-full max-w-xs mx-auto rounded-lg shadow-lg aspect-[9/16]"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={removeMedia}
+                                                            className="absolute top-2 right-2 bg-black/50 text-white hover:bg-black/70"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => videoInputRef.current?.click()}
+                                                        className="w-full"
+                                                    >
+                                                        เปลี่ยนวิดีโอ
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            <input
+                                                ref={videoInputRef}
+                                                type="file"
+                                                accept="video/*"
+                                                onChange={(e) => handleMediaUpload(e, 'video')}
+                                                className="hidden"
+                                            />
+                                        </>
                                     )}
-
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                        className="hidden"
-                                    />
                                 </CardContent>
                             </Card>
-                        </div>
+                        </form>
+                    </div>
 
-                        {/* Preview Sidebar */}
+                    {/* Preview Sidebar (1 column on large screens) */}
+                    <div className="lg:col-span-1">
                         <div className="space-y-6">
-                            <Card className="sticky top-4">
+                            {/* Preview Card */}
+                            <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Eye className="w-5 h-5 text-purple-500" />
@@ -524,16 +748,26 @@ export default function CreateStory() {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     {/* Story Preview */}
-                                    <div className="relative bg-black rounded-lg overflow-hidden aspect-[9/16] max-w-[200px] mx-auto">
-                                        {previewImage ? (
+                                    <div className="relative aspect-[9/16] rounded-2xl overflow-hidden bg-black shadow-2xl">
+                                        {formData.media_type === 'image' && previewImage ? (
                                             <img
-                                                src={previewImage || "https://via.placeholder.com/400x300?text=No+Image"}
+                                                src={previewImage}
                                                 alt="Story preview"
                                                 className="w-full h-full object-cover"
                                             />
+                                        ) : formData.media_type === 'video' && previewVideo ? (
+                                            <video
+                                                src={previewVideo}
+                                                className="w-full h-full object-cover"
+                                                muted
+                                                autoPlay
+                                                loop
+                                            />
                                         ) : (
                                             <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                                                <span className="text-gray-400 text-sm">ไม่มีรูปภาพ</span>
+                                                <span className="text-gray-400 text-sm">
+                                                    {formData.media_type === 'image' ? 'ไม่มีรูปภาพ' : 'ไม่มีวิดีโอ'}
+                                                </span>
                                             </div>
                                         )}
 
@@ -542,7 +776,15 @@ export default function CreateStory() {
 
                                         {/* Progress Bar */}
                                         <div className="absolute top-2 left-2 right-2 h-1 bg-white/30 rounded-full">
-                                            <div className="h-full bg-white rounded-full w-0" />
+                                            <div
+                                                className="h-full bg-white rounded-full"
+                                                style={{
+                                                    width: formData.duration === 3 ? '20%' :
+                                                        formData.duration === 5 ? '40%' :
+                                                            formData.duration === 7 ? '60%' :
+                                                                formData.duration === 10 ? '80%' : '100%'
+                                                }}
+                                            />
                                         </div>
 
                                         {/* Header */}
@@ -605,52 +847,97 @@ export default function CreateStory() {
                                                 {getTypeText(formData.type)}
                                             </Badge>
                                         </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">เวลาเผยแพร่:</span>
+                                            <span className="font-medium text-right">
+                                                {formData.is_scheduled && formData.scheduled_time
+                                                    ? format(new Date(formData.scheduled_time), 'dd/MM/yyyy HH:mm', { locale: th })
+                                                    : getShowTimeText(formData.show_time)}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">สื่อประกอบ:</span>
+                                            <span className="font-medium">
+                                                {formData.media_type === 'image' ? 'รูปภาพ' : 'วิดีโอ'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
 
-                            <div className="space-y-3">
-                                <Button
-                                    type="submit"
-                                    className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white"
-                                    disabled={isSubmitting || organizerRequests.length === 0 || !formData.image}
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                            กำลังสร้าง Story...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Save className="w-4 h-4 mr-2" />
-                                            เผยแพร่ Story
-                                        </>
-                                    )}
-                                </Button>
+                            {/* Action Buttons Card */}
+                            <Card>
+                                <CardContent className="p-6">
+                                    <div className="space-y-3">
+                                        <Button
+                                            type="submit"
+                                            form="story-form"
+                                            className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white shadow-lg"
+                                            disabled={isSubmitting || organizerRequests.length === 0 || (!formData.image && !formData.video)}
+                                        >
+                                            {isSubmitting ? (
+                                                <>
+                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                                    กำลังสร้าง Story...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-4 h-4 mr-2" />
+                                                    {formData.is_scheduled ? 'กำหนดเวลาเผยแพร่' : 'เผยแพร่ Story'}
+                                                </>
+                                            )}
+                                        </Button>
 
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full"
-                                    onClick={() => router.back()}
-                                >
-                                    ยกเลิก
-                                </Button>
-                            </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="w-full"
+                                            onClick={() => router.back()}
+                                        >
+                                            ยกเลิก
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
 
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                                <h4 className="font-medium text-blue-800 mb-2">💡 เคล็ดลับ Story ที่ดี</h4>
-                                <ul className="text-sm text-blue-700 space-y-1">
-                                    <li>• ใช้รูปภาพที่ชัดเจนและน่าสนใจ</li>
-                                    <li>• เขียนเนื้อหาที่กระชับและเข้าใจง่าย</li>
-                                    <li>• แชร์ความคืบหน้าจริงๆ</li>
-                                    <li>• ขอบคุณผู้บริจาคเป็นประจำ</li>
-                                    <li>• อัปเดตอย่างสม่ำเสมอ</li>
-                                </ul>
-                            </div>
+                            {/* Tips Card */}
+                            <Card>
+                                <CardContent className="p-6">
+                                    <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+                                        <span className="text-lg">💡</span>
+                                        เคล็ดลับ Story ที่ดี
+                                    </h4>
+                                    <ul className="text-sm text-blue-700 space-y-2">
+                                        <li className="flex items-start gap-2">
+                                            <span className="mt-0.5">•</span>
+                                            <span>ใช้รูปภาพหรือวิดีโอที่ชัดเจนและน่าสนใจ</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="mt-0.5">•</span>
+                                            <span>วิดีโอแนะนำความยาว 5-15 วินาที</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="mt-0.5">•</span>
+                                            <span>เขียนเนื้อหาที่กระชับและเข้าใจง่าย</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="mt-0.5">•</span>
+                                            <span>แชร์ความคืบหน้าจริงๆ</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="mt-0.5">•</span>
+                                            <span>ขอบคุณผู้บริจาคเป็นประจำ</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="mt-0.5">•</span>
+                                            <span>ใช้เวลาที่เหมาะสมในการเผยแพร่</span>
+                                        </li>
+                                    </ul>
+                                </CardContent>
+                            </Card>
                         </div>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     )
