@@ -62,7 +62,7 @@ export default function ReceiptCard({ receipt, onViewDetails }: ReceiptCardProps
                             <p className="text-sm text-gray-600">{summary.subtitle}</p>
                         </div>
                     </div>
-                    <Badge className={`${summary.statusColor} border-0`}>{summary.status}</Badge>
+                    <Badge className={`${summary.status} border-0`}>{summary.status}</Badge>
                 </div>
 
                 <div className="space-y-2 mb-4">

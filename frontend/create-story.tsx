@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Upload, Camera, ImageIcon, Save, Eye, X, VideoIcon, Clock } from "lucide-react"

@@ -1091,7 +1091,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="font-bold text-lg">{summary.amount}</p>
-                                                            <Badge className={`${summary.statusColor} border text-xs`}>{summary.status}</Badge>
+                                                            <Badge className={`${summary.status} border text-xs`}>{summary.status}</Badge>
                                                         </div>
                                                     </div>
                                                 )
