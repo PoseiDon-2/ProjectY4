@@ -17,8 +17,8 @@ import axios from "axios"
 
 // --- Constants Configuration ---
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
-const API_URL = `${BACKEND_URL}/api`
-const STORAGE_URL = `${BACKEND_URL}/storage`
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
+const STORAGE_URL = API_URL.replace('/api', '/storage')
 const ITEMS_PER_PAGE = 15 // กำหนดจำนวนรายการต่อหน้า
 
 // --- Interfaces ---
@@ -462,6 +462,7 @@ export default function DonationList() {
                                     <SelectItem value="การศึกษา">การศึกษา</SelectItem>
                                     <SelectItem value="สัตว์">สัตว์</SelectItem>
                                     <SelectItem value="สิ่งแวดล้อม">สิ่งแวดล้อม</SelectItem>
+                                    <SelectItem value="เด็กและเยาวชน">เด็กและเยาวชน</SelectItem>
                                 </SelectContent>
                             </Select>
 

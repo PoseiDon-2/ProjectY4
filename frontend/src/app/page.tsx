@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Heart, X, MapPin, Users, Calendar, Share2, ExternalLink, List, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,6 +14,14 @@ import StoryPreview from "../../story-preview"
 import axios from "axios"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
+
+// --- CONFIGURATION ---
+const CONFIG = {
+    INITIAL_SCORE: 100,
+    SWIPE_LEFT_PENALTY: 10,   // ลดคะแนนเมื่อปัดซ้าย
+    COOLDOWN_MS: 30 * 1000,   // 30 วินาที ห้ามโชว์ซ้ำ (ปรับได้ตามต้องการ)
+    TAG_PENALTY: 2,           // (Optional) ถ้ามี Logic Tag
+};
 
 interface DonationRequest {
     id: string
@@ -39,6 +47,12 @@ interface DonationRequest {
         lat: number
         lng: number
     }
+}
+
+// Interface สำหรับการ์ดที่มีคะแนน
+interface ScoredDonationRequest extends DonationRequest {
+    internalScore: number;
+    lastViewedAt: number;
 }
 
 interface Story {
@@ -137,16 +151,67 @@ const transformApiData = (apiData: any): DonationRequest => {
     }
 }
 
-// Function to handle image loading errors
 const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const target = e.target as HTMLImageElement
     target.src = "https://via.placeholder.com/400x300?text=No+Image"
 }
 
+// --- Session ID Management ---
+const getOrCreateSessionId = () => {
+    if (typeof window === 'undefined') return ''
+
+    const STORAGE_KEY = 'donation_swipe_session_id'
+    let sessionId = localStorage.getItem(STORAGE_KEY)
+
+    if (!sessionId) {
+        sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+        localStorage.setItem(STORAGE_KEY, sessionId)
+    }
+
+    return sessionId
+}
+
+// --- User Behavior Tracking Functions ---
+const trackUserBehavior = async (
+    sessionId: string,
+    donationRequestId: string,
+    actionType: 'swipe_like' | 'swipe_pass' | 'click_detail' | 'view_story',
+    durationMs?: number,
+    metaData?: any
+) => {
+    try {
+        const token = localStorage.getItem('auth_token') // หรือใช้ token จาก context
+        const headers: any = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const payload = {
+            session_id: sessionId,
+            donation_request_id: donationRequestId,
+            action_type: actionType,
+            duration_ms: durationMs || 0,
+            meta_data: metaData || null
+        }
+
+        await axios.post(`${API_URL}/user-behaviors`, payload, { headers })
+
+    } catch (error) {
+        console.error('Failed to track user behavior:', error)
+        // ไม่ควร throw error เพราะไม่ควรขัดจังหวะการใช้งานหลัก
+    }
+}
+
 export default function DonationSwipe() {
-    const [currentIndex, setCurrentIndex] = useState(0)
+    // State สำหรับ Infinite Loop Logic
+    const [cardPool, setCardPool] = useState<ScoredDonationRequest[]>([])
+    const [activeCardIndex, setActiveCardIndex] = useState(0)
+
     const [likedRequests, setLikedRequests] = useState<string[]>([])
-    const [donationRequests, setDonationRequests] = useState<DonationRequest[]>([])
     const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([])
     const [loading, setLoading] = useState(true)
     const [storiesLoading, setStoriesLoading] = useState(true)
@@ -157,11 +222,16 @@ export default function DonationSwipe() {
     const [currentX, setCurrentX] = useState(0)
     const [showShareModal, setShowShareModal] = useState(false)
 
+    // ตัวแปรสำหรับ tracking
+    const [sessionId, setSessionId] = useState<string>('')
+    const viewStartTimeRef = useRef<number>(0)
     const cardRef = useRef<HTMLDivElement>(null)
     const { user } = useAuth()
     const router = useRouter()
 
     useEffect(() => {
+        // กำหนด Session ID เมื่อ component โหลด
+        setSessionId(getOrCreateSessionId())
         fetchData()
     }, [])
 
@@ -172,19 +242,104 @@ export default function DonationSwipe() {
         }
     }, [])
 
+    // Track view time เมื่อเปลี่ยนการ์ด
+    useEffect(() => {
+        if (cardPool.length > 0 && activeCardIndex >= 0) {
+            // เริ่มจับเวลาดูการ์ดใบปัจจุบัน
+            viewStartTimeRef.current = Date.now()
+
+            return () => {
+                // เมื่อเปลี่ยนการ์ด ให้บันทึกเวลาดูของใบก่อนหน้า
+                const viewDuration = Date.now() - viewStartTimeRef.current
+                const previousCard = cardPool[activeCardIndex]
+
+                if (previousCard && viewDuration > 500) { // บันทึกเฉพาะถ้าดูเกิน 500ms
+                    trackUserBehavior(
+                        sessionId,
+                        previousCard.id,
+                        'view_story',
+                        viewDuration,
+                        {
+                            view_type: 'card_preview',
+                            duration_seconds: Math.round(viewDuration / 1000)
+                        }
+                    )
+                }
+            }
+        }
+    }, [activeCardIndex, cardPool, sessionId])
+
+    // --- ALGORITHM: THE BRAIN ---
+    const getNextCardIndex = useCallback((pool: ScoredDonationRequest[]) => {
+        if (pool.length === 0) return -1;
+        if (pool.length === 1) return 0;
+
+        const now = Date.now();
+
+        const candidates = pool.map((item, index) => {
+            let score = item.internalScore;
+
+            if (item.lastViewedAt > 0) {
+                const timePassed = now - item.lastViewedAt;
+                if (timePassed < CONFIG.COOLDOWN_MS) {
+                    score -= (1000 - (timePassed / 10));
+                }
+            }
+            return { index, score };
+        });
+
+        candidates.sort((a, b) => b.score - a.score);
+        return candidates[0].index;
+    }, []);
+
     const fetchData = async () => {
         try {
             setLoading(true)
             setError(null)
 
+            // --- 1. ดึง Token จากที่เก็บ (ปกติคือ localStorage หรือ cookie) ---
+            // ตรวจสอบชื่อ key ให้ตรงกับที่คุณเก็บตอน Login (เช่น 'token', 'auth_token', 'auth_token')
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+            
+            console.log("🔑 Token ที่เจอ:", token ? "มี Token" : "ไม่มี Token");
+
+            // --- 2. สร้าง Config สำหรับ Axios ---
+            const axiosConfig = {
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Accept': 'application/json'
+                }
+            };
+
+            // --- 3. ยิง Request พร้อม Header ---
             const [donationResponse, storiesResponse] = await Promise.all([
-                axios.get(`${API_URL}/donation-requests`),
+                axios.get(`${API_URL}/donation-requests`, axiosConfig), // <--- ใส่ config ตรงนี้สำคัญมาก!
                 axios.get(`${API_URL}/stories`)
             ])
 
             const apiRequests = donationResponse.data.data || donationResponse.data || []
             const transformedRequests = apiRequests.length > 0 ? apiRequests.map(transformApiData) : []
-            setDonationRequests(transformedRequests)
+            
+            // --- 4. Logic การเรียงลำดับใน Frontend ---
+            // ใช้ index มากำหนดคะแนน เพื่อให้ตัวแรกสุดที่ Backend ส่งมา (ซึ่งควรจะเป็นตัวแนะนำ) อยู่บนสุดเสมอ
+            const scoredRequests: ScoredDonationRequest[] = transformedRequests.map((req: DonationRequest, index: number) => ({
+                ...req,
+                internalScore: 1000 - index, 
+                lastViewedAt: 0
+            }));
+
+            // กรองสิ่งที่ Like ไปแล้วออก
+            const storedLikes = localStorage.getItem("likedDonations");
+            let initialPool = scoredRequests;
+            if (storedLikes) {
+                const likedIds = JSON.parse(storedLikes);
+                initialPool = scoredRequests.filter(r => !likedIds.includes(r.id));
+            }
+
+            setCardPool(initialPool);
+            if (initialPool.length > 0) {
+                 setActiveCardIndex(0);
+            }
 
             const apiStories = storiesResponse.data.data || storiesResponse.data || []
             const storyGroups = groupStoriesByDonationRequest(apiStories, transformedRequests)
@@ -248,50 +403,103 @@ export default function DonationSwipe() {
     }
 
     const getFallbackStoryGroups = (): StoryGroup[] => {
-        return [
-            {
-                donationRequestId: "1",
-                organizer: "สมชาย ใจดี",
-                avatar: "https://via.placeholder.com/400x300?text=No+Image",
-                hasUnviewed: true,
-                storyCount: 3,
-                stories: []
-            },
-            {
-                donationRequestId: "2",
-                organizer: "มูลนิธิเด็กไทย",
-                avatar: "https://via.placeholder.com/400x300?text=No+Image",
-                hasUnviewed: true,
-                storyCount: 2,
-                stories: []
-            },
-            {
-                donationRequestId: "3",
-                organizer: "โรงเรียนบ้านดอนตาล",
-                avatar: "https://via.placeholder.com/400x300?text=No+Image",
-                hasUnviewed: false,
-                storyCount: 1,
-                stories: []
-            }
-        ]
+        return []
     }
 
-    const currentRequest = donationRequests[currentIndex]
-    const progressPercentage = currentRequest ? (currentRequest.currentAmount / currentRequest.goalAmount) * 100 : 0
+    // --- SWIPE LOGIC with BEHAVIOR TRACKING ---
+    const handleSwipe = async (liked: boolean) => {
+        const currentCard = cardPool[activeCardIndex];
+        if (!currentCard) return;
 
-    const handleSwipe = (liked: boolean) => {
-        if (liked && currentRequest) {
-            const newLikedRequests = [...likedRequests, currentRequest.id]
+        let newPool = [...cardPool];
+
+        // Track swipe action
+        const actionType = liked ? 'swipe_like' : 'swipe_pass';
+        await trackUserBehavior(
+            sessionId,
+            currentCard.id,
+            actionType,
+            Date.now() - viewStartTimeRef.current,
+            {
+                swipe_type: liked ? 'right' : 'left',
+                card_score: currentCard.internalScore
+            }
+        );
+
+        if (liked) {
+            const newLikedRequests = [...likedRequests, currentCard.id]
             setLikedRequests(newLikedRequests)
             localStorage.setItem("likedDonations", JSON.stringify(newLikedRequests))
+
+            // เรียก API Like (ถ้ามี)
+            // await axios.post(`${API_URL}/like`, { id: currentCard.id });
+
+            newPool = newPool.filter(item => item.id !== currentCard.id);
+
+        } else {
+            const updatedCard = {
+                ...currentCard,
+                internalScore: currentCard.internalScore - CONFIG.SWIPE_LEFT_PENALTY,
+                lastViewedAt: Date.now()
+            };
+
+            newPool = newPool.map(item => item.id === currentCard.id ? updatedCard : item);
         }
 
-        if (currentIndex < donationRequests.length - 1) {
-            setCurrentIndex(currentIndex + 1)
+        setCardPool(newPool);
+
+        if (newPool.length === 0) {
+            setActiveCardIndex(-1);
         } else {
-            setCurrentIndex(0)
+            const nextIndex = getNextCardIndex(newPool);
+            setActiveCardIndex(nextIndex);
         }
     }
+
+    // --- CLICK DETAIL TRACKING ---
+    const handleDetailClick = async (donationRequestId: string) => {
+        await trackUserBehavior(
+            sessionId,
+            donationRequestId,
+            'click_detail',
+            Date.now() - viewStartTimeRef.current,
+            { click_source: 'card_button' }
+        );
+
+        router.push(`/donation/${donationRequestId}`);
+    }
+
+    // --- SHARE MODAL TRACKING ---
+    const handleShareClick = async (donationRequestId: string) => {
+        await trackUserBehavior(
+            sessionId,
+            donationRequestId,
+            'click_detail', // หรืออาจสร้าง 'click_share' action_type แยก
+            Date.now() - viewStartTimeRef.current,
+            { click_source: 'share_button' }
+        );
+
+        setShowShareModal(true);
+    }
+
+    // --- STORY CLICK TRACKING ---
+    const handleStoryClick = async (storyGroup: StoryGroup) => {
+        await trackUserBehavior(
+            sessionId,
+            storyGroup.donationRequestId,
+            'view_story',
+            0,
+            {
+                view_type: 'story_preview_click',
+                story_count: storyGroup.storyCount
+            }
+        );
+
+        router.push(`/stories/donation-request/${storyGroup.donationRequestId}`);
+    }
+
+    const currentRequest = cardPool[activeCardIndex];
+    const progressPercentage = currentRequest ? (currentRequest.currentAmount / currentRequest.goalAmount) * 100 : 0
 
     const handleTouchStart = (e: React.TouchEvent) => {
         setIsSwiping(true)
@@ -317,11 +525,7 @@ export default function DonationSwipe() {
         const swipeThreshold = 50
 
         if (Math.abs(diff) > swipeThreshold) {
-            if (diff > 0) {
-                handleSwipe(true)
-            } else {
-                handleSwipe(false)
-            }
+            handleSwipe(diff > 0)
         }
 
         setIsSwiping(false)
@@ -352,19 +556,11 @@ export default function DonationSwipe() {
         const swipeThreshold = 50
 
         if (Math.abs(diff) > swipeThreshold) {
-            if (diff > 0) {
-                handleSwipe(true)
-            } else {
-                handleSwipe(false)
-            }
+            handleSwipe(diff > 0)
         }
 
         setIsSwiping(false)
         setSwipeDirection(null)
-    }
-
-    const handleStoryClick = (storyGroup: StoryGroup) => {
-        router.push(`/stories/donation-request/${storyGroup.donationRequestId}`)
     }
 
     const handleRetry = () => {
@@ -398,7 +594,7 @@ export default function DonationSwipe() {
         )
     }
 
-    if (error && donationRequests.length === 0) {
+    if (error && cardPool.length === 0) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
                 <div className="text-center max-w-md">
@@ -497,12 +693,12 @@ export default function DonationSwipe() {
                     </div>
                 )}
 
-                {!currentRequest || donationRequests.length === 0 ? (
+                {!currentRequest || cardPool.length === 0 ? (
                     <Card className="shadow-lg border-0 bg-white p-8 max-w-md mx-auto">
                         <div className="text-center">
                             <Heart className="w-12 h-12 text-pink-500 mx-auto mb-3" />
                             <h3 className="text-lg font-semibold text-gray-800 mb-2">ไม่มีคำขอบริจาคในขณะนี้</h3>
-                            <p className="text-sm text-gray-600 mb-4">ใช้เมนูด้านบนเพื่อดูรายการหรือสร้างคำขอใหม่</p>
+                            <p className="text-sm text-gray-600 mb-4">คุณได้ดูรายการทั้งหมดแล้ว หรือไม่มีรายการใหม่</p>
                             <Button
                                 onClick={handleRetry}
                                 variant="outline"
@@ -556,7 +752,7 @@ export default function DonationSwipe() {
                                             size="icon"
                                             variant="ghost"
                                             className="absolute top-4 right-4 bg-white/90 hover:bg-white"
-                                            onClick={() => setShowShareModal(true)}
+                                            onClick={() => handleShareClick(currentRequest.id)}
                                         >
                                             <Share2 className="w-4 h-4" />
                                         </Button>
@@ -605,7 +801,7 @@ export default function DonationSwipe() {
                                         <Button
                                             variant="outline"
                                             className="w-full border-pink-200 text-pink-600 hover:bg-pink-50 bg-transparent flex-shrink-0"
-                                            onClick={() => router.push(`/donation/${currentRequest.id}`)}
+                                            onClick={() => handleDetailClick(currentRequest.id)}
                                         >
                                             <ExternalLink className="w-4 h-4 mr-2" />
                                             ดูรายละเอียดเพิ่มเติม
@@ -624,19 +820,6 @@ export default function DonationSwipe() {
                                     <span className="text-xs text-gray-600">ปัดขวาเพื่อสนับสนุน</span>
                                 </div>
                             </div>
-
-                            {donationRequests.length > 1 && (
-                                <div className="flex justify-center mt-4 gap-2">
-                                    {donationRequests.map((_, index) => (
-                                        <div
-                                            key={index}
-                                            className={`w-2 h-2 rounded-full transition-colors ${index === currentIndex ? "bg-pink-500" :
-                                                index < currentIndex ? "bg-pink-300" : "bg-gray-300"
-                                                }`}
-                                        />
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
                         <div className="flex-shrink-0">
@@ -651,7 +834,7 @@ export default function DonationSwipe() {
                     </div>
                 )}
 
-                {donationRequests.length > 0 && (
+                {cardPool.length > 0 && (
                     <div className="text-center mt-6 text-sm text-gray-500">
                         <p>ปัดการ์ดหรือกดปุ่มเพื่อเลือก ❤️ หรือ ✕</p>
                     </div>

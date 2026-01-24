@@ -25,37 +25,21 @@ class DonationRequestController extends Controller
      */
     public function index(Request $request)
     {
+        // 1. เริ่มต้น Query พื้นฐาน
         $query = DonationRequest::with(['category', 'organization', 'organizer'])
             ->where('status', DonationRequestStatus::APPROVED);
 
-        // Filter by category
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        // Filter by donation type
+        // --- ส่วน Filter (คงเดิมไว้) ---
+        // (ขอละไว้ฐานที่เข้าใจ โค้ดส่วนนี้เหมือนเดิมไม่ต้องแก้) ...
+        if ($request->has('category_id')) { $query->where('category_id', $request->category_id); }
         if ($request->has('donation_type')) {
             $type = strtolower($request->donation_type);
-            if ($type === 'money') {
-                $query->where('accepts_money', true);
-            } elseif ($type === 'items') {
-                $query->where('accepts_items', true);
-            } elseif ($type === 'volunteer') {
-                $query->where('accepts_volunteer', true);
-            }
+            if ($type === 'money') { $query->where('accepts_money', true); }
+            elseif ($type === 'items') { $query->where('accepts_items', true); }
+            elseif ($type === 'volunteer') { $query->where('accepts_volunteer', true); }
         }
-
-        // Filter by location
-        if ($request->has('location')) {
-            $query->where('location', 'like', '%' . $request->location . '%');
-        }
-
-        // Filter by urgency
-        if ($request->has('urgency')) {
-            $query->where('urgency', strtoupper($request->urgency));
-        }
-
-        // Search by title or description
+        if ($request->has('location')) { $query->where('location', 'like', '%' . $request->location . '%'); }
+        if ($request->has('urgency')) { $query->where('urgency', strtoupper($request->urgency)); }
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -64,10 +48,47 @@ class DonationRequestController extends Controller
             });
         }
 
-        // Sorting
-        $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
+        // --- ส่วนสำคัญ: ระบบแนะนำ (Recommendation Logic) [แก้ไขจุดนี้] ---
+
+        // 1. เปลี่ยนกลับไปใช้ User จาก Token (Sanctum)
+        $user = $request->user('sanctum'); 
+        
+        $usedRecommendation = false;
+
+        // ทำงานเมื่อ: มี User Login และ User ไม่ได้กด Sort เอง
+        if ($user && !$request->has('sort_by')) {
+
+            // 2. ลบการเช็ค $hasRecommendations ออก! ให้ Join เลย
+            // (ถ้าไม่มีข้อมูลในตาราง คะแนนจะเป็น NULL -> COALESCE จะแปลงเป็น 0 ให้เอง)
+            
+            $query->leftJoin('user_recommendations', function ($join) use ($user) {
+                $join->on('donation_requests.id', '=', 'user_recommendations.donation_request_id')
+                    ->where('user_recommendations.user_id', '=', $user->id);
+            });
+
+            // Select เพื่อระบุตารางให้ชัดเจน และดึง score
+            $query->select('donation_requests.*', 'user_recommendations.score as recommendation_score');
+
+            // เรียงลำดับ: คะแนนมาก -> น้อย (Null คือ 0)
+            $query->orderByRaw('COALESCE(user_recommendations.score, 0) DESC');
+
+            // Fallback: ถ้าคะแนนเท่ากัน ให้เรียงตามความด่วน -> วันที่ล่าสุด
+            $query->orderBy('urgency', 'desc')
+                  ->orderBy('created_at', 'desc');
+
+            $usedRecommendation = true;
+        }
+
+        // --- Fallback Sorting (ถ้าไม่ได้ใช้ระบบแนะนำ หรือไม่มี User Login) ---
+        if (!$usedRecommendation) {
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            if (!$query->getQuery()->columns) {
+                $query->select('donation_requests.*');
+            }
+        }
 
         $perPage = $request->get('per_page', 15);
         $requests = $query->paginate($perPage);

@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\StoryController;
 use App\Http\Controllers\Api\StoryStatController;
 use Illuminate\Http\Request;
 use App\Enums\UserRole;
+use App\Http\Controllers\Api\UserBehaviorController;
+use App\Http\Controllers\Api\RecommendationController;
+
 
 Route::prefix('auth')->group(function () {
     Route::post('send-otp', [AuthController::class, 'sendOTP']);
@@ -24,12 +27,17 @@ Route::prefix('auth')->group(function () {
     });
 });
 
+
 // === DONATION REQUESTS APIs ===
 Route::prefix('donation-requests')->group(function () {
     Route::get('/', [DonationRequestController::class, 'index']);
     Route::get('/categories', [DonationRequestController::class, 'categories']);
     Route::get('/{id}', [DonationRequestController::class, 'show']);
 });
+
+Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
+
+Route::post('/user-behaviors', [UserBehaviorController::class, 'store']);
 
 Route::middleware(['auth:sanctum'])->prefix('donation-requests')->group(function () {
     Route::get('/my/requests', [DonationRequestController::class, 'myRequests']);
@@ -59,7 +67,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -69,7 +77,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(StoryController::class)->index($request);
         } catch (\Exception $e) {
             \Log::error('Organizer stories error', [
@@ -79,12 +87,12 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::post('/stories', function (Request $request) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -94,7 +102,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(StoryController::class)->store($request);
         } catch (\Exception $e) {
             \Log::error('Create story error', [
@@ -104,12 +112,12 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::get('/stories/{id}', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -119,7 +127,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(StoryController::class)->show($request, $id);
         } catch (\Exception $e) {
             \Log::error('Get story error', [
@@ -129,12 +137,12 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::put('/stories/{id}', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -144,7 +152,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(StoryController::class)->update($request, $id);
         } catch (\Exception $e) {
             \Log::error('Update story error', [
@@ -154,12 +162,12 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::delete('/stories/{id}', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -169,7 +177,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(StoryController::class)->destroy($request, $id);
         } catch (\Exception $e) {
             \Log::error('Delete story error', [
@@ -179,13 +187,13 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     // Story stats
     Route::get('/stats', function (Request $request) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -195,7 +203,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(StoryStatController::class)->index($request);
         } catch (\Exception $e) {
             \Log::error('Story stats error', [
@@ -211,7 +219,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -221,7 +229,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(DonationRequestController::class)->getOrganizerRequestsForStories($request);
         } catch (\Exception $e) {
             \Log::error('Get organizer donation requests error', [
@@ -237,7 +245,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -247,7 +255,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             if (!$isOrganizer) {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
-            
+
             return app(DonationRequestController::class)->getOrganizerDashboardStats($request);
         } catch (\Exception $e) {
             \Log::error('Organizer dashboard stats error', [
@@ -265,7 +273,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
     Route::get('/stats', function (Request $request) {
         try {
             $user = $request->user();
-            
+
             // Debug logging
             \Log::info('Admin access attempt', [
                 'user_id' => $user->id,
@@ -295,7 +303,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             \Log::info('Admin access granted', [
                 'user_id' => $user->id
             ]);
-            
+
             return app(AdminController::class)->getStats($request);
         } catch (\Exception $e) {
             \Log::error('Admin stats error', [
@@ -305,12 +313,12 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::get('/requests/pending', function (Request $request) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -320,18 +328,18 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminRequestController::class)->getPendingRequests($request);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::post('/requests/{id}/approve', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -341,18 +349,18 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminRequestController::class)->approveRequest($request, $id);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::post('/requests/{id}/reject', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -362,19 +370,19 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminRequestController::class)->rejectRequest($request, $id);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     // === USER MANAGEMENT ROUTES ===
     Route::get('/users', function (Request $request) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -384,18 +392,18 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminUserController::class)->getUsers($request);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::post('/users', function (Request $request) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -405,18 +413,18 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminUserController::class)->createUser($request);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::get('/users/{id}', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -426,18 +434,18 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminUserController::class)->getUser($request, $id);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::put('/users/{id}', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -447,18 +455,18 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminUserController::class)->updateUser($request, $id);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
-    
+
     Route::delete('/users/{id}', function (Request $request, $id) {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
             } else {
@@ -468,7 +476,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            
+
             return app(AdminUserController::class)->deleteUser($request, $id);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
@@ -482,7 +490,7 @@ Route::middleware(['auth:sanctum'])->prefix('upload')->group(function () {
         try {
             $user = $request->user();
             $userRole = $user->role;
-            
+
             if ($userRole instanceof \App\Enums\UserRole) {
                 $isOrganizer = $userRole === \App\Enums\UserRole::ORGANIZER;
             } else {
@@ -512,7 +520,6 @@ Route::middleware(['auth:sanctum'])->prefix('upload')->group(function () {
                 'success' => false,
                 'message' => 'No image file provided'
             ], 400);
-
         } catch (\Exception $e) {
             \Log::error('Image upload error', [
                 'error' => $e->getMessage(),
