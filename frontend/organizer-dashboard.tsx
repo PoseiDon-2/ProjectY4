@@ -37,7 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
-import OrganizerReceiptManagement from "@/components/organizer-receipt-management"
+import OrganizerSlipManagement from "@/components/organizer-slip-management"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -59,6 +59,30 @@ interface DonationRequest {
     accepts_items: boolean
     accepts_volunteer: boolean
     images?: string | null // JSON string ของ array path รูปภาพ
+}
+
+interface PendingSlip {
+    id: number
+    amount: number
+    status: "pending" | "verified" | "rejected"
+    slip_path: string
+    slip_url?: string
+    donation_request_id: string
+    donor_id?: string | null
+    client_verdict?: string | null
+    client_reasons?: string[] | null
+    created_at: string
+    donationRequest?: {
+        id: string
+        title: string
+        goal_amount?: number | null
+        current_amount?: number | null
+    }
+    donor?: {
+        id: string
+        first_name: string
+        last_name: string
+    }
 }
 
 interface VolunteerApplication {
@@ -150,6 +174,9 @@ export default function OrganizerDashboard() {
     const [organizerRequests, setOrganizerRequests] = useState<DonationRequest[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [pendingSlips, setPendingSlips] = useState<PendingSlip[]>([])
+    const [pendingLoading, setPendingLoading] = useState(false)
+    const [pendingError, setPendingError] = useState<string | null>(null)
 
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [editingRequest, setEditingRequest] = useState<DonationRequest | null>(null)
@@ -198,6 +225,43 @@ export default function OrganizerDashboard() {
             fetchRequests()
         }
     }, [user])
+
+    const loadPendingSlips = async () => {
+        try {
+            setPendingLoading(true)
+            setPendingError(null)
+            const token = localStorage.getItem("auth_token") || ""
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+            const res = await fetch(`${apiUrl}/organizer/slips/pending`, {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!res.ok) throw new Error("โหลดรายการสลิปไม่สำเร็จ")
+            const response = await res.json()
+            // Handle paginated response (Laravel returns { data: [...], current_page: ... })
+            const list: PendingSlip[] = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : [])
+            setPendingSlips(list)
+        } catch (err: any) {
+            setPendingError(err.message || "ไม่สามารถโหลดรายการสลิปได้")
+        } finally {
+            setPendingLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (!user || user.role !== "organizer") return
+        if (activeTab === "receipts") {
+            loadPendingSlips()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, user])
+
+    // Refresh pending slips when returning to receipts tab
+    useEffect(() => {
+        if (activeTab === "receipts" && !selectedRequestForReceipts) {
+            loadPendingSlips()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, selectedRequestForReceipts])
 
     if (!user) return null
     if (user.role !== "organizer") return null
@@ -346,6 +410,12 @@ export default function OrganizerDashboard() {
 
         return null
     }
+
+    const pendingCounts = pendingSlips.reduce<Record<string, number>>((acc, slip) => {
+        const id = String(slip.donation_request_id)
+        acc[id] = (acc[id] || 0) + 1
+        return acc
+    }, {})
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
@@ -914,6 +984,24 @@ export default function OrganizerDashboard() {
 
                 {!loading && activeTab === "receipts" && (
                     <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800">การอนุมัติสลิป</h2>
+                                <p className="text-gray-600">เข้าสู่หน้าตรวจสอบและอนุมัติสลิปของผู้บริจาค</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={loadPendingSlips}
+                                    disabled={pendingLoading}
+                                >
+                                    รีเฟรชรายการ
+                                </Button>
+                                <Button variant="outline" onClick={() => router.push("/organizer/slips")}>
+                                    ไปหน้าตรวจสลิป
+                                </Button>
+                            </div>
+                        </div>
                         {selectedRequestForReceipts ? (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-4">
@@ -926,13 +1014,111 @@ export default function OrganizerDashboard() {
                                         <p className="text-gray-600">สำหรับ: {selectedRequestForReceipts.title}</p>
                                     </div>
                                 </div>
-                                <OrganizerReceiptManagement
+                                <OrganizerSlipManagement
                                     requestId={selectedRequestForReceipts.id}
                                     requestTitle={selectedRequestForReceipts.title}
                                 />
                             </div>
                         ) : (
                             <div className="space-y-6">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-lg font-semibold text-gray-800">สลิปรอตรวจล่าสุด</h3>
+                                        <Badge className="bg-yellow-100 text-yellow-700">
+                                            รอตรวจ {pendingSlips.length}
+                                        </Badge>
+                                    </div>
+                                    {pendingLoading ? (
+                                        <Card>
+                                            <CardContent className="p-6 text-center text-gray-600">กำลังโหลดสลิป...</CardContent>
+                                        </Card>
+                                    ) : pendingError ? (
+                                        <Card className="border-red-200 bg-red-50">
+                                            <CardContent className="p-6 text-center text-red-600">{pendingError}</CardContent>
+                                        </Card>
+                                    ) : pendingSlips.length === 0 ? (
+                                        <Card>
+                                            <CardContent className="p-6 text-center text-gray-600">ยังไม่มีสลิปรอตรวจ</CardContent>
+                                        </Card>
+                                    ) : (
+                                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                            {pendingSlips.slice(0, 6).map((slip) => {
+                                                const request = organizerRequests.find(
+                                                    (req) => String(req.id) === String(slip.donation_request_id)
+                                                )
+                                                const requestTitle =
+                                                    request?.title || slip.donationRequest?.title || "ไม่พบชื่อคำขอ"
+                                                return (
+                                                    <Card key={slip.id} className="hover:shadow-md transition">
+                                                        <CardContent className="p-4 space-y-3">
+                                                            <div>
+                                                                <p className="text-xs text-gray-500 mb-1">คำขอ</p>
+                                                                <p className="font-medium text-gray-800 line-clamp-2">{requestTitle}</p>
+                                                            </div>
+                                                            {slip.donor && (
+                                                                <div>
+                                                                    <p className="text-xs text-gray-500 mb-1">ผู้บริจาค</p>
+                                                                    <p className="text-sm font-medium text-gray-700">
+                                                                        {slip.donor.first_name} {slip.donor.last_name}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                            <img
+                                                                src={
+                                                                    slip.slip_url ||
+                                                                    `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace("/api", "")}/storage/${slip.slip_path}`
+                                                                }
+                                                                alt="slip"
+                                                                className="w-full h-32 object-contain bg-gray-100 rounded border"
+                                                            />
+                                                            <div className="flex items-center justify-between text-sm">
+                                                                <span className="text-gray-500">จำนวนเงิน</span>
+                                                                <span className="font-semibold text-green-600">
+                                                                    ฿{Number(slip.amount).toLocaleString("th-TH")}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {new Date(slip.created_at).toLocaleDateString("th-TH", {
+                                                                    year: "numeric",
+                                                                    month: "short",
+                                                                    day: "numeric",
+                                                                    hour: "2-digit",
+                                                                    minute: "2-digit",
+                                                                })}
+                                                            </div>
+                                                            {slip.client_verdict && (
+                                                                <div className="text-xs">
+                                                                    <span className="text-gray-500">ผลตรวจเบื้องต้น: </span>
+                                                                    <span className={`font-medium ${
+                                                                        slip.client_verdict === "approved" ? "text-green-600" :
+                                                                        slip.client_verdict === "rejected" ? "text-red-600" :
+                                                                        "text-yellow-600"
+                                                                    }`}>
+                                                                        {slip.client_verdict === "approved" ? "ผ่าน" :
+                                                                         slip.client_verdict === "rejected" ? "ไม่ผ่าน" :
+                                                                         "ต้องตรวจซ้ำ"}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            <Button
+                                                                className="w-full"
+                                                                size="sm"
+                                                                disabled={!request}
+                                                                onClick={() => {
+                                                                    if (request) {
+                                                                        setSelectedRequestForReceipts(request)
+                                                                    }
+                                                                }}
+                                                            >
+                                                                จัดการสลิปคำขอนี้
+                                                            </Button>
+                                                        </CardContent>
+                                                    </Card>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                                 <h2 className="text-xl font-bold text-gray-800">เลือกคำขอเพื่อจัดการสลิป</h2>
                                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                     {organizerRequests.map((request) => (
@@ -945,7 +1131,14 @@ export default function OrganizerDashboard() {
                                                 <div className="space-y-3">
                                                     <div className="flex items-start justify-between">
                                                         <h3 className="font-bold text-gray-800 line-clamp-2 flex-1">{request.title}</h3>
-                                                        <Badge className={getStatusColor(request.status)}>{getStatusText(request.status)}</Badge>
+                                                        <div className="flex items-center gap-2">
+                                                            {pendingCounts[String(request.id)] ? (
+                                                                <Badge className="bg-yellow-100 text-yellow-700">
+                                                                    รอตรวจ {pendingCounts[String(request.id)]}
+                                                                </Badge>
+                                                            ) : null}
+                                                            <Badge className={getStatusColor(request.status)}>{getStatusText(request.status)}</Badge>
+                                                        </div>
                                                     </div>
                                                     <p className="text-sm text-gray-600 line-clamp-2">{request.description}</p>
                                                     <div className="flex items-center justify-between text-sm">

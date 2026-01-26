@@ -427,6 +427,12 @@ export default function Profile() {
                                     <p className="text-sm text-gray-600">รายการการบริจาคทั้งหมดของคุณ</p>
                                 </CardHeader>
                                 <CardContent>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <p className="text-sm text-gray-500">ตรวจสอบสถานะสลิปการบริจาคของคุณ</p>
+                                        <Button variant="outline" onClick={() => router.push("/my-slips")}>
+                                            ดูสลิปของฉัน
+                                        </Button>
+                                    </div>
                                     {user.donations && user.donations.length > 0 ? (
                                         <div className="space-y-4">
                                             {user.donations.map((donation) => {

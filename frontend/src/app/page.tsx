@@ -162,6 +162,12 @@ export default function DonationSwipe() {
     const router = useRouter()
 
     useEffect(() => {
+        // Log API URL for debugging
+        console.log("🔗 API URL:", API_URL)
+        console.log("📡 Fetching from endpoints:", {
+            donations: `${API_URL}/donation-requests`,
+            stories: `${API_URL}/stories`
+        })
         fetchData()
     }, [])
 
@@ -177,10 +183,43 @@ export default function DonationSwipe() {
             setLoading(true)
             setError(null)
 
+            console.log("🔄 Starting data fetch...")
+
+            // Fetch both endpoints with better error handling
             const [donationResponse, storiesResponse] = await Promise.all([
-                axios.get(`${API_URL}/donation-requests`),
-                axios.get(`${API_URL}/stories`)
+                axios.get(`${API_URL}/donation-requests`).catch(err => {
+                    console.error("❌ Donation requests fetch failed:", {
+                        url: `${API_URL}/donation-requests`,
+                        status: err.response?.status,
+                        statusText: err.response?.statusText,
+                        data: err.response?.data,
+                        message: err.message
+                    })
+                    throw err
+                }),
+                axios.get(`${API_URL}/stories`).catch(err => {
+                    console.error("❌ Stories fetch failed:", {
+                        url: `${API_URL}/stories`,
+                        status: err.response?.status,
+                        statusText: err.response?.statusText,
+                        data: err.response?.data,
+                        message: err.message
+                    })
+                    throw err
+                })
             ])
+
+            console.log("✅ Both requests succeeded")
+            console.log("📦 Donation response:", {
+                hasData: !!donationResponse.data,
+                dataType: Array.isArray(donationResponse.data) ? 'array' : typeof donationResponse.data,
+                dataKeys: donationResponse.data ? Object.keys(donationResponse.data) : []
+            })
+            console.log("📦 Stories response:", {
+                hasData: !!storiesResponse.data,
+                dataType: Array.isArray(storiesResponse.data) ? 'array' : typeof storiesResponse.data,
+                dataKeys: storiesResponse.data ? Object.keys(storiesResponse.data) : []
+            })
 
             const apiRequests = donationResponse.data.data || donationResponse.data || []
             const transformedRequests = apiRequests.length > 0 ? apiRequests.map(transformApiData) : []
@@ -190,9 +229,48 @@ export default function DonationSwipe() {
             const storyGroups = groupStoriesByDonationRequest(apiStories, transformedRequests)
             setStoryGroups(storyGroups)
 
+            console.log("✅ Data processing complete:", {
+                donationRequestsCount: transformedRequests.length,
+                storyGroupsCount: storyGroups.length
+            })
+
         } catch (error) {
-            console.error("Failed to fetch data:", error)
-            setError("ไม่สามารถโหลดข้อมูลได้")
+            console.error("❌ Data fetching failed:", error)
+
+            // Detailed error logging
+            if (axios.isAxiosError(error)) {
+                const status = error.response?.status
+                const statusText = error.response?.statusText
+                const errorData = error.response?.data
+                const failedUrl = error.config?.url
+
+                console.error("📊 Error Details:", {
+                    status,
+                    statusText,
+                    failedUrl,
+                    errorData,
+                    message: error.message
+                })
+
+                // Show more specific error message
+                if (status === 500) {
+                    const errorMessage = errorData?.message || errorData?.error || "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์"
+                    setError(`เซิร์ฟเวอร์เกิดข้อผิดพลาด (500): ${errorMessage}`)
+                } else if (status === 404) {
+                    setError("ไม่พบ API endpoint ที่ต้องการ")
+                } else if (status === 403) {
+                    setError("ไม่มีสิทธิ์เข้าถึงข้อมูล")
+                } else if (status) {
+                    setError(`เกิดข้อผิดพลาด (${status}): ${statusText || "Unknown error"}`)
+                } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+                    setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่า backend server ทำงานอยู่")
+                } else {
+                    setError(`ไม่สามารถโหลดข้อมูลได้: ${error.message}`)
+                }
+            } else {
+                setError(`ไม่สามารถโหลดข้อมูลได้: ${error instanceof Error ? error.message : "Unknown error"}`)
+            }
+
             setStoryGroups(getFallbackStoryGroups())
         } finally {
             setLoading(false)
@@ -404,14 +482,22 @@ export default function DonationSwipe() {
                 <div className="text-center max-w-md">
                     <Heart className="w-16 h-16 text-pink-500 mx-auto mb-4" />
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">เกิดข้อผิดพลาด</h2>
-                    <p className="text-gray-600 mb-6">{error}</p>
-                    <Button
-                        onClick={handleRetry}
-                        className="bg-pink-500 hover:bg-pink-600 text-white"
-                    >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        โหลดใหม่
-                    </Button>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                        <p className="text-red-800 text-sm font-medium mb-2">รายละเอียดข้อผิดพลาด:</p>
+                        <p className="text-red-700 text-sm">{error}</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Button
+                            onClick={handleRetry}
+                            className="bg-pink-500 hover:bg-pink-600 text-white w-full"
+                        >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            โหลดใหม่
+                        </Button>
+                        <p className="text-xs text-gray-500 mt-4">
+                            💡 ตรวจสอบ Console (F12) เพื่อดูรายละเอียดเพิ่มเติม
+                        </p>
+                    </div>
                 </div>
             </div>
         )

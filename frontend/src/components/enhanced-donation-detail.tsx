@@ -122,12 +122,36 @@ const transformApiData = (apiData: any) => {
         return array.length > 0 ? array[0] : "https://via.placeholder.com/800x600?text=No+Image"
     }
 
-    const parsePaymentMethods = (paymentMethods: string | null) => {
-        if (!paymentMethods) return { bankAccount: null, promptpay: null }
+    const parsePaymentMethods = (paymentMethods: unknown) => {
+        if (!paymentMethods) return { bankAccount: null, promptpay: "", truewallet: "" }
         try {
-            return JSON.parse(paymentMethods)
+            const raw =
+                typeof paymentMethods === "string" ? JSON.parse(paymentMethods) : paymentMethods
+            const bankAccountRaw = raw?.bankAccount || raw?.bank_account || null
+            const bankAccountFlat =
+                !bankAccountRaw && (raw?.bank || raw?.account_number || raw?.account_name)
+                    ? {
+                          bank: raw?.bank || "",
+                          accountNumber: raw?.accountNumber || raw?.account_number || "",
+                          accountName: raw?.accountName || raw?.account_name || "",
+                      }
+                    : null
+            const bankAccount = bankAccountRaw
+                ? {
+                      bank: bankAccountRaw.bank || bankAccountRaw.bank_name || bankAccountRaw.bankName || "",
+                      accountNumber:
+                          bankAccountRaw.accountNumber || bankAccountRaw.account_number || "",
+                      accountName:
+                          bankAccountRaw.accountName || bankAccountRaw.account_name || "",
+                  }
+                : bankAccountFlat
+            return {
+                promptpay: raw?.promptpay || raw?.promptpay_number || raw?.promptpayNumber || "",
+                bankAccount,
+                truewallet: raw?.truewallet || raw?.truewallet_number || raw?.trueWallet || "",
+            }
         } catch {
-            return { bankAccount: null, promptpay: null }
+            return { bankAccount: null, promptpay: "", truewallet: "" }
         }
     }
 
@@ -174,7 +198,21 @@ const transformApiData = (apiData: any) => {
         },
         createdDate: apiData.created_at ? new Date(apiData.created_at).toISOString().split('T')[0] : "",
         tags: [],
-        paymentMethods: parsePaymentMethods(apiData.payment_methods),
+        paymentMethods: (() => {
+            const methods = parsePaymentMethods(apiData.payment_methods)
+            if (!methods.promptpay) {
+                methods.promptpay = apiData.promptpay_number || apiData.promptpay || ""
+            }
+            if (!methods.bankAccount && (apiData.bank_account || apiData.bankAccount)) {
+                const bank = apiData.bank_account || apiData.bankAccount
+                methods.bankAccount = {
+                    bank: bank.bank || bank.bank_name || "",
+                    accountNumber: bank.account_number || bank.accountNumber || "",
+                    accountName: bank.account_name || bank.accountName || "",
+                }
+            }
+            return methods
+        })(),
         updates: [],
         donationHistory: [],
     }

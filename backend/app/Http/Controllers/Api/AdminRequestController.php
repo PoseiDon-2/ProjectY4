@@ -13,7 +13,7 @@ class AdminRequestController extends Controller
     public function getPendingRequests(Request $request): JsonResponse
     {
         $requests = DonationRequest::with('organizer')
-            ->where('status', DonationRequestStatus::PENDING)
+            ->where('status', DonationRequestStatus::PENDING->value)
             ->get()
             ->map(function ($request) {
                 return [

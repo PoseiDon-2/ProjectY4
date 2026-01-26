@@ -264,45 +264,78 @@ class StoryController extends Controller
     // Public methods
     public function publicIndex(Request $request)
     {
-        $stories = Story::with('donationRequest')
-            ->where('status', StoryStatus::PUBLISHED)
-            ->orderBy('published_at', 'desc')
-            ->get();
+        try {
+            $stories = Story::with('donationRequest')
+                ->where('status', StoryStatus::PUBLISHED->value)
+                ->whereNotNull('published_at')
+                ->orderBy('published_at', 'desc')
+                ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $stories
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $stories
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in StoryController::publicIndex: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch stories',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 
     public function publicShow($id)
     {
-        $story = Story::with('donationRequest')
-            ->where('status', StoryStatus::PUBLISHED)
-            ->find($id);
+        try {
+            $story = Story::with('donationRequest')
+                ->where('status', StoryStatus::PUBLISHED->value)
+                ->whereNotNull('published_at')
+                ->find($id);
 
-        if (!$story) {
-            return response()->json(['error' => 'Story not found'], 404);
+            if (!$story) {
+                return response()->json(['error' => 'Story not found'], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $story
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in StoryController::publicShow: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch story',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'data' => $story
-        ]);
     }
 
     public function getStoriesByDonationRequest($donationRequestId)
     {
-        $stories = Story::with('donationRequest')
-            ->where('donation_request_id', $donationRequestId)
-            ->where('status', StoryStatus::PUBLISHED)
-            ->orderBy('published_at', 'desc')
-            ->get();
+        try {
+            $stories = Story::with('donationRequest')
+                ->where('donation_request_id', $donationRequestId)
+                ->where('status', StoryStatus::PUBLISHED->value)
+                ->whereNotNull('published_at')
+                ->orderBy('published_at', 'desc')
+                ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $stories
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $stories
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in StoryController::getStoriesByDonationRequest: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch stories',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 
     public function recordView($id)

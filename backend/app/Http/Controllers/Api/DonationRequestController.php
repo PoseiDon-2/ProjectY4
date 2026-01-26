@@ -25,54 +25,63 @@ class DonationRequestController extends Controller
      */
     public function index(Request $request)
     {
-        $query = DonationRequest::with(['category', 'organization', 'organizer'])
-            ->where('status', DonationRequestStatus::APPROVED);
+        try {
+            $query = DonationRequest::with(['category', 'organization', 'organizer'])
+                ->where('status', DonationRequestStatus::APPROVED->value);
 
-        // Filter by category
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        // Filter by donation type
-        if ($request->has('donation_type')) {
-            $type = strtolower($request->donation_type);
-            if ($type === 'money') {
-                $query->where('accepts_money', true);
-            } elseif ($type === 'items') {
-                $query->where('accepts_items', true);
-            } elseif ($type === 'volunteer') {
-                $query->where('accepts_volunteer', true);
+            // Filter by category
+            if ($request->has('category_id')) {
+                $query->where('category_id', $request->category_id);
             }
+
+            // Filter by donation type
+            if ($request->has('donation_type')) {
+                $type = strtolower($request->donation_type);
+                if ($type === 'money') {
+                    $query->where('accepts_money', true);
+                } elseif ($type === 'items') {
+                    $query->where('accepts_items', true);
+                } elseif ($type === 'volunteer') {
+                    $query->where('accepts_volunteer', true);
+                }
+            }
+
+            // Filter by location
+            if ($request->has('location')) {
+                $query->where('location', 'like', '%' . $request->location . '%');
+            }
+
+            // Filter by urgency
+            if ($request->has('urgency')) {
+                $query->where('urgency', strtoupper($request->urgency));
+            }
+
+            // Search by title or description
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'like', '%' . $search . '%')
+                        ->orWhere('description', 'like', '%' . $search . '%');
+                });
+            }
+
+            // Sorting
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            $perPage = $request->get('per_page', 15);
+            $requests = $query->paginate($perPage);
+
+            return response()->json($requests);
+        } catch (\Exception $e) {
+            \Log::error('Error in DonationRequestController::index: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'error' => 'Failed to fetch donation requests',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
-
-        // Filter by location
-        if ($request->has('location')) {
-            $query->where('location', 'like', '%' . $request->location . '%');
-        }
-
-        // Filter by urgency
-        if ($request->has('urgency')) {
-            $query->where('urgency', strtoupper($request->urgency));
-        }
-
-        // Search by title or description
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', '%' . $search . '%')
-                    ->orWhere('description', 'like', '%' . $search . '%');
-            });
-        }
-
-        // Sorting
-        $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
-
-        $perPage = $request->get('per_page', 15);
-        $requests = $query->paginate($perPage);
-
-        return response()->json($requests);
     }
 
     /**
@@ -134,7 +143,7 @@ class DonationRequestController extends Controller
         try {
             $requests = DonationRequest::with(['organizer'])
                 ->where('organizer_id', $user->id)
-                ->where('status', DonationRequestStatus::APPROVED)
+                ->where('status', DonationRequestStatus::APPROVED->value)
                 ->select('id', 'title', 'current_amount', 'goal_amount', 'created_at')
                 ->withCount(['donations as supporters' => function ($query) {
                     $query->select(DB::raw('COUNT(DISTINCT donor_id)'));
@@ -164,7 +173,7 @@ class DonationRequestController extends Controller
             \Log::error('Error in getOrganizerRequestsForStories: ' . $e->getMessage());
 
             $requests = DonationRequest::where('organizer_id', $user->id)
-                ->where('status', DonationRequestStatus::APPROVED)
+                ->where('status', DonationRequestStatus::APPROVED->value)
                 ->select('id', 'title', 'current_amount', 'goal_amount', 'created_at', 'supporters')
                 ->get()
                 ->map(function ($request) use ($user) {
@@ -204,11 +213,11 @@ class DonationRequestController extends Controller
             $stats = [
                 'totalRequests' => DonationRequest::where('organizer_id', $user->id)->count(),
                 'approvedRequests' => DonationRequest::where('organizer_id', $user->id)
-                    ->where('status', DonationRequestStatus::APPROVED)->count(),
+                    ->where('status', DonationRequestStatus::APPROVED->value)->count(),
                 'pendingRequests' => DonationRequest::where('organizer_id', $user->id)
-                    ->where('status', DonationRequestStatus::PENDING)->count(),
+                    ->where('status', DonationRequestStatus::PENDING->value)->count(),
                 'rejectedRequests' => DonationRequest::where('organizer_id', $user->id)
-                    ->where('status', DonationRequestStatus::REJECTED)->count(),
+                    ->where('status', DonationRequestStatus::REJECTED->value)->count(),
                 'totalDonations' => Donation::whereHas('donationRequest', function ($query) use ($user) {
                     $query->where('organizer_id', $user->id);
                 })->sum('amount'),
@@ -262,11 +271,11 @@ class DonationRequestController extends Controller
             $stats = [
                 'totalRequests' => DonationRequest::where('organizer_id', $user->id)->count(),
                 'approvedRequests' => DonationRequest::where('organizer_id', $user->id)
-                    ->where('status', DonationRequestStatus::APPROVED)->count(),
+                    ->where('status', DonationRequestStatus::APPROVED->value)->count(),
                 'pendingRequests' => DonationRequest::where('organizer_id', $user->id)
-                    ->where('status', DonationRequestStatus::PENDING)->count(),
+                    ->where('status', DonationRequestStatus::PENDING->value)->count(),
                 'rejectedRequests' => DonationRequest::where('organizer_id', $user->id)
-                    ->where('status', DonationRequestStatus::REJECTED)->count(),
+                    ->where('status', DonationRequestStatus::REJECTED->value)->count(),
                 'totalDonations' => 0,
                 'totalSupporters' => 0,
                 'totalStories' => Story::whereHas('donationRequest', function ($query) use ($user) {
@@ -305,7 +314,7 @@ class DonationRequestController extends Controller
             $query->orderBy('created_at', 'desc');
         }])
             ->where('organizer_id', $user->id)
-            ->where('status', DonationRequestStatus::APPROVED);
+            ->where('status', DonationRequestStatus::APPROVED->value);
 
         if ($donationRequestId) {
             $query->where('id', $donationRequestId);

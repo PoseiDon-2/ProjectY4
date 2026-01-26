@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AdminRequestController;
 use App\Http\Controllers\Api\StoryController;
 use App\Http\Controllers\Api\StoryStatController;
+use App\Http\Controllers\Api\SlipController;
 use Illuminate\Http\Request;
 use App\Enums\UserRole;
 
@@ -31,11 +32,20 @@ Route::prefix('donation-requests')->group(function () {
     Route::get('/{id}', [DonationRequestController::class, 'show']);
 });
 
+// === DONATION SLIPS APIs (public info) ===
+Route::get('/donations/remaining/{id}', [SlipController::class, 'remaining']);
+
 Route::middleware(['auth:sanctum'])->prefix('donation-requests')->group(function () {
     Route::get('/my/requests', [DonationRequestController::class, 'myRequests']);
     Route::post('/', [DonationRequestController::class, 'store']);
     Route::put('/{id}', [DonationRequestController::class, 'update']);
     Route::delete('/{id}', [DonationRequestController::class, 'destroy']);
+});
+
+// === DONATION SLIPS APIs (auth) ===
+Route::middleware(['auth:sanctum'])->prefix('donations')->group(function () {
+    Route::post('/slips', [SlipController::class, 'store']);
+    Route::get('/slips/my', [SlipController::class, 'mySlips']);
 });
 
 // === STORIES APIs ===
@@ -257,6 +267,13 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
+
+    // === ORGANIZER SLIPS APPROVAL ===
+    Route::get('/slips/pending', [SlipController::class, 'pendingForOrganizer']);
+    Route::get('/slips/request/{donationRequestId}', [SlipController::class, 'getByDonationRequest']);
+    Route::get('/slips/{id}/download', [SlipController::class, 'download']);
+    Route::post('/slips/{id}/approve', [SlipController::class, 'approve']);
+    Route::post('/slips/{id}/reject', [SlipController::class, 'reject']);
 });
 
 // === ADMIN APIs ===
