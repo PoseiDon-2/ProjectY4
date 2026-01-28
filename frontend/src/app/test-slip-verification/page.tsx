@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertTriangle, ShieldCheck, ShieldAlert, Upload, Loader2, Zap, Brain, QrCode } from "lucide-react"
+import { AlertTriangle, ShieldCheck, ShieldAlert, Upload, Loader2, Zap, Brain, QrCode, CheckCircle2, Clock, XCircle } from "lucide-react"
 import { verifySlip, type VerifyResult, type SlipDecision } from "@/lib/slip-verification"
-import { verifySlipWithThunder, convertThunderToVerifyResult } from "@/lib/thunder-solution-api"
+import { verifySlipAdvanced, type AdvancedVerifyResult } from "@/lib/advanced-slip-verification"
+import { verifyThaiBankSlip } from "@/lib/thai-bank-slip-verification"
 import { generatePromptPayPayload } from "@/lib/promptpay-qr"
+import { createPaymentQR, checkPaymentStatus, simulateWebhook, type PaymentResponse, type PaymentStatus } from "@/lib/payment-gateway"
 
-type VerificationMethod = "client" | "thunder"
-
-const THUNDER_API_KEY = "d93e398f-cf03-4a1f-94d1-b7fe3e8d19a5"
+type VerificationMethod = "client" | "thai-bank" | "realtime"
 
 export default function TestSlipVerificationPage() {
     const [slipFile, setSlipFile] = useState<File | null>(null)
@@ -24,11 +24,17 @@ export default function TestSlipVerificationPage() {
     const [accountName, setAccountName] = useState("")
     const [verifying, setVerifying] = useState(false)
     const [result, setResult] = useState<VerifyResult | null>(null)
+    const [advancedResult, setAdvancedResult] = useState<AdvancedVerifyResult | null>(null)
     const [error, setError] = useState<string>("")
     const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("client")
     const [thunderResult, setThunderResult] = useState<any>(null)
+    const [useAdvancedVerification, setUseAdvancedVerification] = useState(false)
     const [qrCodeUrl, setQrCodeUrl] = useState<string>("")
     const [qrError, setQrError] = useState<string>("")
+    const [paymentReferenceNo, setPaymentReferenceNo] = useState<string>("")
+    const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
+    const [isPolling, setIsPolling] = useState(false)
+    const [paymentGateway, setPaymentGateway] = useState<"gbprimepay" | "omise" | "2c2p">("gbprimepay")
     const slipInputRef = useRef<HTMLInputElement>(null)
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,48 +64,79 @@ export default function TestSlipVerificationPage() {
             setVerifying(true)
             setError("")
             setResult(null)
+            setAdvancedResult(null)
             setThunderResult(null)
 
-            if (verificationMethod === "thunder") {
-                // ใช้ Thunder Solution API
-                console.log("🔍 กำลังตรวจสอบด้วย Thunder Solution API...")
-                const thunderResponse = await verifySlipWithThunder(
-                    {
-                        slipFile,
-                        expectedAmount: requiredAmount ? Number(requiredAmount) : null,
-                        bankAccount: bankName || accountNumber || accountName
-                            ? {
-                                  bank: bankName || undefined,
-                                  accountNumber: accountNumber || undefined,
-                                  accountName: accountName || undefined,
-                              }
-                            : null,
-                        promptpayId: promptpayId || null,
-                    },
-                    {
-                        apiKey: THUNDER_API_KEY,
-                    }
-                )
-
-                setThunderResult(thunderResponse)
-                console.log("📊 Thunder Solution Response:", thunderResponse)
-
-                // แปลงเป็น VerifyResult
-                const verifyResult = convertThunderToVerifyResult(
-                    thunderResponse,
-                    requiredAmount ? Number(requiredAmount) : null
-                )
-
-                setResult(verifyResult)
-            } else {
-                // ใช้ Client-side verification
-                console.log("🔍 กำลังตรวจสอบด้วย Client-side...")
-                const verifyResult = await verifySlip({
-                    slipImageUrl: slipPreview,
-                    requiredAmount: requiredAmount ? Number(requiredAmount) : null,
+            if (verificationMethod === "thai-bank") {
+                // ใช้ Thai Bank Slip Verification (รองรับทุกธนาคาร)
+                console.log("🔍 กำลังตรวจสอบด้วย Thai Bank Slip Verification...")
+                const thaiBankResult = await verifyThaiBankSlip({
+                    slipFile,
+                    expectedAmount: requiredAmount ? Number(requiredAmount) : undefined,
+                    expectedAccountName: accountName || undefined,
+                    expectedBankName: bankName || undefined,
+                    expectedPromptpayId: promptpayId || undefined
                 })
 
-                setResult(verifyResult)
+                setThunderResult(thaiBankResult)
+                console.log("📊 Thai Bank Verification Response:", thaiBankResult)
+
+                // แปลงเป็น VerifyResult
+                if (thaiBankResult.basicVerification) {
+                    setResult(thaiBankResult.basicVerification)
+                } else {
+                    setResult({
+                        decision: thaiBankResult.verified ? "approved" : "rejected",
+                        reasons: thaiBankResult.error ? [thaiBankResult.error] : []
+                    })
+                }
+
+                if (thaiBankResult.advancedVerification) {
+                    setAdvancedResult(thaiBankResult.advancedVerification)
+                }
+            } else {
+                // ใช้ Client-side verification
+                if (useAdvancedVerification) {
+                    // ใช้ Advanced Verification
+                    console.log("🔍 กำลังตรวจสอบด้วย Advanced Verification...")
+                    const advancedVerifyResult = await verifySlipAdvanced({
+                        slipImageUrl: slipPreview,
+                        requiredAmount: requiredAmount ? Number(requiredAmount) : null,
+                        expectedAccountName: accountName || null,
+                        expectedBankName: bankName || null,
+                        maxSlipAgeDays: 7,
+                        checkDuplicateRefNo: false, // TODO: เพิ่มการเก็บ Ref No. ที่เคยใช้
+                        previousRefNos: []
+                    })
+                    
+                    setAdvancedResult(advancedVerifyResult)
+                    
+                    // แปลงเป็น VerifyResult สำหรับแสดงผล
+                    const verifyResult: VerifyResult = {
+                        decision: advancedVerifyResult.decision,
+                        reasons: advancedVerifyResult.reasons,
+                        hasQR: advancedVerifyResult.checks.qrCode.found,
+                        ocrPreview: advancedVerifyResult.ocrPreview,
+                        _debug: {
+                            score: advancedVerifyResult.score,
+                            foundTokens: [],
+                            ocrAmount: advancedVerifyResult.extractedData.amount || null,
+                            ocrDate: advancedVerifyResult.extractedData.date?.toLocaleDateString("th-TH") || null,
+                            hasSlipEvidence: advancedVerifyResult.checks.qrCode.found || advancedVerifyResult.checks.bankLogo.detected
+                        }
+                    }
+                    
+                    setResult(verifyResult)
+                } else {
+                    // ใช้ Basic Verification
+                    console.log("🔍 กำลังตรวจสอบด้วย Client-side (Basic)...")
+                    const verifyResult = await verifySlip({
+                        slipImageUrl: slipPreview,
+                        requiredAmount: requiredAmount ? Number(requiredAmount) : null,
+                    })
+
+                    setResult(verifyResult)
+                }
             }
         } catch (err: any) {
             console.error("Error verifying slip:", err)
@@ -148,64 +185,204 @@ export default function TestSlipVerificationPage() {
         return new Intl.NumberFormat("th-TH").format(Number(amount))
     }
 
-    // Generate QR Code from PromptPay when amount is set
+    // Generate QR Code - ขึ้นอยู่กับ verification method
     useEffect(() => {
-        const shouldGenerate = !!promptpayId && !!requiredAmount && Number(requiredAmount) > 0
-        if (!shouldGenerate) {
-            setQrCodeUrl("")
-            setQrError("")
-            return
-        }
-
-        const generateQRCode = async () => {
-            try {
-                setQrError("")
+        if (verificationMethod === "realtime") {
+            // Real-time Payment: ใช้ Payment Gateway
+            const shouldGenerate = !!promptpayId && !!requiredAmount && Number(requiredAmount) > 0
+            if (!shouldGenerate) {
                 setQrCodeUrl("")
+                setQrError("")
+                setPaymentReferenceNo("")
+                return
+            }
 
-                // Sanitize PromptPay (รองรับทั้งเบอร์และอีเมล + รองรับเลขขึ้นต้นด้วยรหัสประเทศ)
-                let target = promptpayId
-                const isEmail = target.includes("@")
+            const generatePaymentQR = async () => {
+                try {
+                    setQrError("")
+                    setQrCodeUrl("")
+                    setPaymentReferenceNo("")
+                    setPaymentStatus(null)
 
-                if (!isEmail) {
-                    let digits = target.replace(/\D/g, "")
-                    if (digits.startsWith("66") && digits.length === 11) {
-                        digits = `0${digits.slice(2)}`
-                    } else if (digits.startsWith("0066") && digits.length === 13) {
-                        digits = `0${digits.slice(4)}`
-                    } else if (digits.length === 9) {
-                        digits = `0${digits}`
+                    const paymentResponse = await createPaymentQR(
+                        {
+                            donationRequestId: "TEST_001",
+                            amount: Number(requiredAmount),
+                            paymentMethod: "promptpay",
+                            customerInfo: {
+                                name: "ผู้ทดสอบ",
+                                email: "test@example.com",
+                            },
+                            metadata: {
+                                promptpayId,
+                            },
+                        },
+                        {
+                            gateway: paymentGateway,
+                            apiKey: "test_api_key", // สำหรับทดสอบ
+                        }
+                    )
+
+                    if (paymentResponse.success && paymentResponse.qrCodeUrl) {
+                        setQrCodeUrl(paymentResponse.qrCodeUrl)
+                        if (paymentResponse.referenceNo) {
+                            setPaymentReferenceNo(paymentResponse.referenceNo)
+                            // เริ่ม polling เพื่อตรวจสอบสถานะ
+                            startPollingStatus(paymentResponse.referenceNo)
+                        }
+                    } else {
+                        setQrError(paymentResponse.error || "ไม่สามารถสร้าง QR Code ได้")
                     }
-                    target = digits
+                } catch (error: any) {
+                    console.error("Error generating payment QR:", error)
+                    setQrError(error.message || "ไม่สามารถสร้าง QR Code ได้")
                 }
+            }
 
-                if (!target || (!isEmail && target.length !== 10 && target.length !== 13)) {
-                    throw new Error("รูปแบบพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นเบอร์ 10 หลัก, บัตร 13 หลัก หรืออีเมล)")
+            generatePaymentQR()
+        } else {
+            // Client-side หรือ Thunder: สร้าง QR Code เอง
+            const shouldGenerate = !!promptpayId && !!requiredAmount && Number(requiredAmount) > 0
+            if (!shouldGenerate) {
+                setQrCodeUrl("")
+                setQrError("")
+                return
+            }
+
+            const generateQRCode = async () => {
+                try {
+                    setQrError("")
+                    setQrCodeUrl("")
+
+                    // Sanitize PromptPay
+                    let target = promptpayId
+                    const isEmail = target.includes("@")
+
+                    if (!isEmail) {
+                        let digits = target.replace(/\D/g, "")
+                        if (digits.startsWith("66") && digits.length === 11) {
+                            digits = `0${digits.slice(2)}`
+                        } else if (digits.startsWith("0066") && digits.length === 13) {
+                            digits = `0${digits.slice(4)}`
+                        } else if (digits.length === 9) {
+                            digits = `0${digits}`
+                        }
+                        target = digits
+                    }
+
+                    if (!target || (!isEmail && target.length !== 10 && target.length !== 13)) {
+                        throw new Error("รูปแบบพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นเบอร์ 10 หลัก, บัตร 13 หลัก หรืออีเมล)")
+                    }
+
+                    const mod: any = await import("qrcode")
+                    const QRCode = mod?.default ?? mod
+
+                    const payload = generatePromptPayPayload({
+                        phoneOrId: target,
+                        amount: Number(requiredAmount),
+                    })
+
+                    const qrUrl = await QRCode.toDataURL(payload, {
+                        width: 300,
+                        margin: 2,
+                        color: { dark: "#000000", light: "#FFFFFF" },
+                    })
+                    setQrCodeUrl(qrUrl)
+                } catch (error: any) {
+                    console.error("Error generating QR code:", error)
+                    setQrError(error.message || "ไม่สามารถสร้าง QR Code ได้")
                 }
+            }
 
-                // Robust dynamic import (handles CJS/ESM)
-                const mod: any = await import("qrcode")
-                const QRCode = mod?.default ?? mod
+            generateQRCode()
+        }
+    }, [promptpayId, requiredAmount, verificationMethod, paymentGateway])
 
-                // Generate EMVCo PromptPay payload
-                const payload = generatePromptPayPayload({
-                    phoneOrId: target,
-                    amount: Number(requiredAmount),
+    // Polling เพื่อตรวจสอบสถานะการชำระเงิน (Real-time)
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+    
+    const startPollingStatus = async (referenceNo: string) => {
+        // หยุด polling เดิมถ้ามี
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+        }
+        
+        setIsPolling(true)
+        
+        pollingIntervalRef.current = setInterval(async () => {
+            try {
+                const status = await checkPaymentStatus(referenceNo, {
+                    gateway: paymentGateway,
+                    apiKey: "test",
                 })
 
-                const qrUrl = await QRCode.toDataURL(payload, {
-                    width: 300,
-                    margin: 2,
-                    color: { dark: "#000000", light: "#FFFFFF" },
-                })
-                setQrCodeUrl(qrUrl)
-            } catch (error: any) {
-                console.error("Error generating QR code:", error)
-                setQrError(error.message || "ไม่สามารถสร้าง QR Code ได้")
+                setPaymentStatus(status)
+
+                if (status.status === "completed" || status.status === "failed") {
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current)
+                        pollingIntervalRef.current = null
+                    }
+                    setIsPolling(false)
+                    
+                    if (status.status === "completed") {
+                        // แสดง notification
+                        console.log("✅ Payment completed!", status)
+                    }
+                }
+            } catch (error) {
+                console.error("Polling error:", error)
+            }
+        }, 3000) // ตรวจสอบทุก 3 วินาที
+
+        // หยุด polling หลังจาก 5 นาที
+        setTimeout(() => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+            }
+            setIsPolling(false)
+        }, 5 * 60 * 1000)
+    }
+
+    // Cleanup polling เมื่อ component unmount
+    useEffect(() => {
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+            }
+        }
+    }, [])
+
+    // จำลองการชำระเงินสำเร็จ (สำหรับทดสอบ)
+    const handleSimulatePayment = () => {
+        if (paymentReferenceNo) {
+            simulateWebhook(paymentReferenceNo, "completed", Number(requiredAmount))
+            setPaymentStatus({
+                referenceNo: paymentReferenceNo,
+                status: "completed",
+                amount: Number(requiredAmount),
+                paidAt: new Date().toISOString(),
+                transactionId: `TXN_${Date.now()}`,
+            })
+        }
+    }
+
+    // Listen to payment-updated event
+    useEffect(() => {
+        const handlePaymentUpdate = (event: CustomEvent<PaymentStatus>) => {
+            const status = event.detail
+            if (status.referenceNo === paymentReferenceNo) {
+                setPaymentStatus(status)
+                setIsPolling(false)
             }
         }
 
-        generateQRCode()
-    }, [promptpayId, requiredAmount])
+        window.addEventListener("payment-updated", handlePaymentUpdate as EventListener)
+        return () => {
+            window.removeEventListener("payment-updated", handlePaymentUpdate as EventListener)
+        }
+    }, [paymentReferenceNo])
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
@@ -218,16 +395,34 @@ export default function TestSlipVerificationPage() {
                     <CardContent className="space-y-6 p-6">
                         {/* Verification Method Selection */}
                         <div className="space-y-2">
-                            <Label className="font-medium">เลือกวิธีการตรวจสอบ</Label>
-                            <div className="grid grid-cols-2 gap-3">
+                            <Label className="font-medium">เลือกวิธีการชำระเงิน</Label>
+                            
+                            {/* Advanced Verification Toggle (สำหรับ Client-side) */}
+                            {verificationMethod === "client" && (
+                                <div className="flex items-center gap-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                    <input
+                                        type="checkbox"
+                                        id="useAdvanced"
+                                        checked={useAdvancedVerification}
+                                        onChange={(e) => setUseAdvancedVerification(e.target.checked)}
+                                        className="w-4 h-4"
+                                    />
+                                    <Label htmlFor="useAdvanced" className="text-sm cursor-pointer">
+                                        ใช้ Advanced Verification (ตรวจสอบละเอียด: QR, โลโก้, ฟอนต์, layout, ชื่อบัญชีตรง 100%, ยอดเงินตรงเป๊ะ)
+                                    </Label>
+                                </div>
+                            )}
+                            
+                            <div className="grid grid-cols-3 gap-3">
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setVerificationMethod("client")
-                                        // Reset bank info เมื่อเปลี่ยนเป็น client-side
                                         setBankName("")
                                         setAccountNumber("")
                                         setAccountName("")
+                                        setPaymentStatus(null)
+                                        setPaymentReferenceNo("")
                                     }}
                                     className={`p-4 border-2 rounded-lg text-left transition-all ${
                                         verificationMethod === "client"
@@ -237,34 +432,104 @@ export default function TestSlipVerificationPage() {
                                 >
                                     <div className="flex items-center gap-2 mb-1">
                                         <Brain className="w-5 h-5 text-blue-600" />
-                                        <span className="font-medium">Client-side</span>
+                                        <span className="font-medium">Slip-based</span>
                                     </div>
                                     <p className="text-xs text-gray-600">
-                                        ตรวจสอบในเบราว์เซอร์ (ฟรี, ใช้ OCR)
+                                        อัปโหลดสลิป (ฟรี)
                                     </p>
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setVerificationMethod("thunder")}
+                                    onClick={() => {
+                                        setVerificationMethod("thai-bank")
+                                        setPaymentStatus(null)
+                                        setPaymentReferenceNo("")
+                                    }}
                                     className={`p-4 border-2 rounded-lg text-left transition-all ${
-                                        verificationMethod === "thunder"
+                                        verificationMethod === "thai-bank"
                                             ? "border-purple-500 bg-purple-50"
                                             : "border-gray-200 hover:border-gray-300"
                                     }`}
                                 >
                                     <div className="flex items-center gap-2 mb-1">
                                         <Zap className="w-5 h-5 text-purple-600" />
-                                        <span className="font-medium">Thunder Solution</span>
+                                        <span className="font-medium">Thai Bank (ทุกธนาคาร)</span>
                                     </div>
                                     <p className="text-xs text-gray-600">
-                                        AI/ML API (99.98% accuracy)
+                                        ตรวจสอบสลิป (AI)
+                                    </p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setVerificationMethod("realtime")
+                                        setPaymentStatus(null)
+                                        setPaymentReferenceNo("")
+                                    }}
+                                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                                        verificationMethod === "realtime"
+                                            ? "border-green-500 bg-green-50"
+                                            : "border-gray-200 hover:border-gray-300"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                        <span className="font-medium">Real-time</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600">
+                                        จ่ายปุ้บรู้เลย ⚡
                                     </p>
                                 </button>
                             </div>
                             {verificationMethod === "thunder" && (
                                 <p className="text-xs text-purple-600 bg-purple-50 p-2 rounded">
-                                    ⚡ ใช้ Thunder Solution API - ตรวจสอบสลิปปลอม/ซ้ำได้
+                                    🇹🇭 ใช้ Thai Bank Slip Verification - รองรับทุกธนาคารไทย
                                 </p>
+                            )}
+                            {verificationMethod === "realtime" && (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-green-600 bg-green-50 p-2 rounded">
+                                        ⚡ Real-time Payment - ไม่ต้องอัปโหลดสลิป รู้ผลทันที!
+                                    </p>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">เลือก Payment Gateway:</Label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentGateway("gbprimepay")}
+                                                className={`px-3 py-1 text-xs rounded ${
+                                                    paymentGateway === "gbprimepay"
+                                                        ? "bg-green-600 text-white"
+                                                        : "bg-gray-200 text-gray-700"
+                                                }`}
+                                            >
+                                                GBPrimepay
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentGateway("omise")}
+                                                className={`px-3 py-1 text-xs rounded ${
+                                                    paymentGateway === "omise"
+                                                        ? "bg-green-600 text-white"
+                                                        : "bg-gray-200 text-gray-700"
+                                                }`}
+                                            >
+                                                Omise
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentGateway("2c2p")}
+                                                className={`px-3 py-1 text-xs rounded ${
+                                                    paymentGateway === "2c2p"
+                                                        ? "bg-green-600 text-white"
+                                                        : "bg-gray-200 text-gray-700"
+                                                }`}
+                                            >
+                                                2C2P
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                         </div>
 
@@ -310,13 +575,22 @@ export default function TestSlipVerificationPage() {
 
                         {/* QR Code Display */}
                         {qrCodeUrl && (
-                            <div className="space-y-2 p-4 bg-white rounded-lg border-2 border-blue-200">
-                                <Label className="font-medium text-blue-900">QR Code สำหรับชำระเงิน</Label>
+                            <div className="space-y-3 p-4 bg-white rounded-lg border-2 border-blue-200">
+                                <div className="flex items-center justify-between">
+                                    <Label className="font-medium text-blue-900">
+                                        {verificationMethod === "realtime" ? "⚡ Real-time Payment QR Code" : "QR Code สำหรับชำระเงิน"}
+                                    </Label>
+                                    {verificationMethod === "realtime" && paymentReferenceNo && (
+                                        <span className="text-xs text-gray-500 font-mono">
+                                            Ref: {paymentReferenceNo}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="flex flex-col items-center gap-3">
                                     <div className="bg-white p-4 rounded-lg border inline-block">
                                         <img
                                             src={qrCodeUrl}
-                                            alt="PromptPay QR Code"
+                                            alt="Payment QR Code"
                                             className="w-48 h-48 mx-auto"
                                         />
                                     </div>
@@ -327,6 +601,74 @@ export default function TestSlipVerificationPage() {
                                             จำนวนเงิน: ฿{formatAmount(requiredAmount)}
                                         </span>
                                     </p>
+
+                                    {/* Payment Status (Real-time) */}
+                                    {verificationMethod === "realtime" && (
+                                        <div className="w-full space-y-2">
+                                            {paymentStatus ? (
+                                                <div className={`p-3 rounded-lg border-2 ${
+                                                    paymentStatus.status === "completed"
+                                                        ? "bg-green-50 border-green-300"
+                                                        : paymentStatus.status === "failed"
+                                                        ? "bg-red-50 border-red-300"
+                                                        : "bg-yellow-50 border-yellow-300"
+                                                }`}>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {paymentStatus.status === "completed" && (
+                                                            <>
+                                                                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                                                <span className="font-bold text-green-700">✅ ชำระเงินสำเร็จ!</span>
+                                                            </>
+                                                        )}
+                                                        {paymentStatus.status === "pending" && (
+                                                            <>
+                                                                <Clock className="w-5 h-5 text-yellow-600" />
+                                                                <span className="font-bold text-yellow-700">⏳ กำลังรอการชำระเงิน...</span>
+                                                            </>
+                                                        )}
+                                                        {paymentStatus.status === "failed" && (
+                                                            <>
+                                                                <XCircle className="w-5 h-5 text-red-600" />
+                                                                <span className="font-bold text-red-700">❌ ชำระเงินไม่สำเร็จ</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    {paymentStatus.status === "completed" && (
+                                                        <div className="text-xs text-green-700 space-y-1">
+                                                            <p>จำนวนเงิน: ฿{paymentStatus.amount.toLocaleString("th-TH")}</p>
+                                                            {paymentStatus.paidAt && (
+                                                                <p>เวลาชำระ: {new Date(paymentStatus.paidAt).toLocaleString("th-TH")}</p>
+                                                            )}
+                                                            {paymentStatus.transactionId && (
+                                                                <p className="font-mono">Transaction ID: {paymentStatus.transactionId}</p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="w-4 h-4 text-gray-500" />
+                                                        <span className="text-xs text-gray-600">
+                                                            {isPolling ? "กำลังตรวจสอบสถานะ..." : "รอการชำระเงิน"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* ปุ่มจำลองการชำระเงิน (สำหรับทดสอบ) */}
+                                            {!paymentStatus || paymentStatus.status === "pending" ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleSimulatePayment}
+                                                    className="w-full text-xs"
+                                                >
+                                                    🧪 จำลองการชำระเงินสำเร็จ (สำหรับทดสอบ)
+                                                </Button>
+                                            ) : null}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -337,8 +679,8 @@ export default function TestSlipVerificationPage() {
                             </div>
                         )}
 
-                        {/* Bank Account Info (Optional - สำหรับ Thunder Solution) */}
-                        {verificationMethod === "thunder" && (
+                        {/* Bank Account Info (Optional - สำหรับ Thai Bank Verification) */}
+                        {verificationMethod === "thai-bank" && (
                             <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
                                 <div className="flex items-center gap-2 mb-2">
                                     <Zap className="w-4 h-4 text-purple-600" />
@@ -399,33 +741,35 @@ export default function TestSlipVerificationPage() {
                             </div>
                         )}
 
-                        {/* File Upload */}
-                        <div className="space-y-2">
-                            <Label className="font-medium">อัปโหลดรูปภาพสลิป</Label>
-                            <Input
-                                ref={slipInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleFileSelect}
-                                className="hidden"
-                            />
-                            <Button
-                                variant="outline"
-                                className="w-full"
-                                onClick={handlePickFile}
-                            >
-                                <Upload className="w-4 h-4 mr-2" />
-                                เลือกไฟล์สลิป
-                            </Button>
-                            {slipFile && (
-                                <p className="text-sm text-gray-600">
-                                    ไฟล์: {slipFile.name} ({(slipFile.size / 1024).toFixed(2)} KB)
-                                </p>
-                            )}
-                        </div>
+                        {/* File Upload - แสดงเฉพาะเมื่อไม่ใช่ Real-time */}
+                        {verificationMethod !== "realtime" && (
+                            <div className="space-y-2">
+                                <Label className="font-medium">อัปโหลดรูปภาพสลิป</Label>
+                                <Input
+                                    ref={slipInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                />
+                                <Button
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={handlePickFile}
+                                >
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    เลือกไฟล์สลิป
+                                </Button>
+                                {slipFile && (
+                                    <p className="text-sm text-gray-600">
+                                        ไฟล์: {slipFile.name} ({(slipFile.size / 1024).toFixed(2)} KB)
+                                    </p>
+                                )}
+                            </div>
+                        )}
 
-                        {/* Preview */}
-                        {slipPreview && (
+                        {/* Preview - แสดงเฉพาะเมื่อไม่ใช่ Real-time */}
+                        {verificationMethod !== "realtime" && slipPreview && (
                             <div className="space-y-2">
                                 <Label>ตัวอย่างสลิป</Label>
                                 <div className="border-2 border-gray-200 rounded-lg p-4 bg-white">
@@ -438,34 +782,61 @@ export default function TestSlipVerificationPage() {
                             </div>
                         )}
 
-                        {/* Verify Button */}
-                        <Button
-                            onClick={handleVerify}
-                            disabled={verifying || !slipPreview}
-                            className={`w-full text-white font-medium py-2 ${
-                                verificationMethod === "thunder"
-                                    ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                                    : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
-                            }`}
-                        >
-                            {verifying ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    {verificationMethod === "thunder"
-                                        ? "กำลังตรวจสอบด้วย Thunder Solution..."
-                                        : "กำลังตรวจสอบสลิป..."}
-                                </>
-                            ) : (
-                                verificationMethod === "thunder" ? (
+                        {/* Verify Button - แสดงเฉพาะเมื่อไม่ใช่ Real-time */}
+                        {verificationMethod !== "realtime" && (
+                            <Button
+                                onClick={handleVerify}
+                                disabled={verifying || !slipPreview}
+                                className={`w-full text-white font-medium py-2 ${
+                                    verificationMethod === "thunder"
+                                        ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                                        : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                                }`}
+                            >
+                                {verifying ? (
                                     <>
-                                        <Zap className="w-4 h-4 mr-2" />
-                                        ตรวจสอบด้วย Thunder Solution
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        {verificationMethod === "thai-bank"
+                                            ? "กำลังตรวจสอบด้วย Thai Bank Verification..."
+                                            : "กำลังตรวจสอบสลิป..."}
                                     </>
                                 ) : (
-                                    "🔍 ตรวจสอบสลิป"
-                                )
-                            )}
-                        </Button>
+                                    verificationMethod === "thai-bank" ? (
+                                        <>
+                                            <Zap className="w-4 h-4 mr-2" />
+                                            ตรวจสอบด้วย Thai Bank Verification
+                                        </>
+                                    ) : (
+                                        "🔍 ตรวจสอบสลิป"
+                                    )
+                                )}
+                            </Button>
+                        )}
+
+                        {/* Real-time Payment Info */}
+                        {verificationMethod === "realtime" && (
+                            <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                    <span className="font-bold text-green-800">⚡ Real-time Payment</span>
+                                </div>
+                                <p className="text-sm text-green-700 mb-3">
+                                    <strong>ไม่ต้องอัปโหลดสลิป!</strong> ระบบจะตรวจสอบการชำระเงินอัตโนมัติ
+                                    <br />
+                                    เมื่อชำระเงินสำเร็จ ระบบจะแจ้งผลทันที
+                                </p>
+                                {paymentReferenceNo && (
+                                    <div className="mt-3 p-2 bg-white rounded border border-green-200">
+                                        <p className="text-xs text-green-800">
+                                            <strong>Reference No:</strong> <span className="font-mono">{paymentReferenceNo}</span>
+                                        </p>
+                                        <p className="text-xs text-green-700 mt-1">
+                                            ใช้ Reference No นี้สำหรับตรวจสอบสถานะการชำระเงิน
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Error Message */}
                         {error && (
@@ -474,6 +845,74 @@ export default function TestSlipVerificationPage() {
                                 <div>
                                     <p className="font-medium text-red-800">เกิดข้อผิดพลาด</p>
                                     <p className="text-sm text-red-700">{error}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Advanced Verification Result Display */}
+                        {advancedResult && useAdvancedVerification && (
+                            <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-lg mb-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Brain className="w-5 h-5 text-blue-600" />
+                                    <span className="font-bold text-blue-800">🔬 Advanced Verification Results</span>
+                                    <span className="ml-auto text-sm font-mono bg-white px-2 py-1 rounded">
+                                        Score: {advancedResult.score}/100
+                                    </span>
+                                </div>
+                                
+                                {/* Detailed Checks */}
+                                <div className="space-y-2 text-sm">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className={`p-2 rounded ${advancedResult.checks.qrCode.found ? "bg-green-100" : "bg-red-100"}`}>
+                                            <span className="font-semibold">QR Code:</span> {advancedResult.checks.qrCode.found ? "✅ พบ" : "❌ ไม่พบ"}
+                                            {advancedResult.checks.qrCode.clear && " (ชัดเจน)"}
+                                            {advancedResult.checks.qrCode.decodable && " (อ่านได้)"}
+                                        </div>
+                                        <div className={`p-2 rounded ${advancedResult.checks.bankLogo.detected ? "bg-green-100" : "bg-red-100"}`}>
+                                            <span className="font-semibold">Bank Logo:</span> {advancedResult.checks.bankLogo.detected ? `✅ ${advancedResult.checks.bankLogo.bankName || "พบ"}` : "❌ ไม่พบ"}
+                                        </div>
+                                        <div className={`p-2 rounded ${advancedResult.checks.amount.exactMatch ? "bg-green-100" : advancedResult.checks.amount.found ? "bg-yellow-100" : "bg-red-100"}`}>
+                                            <span className="font-semibold">Amount:</span> {advancedResult.checks.amount.found ? `✅ ${advancedResult.checks.amount.amount?.toLocaleString("th-TH")} บาท` : "❌ ไม่พบ"}
+                                            {advancedResult.checks.amount.exactMatch && " (ตรงเป๊ะ)"}
+                                        </div>
+                                        <div className={`p-2 rounded ${advancedResult.checks.accountName.exactMatch ? "bg-green-100" : advancedResult.checks.accountName.found ? "bg-red-100" : "bg-yellow-100"}`}>
+                                            <span className="font-semibold">Account Name:</span> {advancedResult.checks.accountName.found ? (advancedResult.checks.accountName.exactMatch ? "✅ ตรง 100%" : "❌ ไม่ตรง") : "⚠️ ไม่พบ"}
+                                        </div>
+                                        <div className={`p-2 rounded ${advancedResult.checks.dateTime.isRecent ? "bg-green-100" : advancedResult.checks.dateTime.found ? "bg-yellow-100" : "bg-red-100"}`}>
+                                            <span className="font-semibold">Date/Time:</span> {advancedResult.checks.dateTime.found ? `✅ ${advancedResult.checks.dateTime.date?.toLocaleDateString("th-TH")}` : "❌ ไม่พบ"}
+                                            {advancedResult.checks.dateTime.daysAgo !== undefined && ` (${advancedResult.checks.dateTime.daysAgo} วันก่อน)`}
+                                        </div>
+                                        <div className={`p-2 rounded ${advancedResult.checks.refNo.found && !advancedResult.checks.refNo.isDuplicate ? "bg-green-100" : advancedResult.checks.refNo.isDuplicate ? "bg-red-100" : "bg-yellow-100"}`}>
+                                            <span className="font-semibold">Ref No:</span> {advancedResult.checks.refNo.found ? (advancedResult.checks.refNo.isDuplicate ? "❌ ซ้ำ" : "✅ ไม่ซ้ำ") : "⚠️ ไม่พบ"}
+                                        </div>
+                                        <div className={`p-2 rounded ${advancedResult.checks.imageQuality.sharpness >= 30 && !advancedResult.checks.imageQuality.hasTampering ? "bg-green-100" : "bg-red-100"}`}>
+                                            <span className="font-semibold">Image Quality:</span> Sharpness: {advancedResult.checks.imageQuality.sharpness.toFixed(1)}
+                                            {advancedResult.checks.imageQuality.hasTampering && " ⚠️ แก้ไข"}
+                                        </div>
+                                        <div className={`p-2 rounded ${advancedResult.checks.slipAge.valid ? "bg-green-100" : "bg-red-100"}`}>
+                                            <span className="font-semibold">Slip Age:</span> {advancedResult.checks.slipAge.valid ? "✅ ใช้ได้" : "❌ เก่าเกินไป"}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Extracted Data */}
+                                    {Object.keys(advancedResult.extractedData).length > 0 && (
+                                        <details className="mt-3">
+                                            <summary className="text-xs font-medium cursor-pointer text-gray-600 hover:text-gray-800">
+                                                📋 ดูข้อมูลที่ Extract ได้
+                                            </summary>
+                                            <div className="mt-2 p-2 bg-white rounded text-xs space-y-1">
+                                                {advancedResult.extractedData.qrPayload && (
+                                                    <div><span className="font-semibold">QR Payload:</span> <span className="font-mono">{advancedResult.extractedData.qrPayload.substring(0, 50)}...</span></div>
+                                                )}
+                                                {advancedResult.extractedData.refNo && (
+                                                    <div><span className="font-semibold">Ref No:</span> {advancedResult.extractedData.refNo}</div>
+                                                )}
+                                                {advancedResult.extractedData.transactionId && (
+                                                    <div><span className="font-semibold">Transaction ID:</span> {advancedResult.extractedData.transactionId}</div>
+                                                )}
+                                            </div>
+                                        </details>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -502,6 +941,11 @@ export default function TestSlipVerificationPage() {
                                     >
                                         {getDecisionText(result.decision)}
                                     </span>
+                                    {useAdvancedVerification && advancedResult && (
+                                        <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                            Advanced Mode
+                                        </span>
+                                    )}
                                 </div>
 
                                 {/* Reasons */}
@@ -528,97 +972,68 @@ export default function TestSlipVerificationPage() {
                                 )}
 
                                 {/* Thunder Solution Raw Response */}
-                                {verificationMethod === "thunder" && thunderResult && (
+                                {verificationMethod === "thai-bank" && thunderResult && (
                                     <div className="mt-3 pt-3 border-t border-gray-300">
-                                        <p className="text-xs font-medium mb-2">⚡ Thunder Solution Response:</p>
+                                        <p className="text-xs font-medium mb-2">🇹🇭 Thai Bank Verification Response:</p>
                                         <div className="text-xs space-y-1 font-mono bg-white/50 p-2 rounded">
                                             <div>
                                                 <span className="font-semibold">Verified:</span>{" "}
-                                                {thunderResult.verified === undefined 
-                                                    ? "❓ ไม่ระบุ (ไม่มีข้อมูลธนาคาร/พร้อมเพย์ให้ตรวจสอบ)"
-                                                    : thunderResult.verified 
-                                                    ? "✅ ใช่" 
-                                                    : "❌ ไม่"}
+                                                {thunderResult.verified ? "✅ ใช่" : "❌ ไม่"}
                                             </div>
-                                            {thunderResult.isDuplicate !== undefined && (
+                                            {thunderResult.qrScanned !== undefined && (
                                                 <div>
-                                                    <span className="font-semibold">สลิปซ้ำ:</span>{" "}
-                                                    {thunderResult.isDuplicate ? "⚠️ ใช่" : "✅ ไม่"}
+                                                    <span className="font-semibold">สแกน QR Code:</span>{" "}
+                                                    {thunderResult.qrScanned ? "✅ สำเร็จ" : "❌ ไม่พบ"}
                                                 </div>
                                             )}
-                                            {thunderResult.isFake !== undefined && (
+                                            {thunderResult.bankInfo && (
                                                 <div>
-                                                    <span className="font-semibold">สลิปปลอม:</span>{" "}
-                                                    {thunderResult.isFake ? "❌ ใช่" : "✅ ไม่"}
+                                                    <span className="font-semibold">ธนาคาร:</span> {thunderResult.bankInfo.name} ({thunderResult.bankInfo.shortName})
                                                 </div>
                                             )}
-                                            {thunderResult.amount && (
+                                            {thunderResult.transactionRefId && (
                                                 <div>
-                                                    <span className="font-semibold">จำนวนเงิน:</span>{" "}
-                                                    ฿{thunderResult.amount.toLocaleString("th-TH")}
+                                                    <span className="font-semibold">Transaction Ref ID:</span> {thunderResult.transactionRefId}
                                                 </div>
                                             )}
-                                            {thunderResult.date && (
+                                            {thunderResult.qrData?.amount && (
                                                 <div>
-                                                    <span className="font-semibold">วันที่:</span> {thunderResult.date}
+                                                    <span className="font-semibold">จำนวนเงิน (จาก QR):</span>{" "}
+                                                    ฿{thunderResult.qrData.amount.toLocaleString("th-TH")}
                                                 </div>
                                             )}
-                                            {thunderResult.bank && (
+                                            {thunderResult.qrData?.promptpayId && (
                                                 <div>
-                                                    <span className="font-semibold">ธนาคาร:</span> {thunderResult.bank}
+                                                    <span className="font-semibold">PromptPay ID:</span> {thunderResult.qrData.promptpayId}
                                                 </div>
                                             )}
-                                            {thunderResult.isIncoming !== undefined && (
-                                                <div>
-                                                    <span className="font-semibold">ทิศทางการโอน:</span>{" "}
-                                                    {thunderResult.isIncoming === true ? (
-                                                        <span className="text-green-600">✅ โอนเงินเข้า - คนอื่นโอนเงินเข้าให้บัญชีที่ระบุ</span>
-                                                    ) : thunderResult.isIncoming === false ? (
-                                                        <span className="text-orange-600">⚠️ โอนเงินออก - บัญชีที่ระบุโอนเงินออกให้คนอื่น</span>
-                                                    ) : (
-                                                        <span className="text-yellow-600">❓ ไม่สามารถระบุได้ - บัญชีไม่ตรง</span>
-                                                    )}
+                                            {thunderResult.warnings && thunderResult.warnings.length > 0 && (
+                                                <div className="mt-2">
+                                                    <span className="font-semibold text-yellow-600">⚠️ คำเตือน:</span>
+                                                    <ul className="list-disc list-inside ml-2 mt-1">
+                                                        {thunderResult.warnings.map((warning, idx) => (
+                                                            <li key={idx}>{warning}</li>
+                                                        ))}
+                                                    </ul>
                                                 </div>
                                             )}
-                                            {thunderResult.senderBank && (
-                                                <div>
-                                                    <span className="font-semibold">ธนาคารผู้ส่ง:</span> {thunderResult.senderBank}
-                                                    {thunderResult.senderAccount && ` (${thunderResult.senderAccount})`}
-                                                </div>
-                                            )}
-                                            {thunderResult.receiverBank && (
-                                                <div>
-                                                    <span className="font-semibold">ธนาคารผู้รับ:</span> {thunderResult.receiverBank}
-                                                    {thunderResult.receiverAccount && ` (${thunderResult.receiverAccount})`}
-                                                </div>
-                                            )}
-                                            {thunderResult.message && (
-                                                <div>
-                                                    <span className="font-semibold">ข้อความ:</span> {thunderResult.message}
+                                            {thunderResult.error && (
+                                                <div className="mt-2 text-red-600">
+                                                    <span className="font-semibold">❌ ข้อผิดพลาด:</span> {thunderResult.error}
                                                 </div>
                                             )}
                                         </div>
                                         
-                                        {/* Raw Response JSON for Debug */}
-                                        {thunderResult.rawResponse && (
+                                        {/* QR Data Details */}
+                                        {thunderResult.qrData && (
                                             <details className="mt-2">
                                                 <summary className="text-xs font-medium cursor-pointer text-gray-600 hover:text-gray-800">
-                                                    📋 ดู Raw Response (Debug)
+                                                    📋 ดูข้อมูล QR Code (Debug)
                                                 </summary>
                                                 <pre className="text-xs bg-gray-900 text-green-400 p-2 rounded mt-1 overflow-auto max-h-40">
-                                                    {JSON.stringify(thunderResult.rawResponse, null, 2)}
+                                                    {JSON.stringify(thunderResult.qrData, null, 2)}
                                                 </pre>
                                             </details>
-                                        )}
-                                        
-                                        {/* Explanation */}
-                                        {thunderResult.verified === false && !thunderResult.isFake && !thunderResult.isDuplicate && (
-                                            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                                                💡 <strong>หมายเหตุ:</strong> Thunder Solution ไม่สามารถยืนยันได้ 100% 
-                                                อาจเป็นเพราะไม่มีข้อมูลธนาคาร/พร้อมเพย์ให้ตรวจสอบ 
-                                                แต่สลิปดูเหมือนจริง (ไม่ใช่สลิปปลอม/ซ้ำ) 
-                                                ควรให้ผู้สร้างคำขอตรวจสอบอีกครั้ง
-                                            </div>
                                         )}
                                     </div>
                                 )}
@@ -763,31 +1178,40 @@ export default function TestSlipVerificationPage() {
                         <CardTitle className="text-base">ℹ️ วิธีใช้</CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-gray-700 space-y-2">
-                        <p>1. เลือกวิธีการตรวจสอบ (Client-side หรือ Thunder Solution)</p>
+                        <p>1. เลือกวิธีการชำระเงิน (Slip-based, Thunder API, หรือ Real-time)</p>
                         <p>2. (ไม่บังคับ) กรอกเลขพร้อมเพย์ - จะสร้าง QR Code อัตโนมัติ</p>
-                        <p>3. (ไม่บังคับ) กรอกจำนวนเงินที่ต้องการตรวจสอบ</p>
-                        <p>4. (ไม่บังคับ) กรอกข้อมูลธนาคาร/พร้อมเพย์ - เพิ่มความแม่นยำสำหรับ Thunder Solution</p>
-                        <p>5. คลิกปุ่ม "เลือกไฟล์สลิป" และเลือกรูปภาพสลิปการโอนเงิน</p>
-                        <p>6. ตรวจสอบตัวอย่างสลิปที่แสดง</p>
-                        <p>7. คลิกปุ่ม "ตรวจสอบสลิป"</p>
-                        <p>8. ดูผลการตรวจสอบและรายละเอียด</p>
-                        <div className="pt-2 space-y-1">
-                            <p className="text-blue-700 font-medium">
-                                💡 Client-side: ตรวจสอบ QR Code, OCR, จำนวนเงิน, วันที่ และร่องรอยการแก้ไข
-                            </p>
-                            <p className="text-purple-700 font-medium">
-                                ⚡ Thunder Solution: ใช้ AI/ML ตรวจสอบสลิปปลอม/ซ้ำ 
-                                <br />
-                                <span className="text-xs">
+                        <p>3. (ไม่บังคับ) กรอกจำนวนเงินที่ต้องการชำระ/ตรวจสอบ</p>
+                        <p>4. (ไม่บังคับ) กรอกข้อมูลธนาคาร - สำหรับ Thunder API</p>
+                        <p>5. {verificationMethod === "realtime" ? "สแกน QR Code และชำระเงิน - ระบบจะตรวจสอบอัตโนมัติ" : "อัปโหลดสลิปและตรวจสอบ"}</p>
+                        <p>6. ดูผลการตรวจสอบและรายละเอียด</p>
+                        <div className="pt-2 space-y-2">
+                            <div className="p-2 bg-blue-50 rounded">
+                                <p className="text-blue-700 font-medium text-xs">
+                                    💡 <strong>Slip-based:</strong> อัปโหลดสลิป ตรวจสอบด้วย OCR (ฟรี)
+                                </p>
+                            </div>
+                            <div className="p-2 bg-purple-50 rounded">
+                                <p className="text-purple-700 font-medium text-xs">
+                                    ⚡ <strong>Thunder API:</strong> ตรวจสอบสลิปด้วย AI (99.98% accuracy)
+                                    <br />
                                     - ตรวจสอบได้ทั้งโอนเงินเข้าและโอนเงินออก
                                     <br />
-                                    - ต้องมี QR Code ในสลิป (อ่านข้อมูลจาก QR Code)
+                                    - ต้องมี QR Code ในสลิป
+                                </p>
+                            </div>
+                            <div className="p-2 bg-green-50 rounded">
+                                <p className="text-green-700 font-medium text-xs">
+                                    ⚡ <strong>Real-time:</strong> จ่ายปุ้บรู้เลย ไม่ต้องอัปโหลดสลิป!
                                     <br />
-                                    - ถ้ากรอกข้อมูลบัญชีจะตรวจสอบทิศทางการโอนได้ (99.98%)
+                                    - ใช้ Payment Gateway (GBPrimepay/Omise/2C2P)
                                     <br />
-                                    - ไม่ต้องกรอกข้อมูลในเว็บของ Thunder - ส่งผ่าน API ได้เลย
-                                </span>
-                            </p>
+                                    - ระบบตรวจสอบอัตโนมัติผ่าน Webhook
+                                    <br />
+                                    - รู้ผลทันทีเมื่อชำระเงินสำเร็จ
+                                    <br />
+                                    - มีค่าธรรมเนียม 2-3%
+                                </p>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

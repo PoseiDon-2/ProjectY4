@@ -35,8 +35,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
 import { receiptSystem } from "@/lib/receipt-system"
 import { useAuth } from "@/contexts/auth-context"
 import ShareModal from "../../share-modal"
@@ -221,7 +219,6 @@ const transformApiData = (apiData: any) => {
 export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailProps) {
     const router = useRouter()
     const { user } = useAuth()
-    const [activeTab, setActiveTab] = useState("details")
     const [isFavorited, setIsFavorited] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
     const [showDonationModal, setShowDonationModal] = useState(false)
@@ -698,459 +695,185 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                     </CardContent>
                 </Card>
 
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <TabsList className={`grid w-full ${isOrganizer ? "grid-cols-4" : "grid-cols-3"} bg-white`}>
-                        <TabsTrigger value="details">รายละเอียด</TabsTrigger>
-                        <TabsTrigger value="history">ประวัติการบริจาค</TabsTrigger>
-                        <TabsTrigger value="updates">อัปเดตจากผู้รับบริจาค</TabsTrigger>
-                        {isOrganizer && (
-                            <TabsTrigger value="receipts" className="relative">
-                                สลิปการรับเงิน
-                                {receiptStats.pendingReceipts > 0 && (
-                                    <Badge className="ml-2 bg-red-500 text-white text-xs px-1 min-w-[20px] h-5">
-                                        {receiptStats.pendingReceipts}
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>รายละเอียด</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-gray-700 leading-relaxed">{donation.description}</p>
+                            <div className="flex flex-wrap gap-2 mt-4">
+                                {donation.tags.map((tag: string) => (
+                                    <Badge key={tag} variant="secondary" className="bg-pink-100 text-pink-700">
+                                        #{tag}
                                     </Badge>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <MapPin className="w-5 h-5 text-pink-500" />
+                                ที่ตั้งและการติดต่อ
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <MapPin className="w-4 h-4 text-gray-400" />
+                                <span className="text-gray-700">{donation.location}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Phone className="w-4 h-4 text-gray-400" />
+                                <span className="text-gray-700">{donation.contactPhone || "ไม่ระบุ"}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                📖 Stories ความคืบหน้า
+                                {unviewedStories.length > 0 && (
+                                    <Badge className="bg-pink-500 text-white text-xs">{unviewedStories.length} ใหม่</Badge>
                                 )}
-                            </TabsTrigger>
-                        )}
-                    </TabsList>
-
-                    <TabsContent value="details" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>รายละเอียด</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-gray-700 leading-relaxed">{donation.description}</p>
-                                <div className="flex flex-wrap gap-2 mt-4">
-                                    {donation.tags.map((tag: string) => (
-                                        <Badge key={tag} variant="secondary" className="bg-pink-100 text-pink-700">
-                                            #{tag}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <MapPin className="w-5 h-5 text-pink-500" />
-                                    ที่ตั้งและการติดต่อ
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <MapPin className="w-4 h-4 text-gray-400" />
-                                    <span className="text-gray-700">{donation.location}</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <Phone className="w-4 h-4 text-gray-400" />
-                                    <span className="text-gray-700">{donation.contactPhone || "ไม่ระบุ"}</span>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    📖 Stories ความคืบหน้า
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
+                                <div className="relative">
+                                    <Avatar className="w-16 h-16 ring-2 ring-pink-300">
+                                        <AvatarImage src={donation.organizer.avatar} />
+                                        <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
                                     {unviewedStories.length > 0 && (
-                                        <Badge className="bg-pink-500 text-white text-xs">{unviewedStories.length} ใหม่</Badge>
+                                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
+                                            <span className="text-xs text-white font-bold">{unviewedStories.length}</span>
+                                        </div>
                                     )}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
-                                    <div className="relative">
-                                        <Avatar className="w-16 h-16 ring-2 ring-pink-300">
-                                            <AvatarImage src={donation.organizer.avatar} />
-                                            <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        {unviewedStories.length > 0 && (
-                                            <div className="absolute -top-1 -right-1 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
-                                                <span className="text-xs text-white font-bold">{unviewedStories.length}</span>
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-medium text-gray-800">{donation.organizer.name}</h4>
+                                    <p className="text-sm text-gray-600">
+                                        {unviewedStories.length > 0 ? `มี Stories ใหม่ ${unviewedStories.length} เรื่อง` : "ดู Stories ทั้งหมด"}
+                                    </p>
+                                </div>
+                                <Button
+                                    size="sm"
+                                    className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                                    onClick={() => router.push(`/stories?donation=${donation.id}`)}
+                                >
+                                    <Play className="w-4 h-4 mr-1" />
+                                    ดู Stories
+                                </Button>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                {mockStories.slice(0, 3).map((story) => (
+                                    <div
+                                        key={story.id}
+                                        className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                                        onClick={() => router.push(`/stories?donation=${donation.id}&story=${story.id}`)}
+                                    >
+                                        {story.imageUrl ? (
+                                            <img
+                                                src={story.imageUrl}
+                                                alt={story.title}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-100 to-purple-100">
+                                                <span className="text-2xl">📖</span>
                                             </div>
                                         )}
+                                        {!story.isViewed && (
+                                            <div className="absolute top-2 right-2 w-3 h-3 bg-pink-500 rounded-full"></div>
+                                        )}
+                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                                            <Badge className={`${getStoryTypeColor(story.type)} text-xs`}>
+                                                {getStoryTypeText(story.type)}
+                                            </Badge>
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-medium text-gray-800">{donation.organizer.name}</h4>
-                                        <p className="text-sm text-gray-600">
-                                            {unviewedStories.length > 0 ? `มี Stories ใหม่ ${unviewedStories.length} เรื่อง` : "ดู Stories ทั้งหมด"}
-                                        </p>
-                                    </div>
-                                    <Button
-                                        size="sm"
-                                        className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-                                        onClick={() => router.push(`/stories?donation=${donation.id}`)}
-                                    >
-                                        <Play className="w-4 h-4 mr-1" />
-                                        ดู Stories
-                                    </Button>
-                                </div>
+                                ))}
+                            </div>
 
-                                <div className="grid grid-cols-3 gap-3">
-                                    {mockStories.slice(0, 3).map((story) => (
-                                        <div
-                                            key={story.id}
-                                            className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                                            onClick={() => router.push(`/stories?donation=${donation.id}&story=${story.id}`)}
-                                        >
+                            <div className="space-y-3">
+                                <h5 className="font-medium text-gray-800">Stories ล่าสุด</h5>
+                                {displayedStories.map((story) => (
+                                    <div
+                                        key={story.id}
+                                        className="flex gap-3 p-3 bg-white rounded-lg border hover:shadow-sm transition-shadow cursor-pointer"
+                                        onClick={() => router.push(`/stories?donation=${donation.id}&story=${story.id}`)}
+                                    >
+                                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center">
                                             {story.imageUrl ? (
                                                 <img
                                                     src={story.imageUrl}
                                                     alt={story.title}
-                                                    className="w-full h-full object-cover"
+                                                    className="w-full h-full object-cover rounded-lg"
                                                 />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-100 to-purple-100">
-                                                    <span className="text-2xl">📖</span>
-                                                </div>
+                                                <span className="text-lg">📖</span>
                                             )}
-                                            {!story.isViewed && (
-                                                <div className="absolute top-2 right-2 w-3 h-3 bg-pink-500 rounded-full"></div>
-                                            )}
-                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                                                <Badge className={`${getStoryTypeColor(story.type)} text-xs`}>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h6 className="font-medium text-gray-800 truncate">{story.title}</h6>
+                                                <Badge className={`${getStoryTypeColor(story.type)} text-xs flex-shrink-0`}>
                                                     {getStoryTypeText(story.type)}
                                                 </Badge>
+                                                {!story.isViewed && <div className="w-2 h-2 bg-pink-500 rounded-full flex-shrink-0"></div>}
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="space-y-3">
-                                    <h5 className="font-medium text-gray-800">Stories ล่าสุด</h5>
-                                    {displayedStories.map((story) => (
-                                        <div
-                                            key={story.id}
-                                            className="flex gap-3 p-3 bg-white rounded-lg border hover:shadow-sm transition-shadow cursor-pointer"
-                                            onClick={() => router.push(`/stories?donation=${donation.id}&story=${story.id}`)}
-                                        >
-                                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                                                {story.imageUrl ? (
-                                                    <img
-                                                        src={story.imageUrl}
-                                                        alt={story.title}
-                                                        className="w-full h-full object-cover rounded-lg"
-                                                    />
-                                                ) : (
-                                                    <span className="text-lg">📖</span>
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h6 className="font-medium text-gray-800 truncate">{story.title}</h6>
-                                                    <Badge className={`${getStoryTypeColor(story.type)} text-xs flex-shrink-0`}>
-                                                        {getStoryTypeText(story.type)}
-                                                    </Badge>
-                                                    {!story.isViewed && <div className="w-2 h-2 bg-pink-500 rounded-full flex-shrink-0"></div>}
+                                            <p className="text-sm text-gray-600 line-clamp-2 mb-2">{story.content}</p>
+                                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                                                <span>{getRelativeTime(story.createdAt)}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <Eye className="w-3 h-3" />
+                                                    <span>{story.views}</span>
                                                 </div>
-                                                <p className="text-sm text-gray-600 line-clamp-2 mb-2">{story.content}</p>
-                                                <div className="flex items-center gap-4 text-xs text-gray-500">
-                                                    <span>{getRelativeTime(story.createdAt)}</span>
-                                                    <div className="flex items-center gap-1">
-                                                        <Eye className="w-3 h-3" />
-                                                        <span>{story.views}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <ThumbsUp className="w-3 h-3" />
-                                                        <span>{story.likes}</span>
-                                                    </div>
+                                                <div className="flex items-center gap-1">
+                                                    <ThumbsUp className="w-3 h-3" />
+                                                    <span>{story.likes}</span>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {mockStories.length > 3 && (
-                                    <Button
-                                        variant="outline"
-                                        className="w-full bg-transparent"
-                                        onClick={() => setShowAllStories(!showAllStories)}
-                                    >
-                                        {showAllStories ? "แสดงน้อยลง" : `ดู Stories ทั้งหมด (${mockStories.length})`}
-                                    </Button>
-                                )}
-
-                                <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                                    <div className="text-center">
-                                        <div className="text-lg font-bold text-gray-800">{mockStories.length}</div>
-                                        <div className="text-xs text-gray-600">Stories ทั้งหมด</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-lg font-bold text-gray-800">
-                                            {mockStories.reduce((sum, story) => sum + story.views, 0)}
-                                        </div>
-                                        <div className="text-xs text-gray-600">การดูรวม</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-lg font-bold text-gray-800">
-                                            {mockStories.reduce((sum, story) => sum + story.likes, 0)}
-                                        </div>
-                                        <div className="text-xs text-gray-600">ถูกใจรวม</div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {donation.donationTypes.includes("money") && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Target className="w-5 h-5 text-green-500" />
-                                        วิธีการบริจาค
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-3">
-                                        <h4 className="font-medium text-gray-800">การบริจาคออนไลน์</h4>
-                                        <div className="grid grid-cols-1 gap-3">
-                                            <Button
-                                                variant="outline"
-                                                className="justify-start h-auto p-4 bg-transparent"
-                                                onClick={() => setShowDonationModal(true)}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <QrCode className="w-8 h-8 text-blue-600" />
-                                                    <div className="text-left">
-                                                        <div className="font-medium">QR Code PromptPay</div>
-                                                        <div className="text-sm text-gray-600">สแกน QR Code เพื่อบริจาค</div>
-                                                    </div>
-                                                </div>
-                                            </Button>
-
-                                            <Button
-                                                variant="outline"
-                                                className="justify-start h-auto p-4 bg-transparent"
-                                                onClick={() => setShowDonationModal(true)}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <CreditCard className="w-8 h-8 text-purple-600" />
-                                                    <div className="text-left">
-                                                        <div className="font-medium">บัตรเครดิต/เดบิต</div>
-                                                        <div className="text-sm text-gray-600">ชำระผ่านบัตรเครดิตหรือเดบิต</div>
-                                                    </div>
-                                                </div>
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {donation.paymentMethods?.bankAccount && (
-                                        <div className="space-y-3 pt-4 border-t">
-                                            <h4 className="font-medium text-gray-800">โอนเงินผ่านธนาคาร</h4>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <p className="text-sm text-gray-600">ธนาคาร</p>
-                                                    <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.bank}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-600">เลขที่บัญชี</p>
-                                                    <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountNumber}</p>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm text-gray-600">ชื่อบัญชี</p>
-                                                <p className="font-medium text-gray-800">{donation.paymentMethods.bankAccount.accountName}</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="bg-yellow-50 p-3 rounded-lg">
-                                        <div className="flex items-start gap-2">
-                                            <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5" />
-                                            <div className="text-sm text-yellow-800">
-                                                <p className="font-medium mb-1">คำแนะนำการบริจาค</p>
-                                                <ul className="space-y-1 text-xs">
-                                                    <li>• เลือกวิธีการบริจาคที่สะดวกสำหรับคุณ</li>
-                                                    <li>• การบริจาคออนไลน์จะได้รับการยืนยันทันที</li>
-                                                    <li>• เก็บหลักฐานการบริจาคไว้เป็นหลักฐาน</li>
-                                                </ul>
                                             </div>
                                         </div>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </TabsContent>
-
-                    <TabsContent value="history" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Users className="w-5 h-5 text-blue-500" />
-                                    ประวัติการบริจาค ({donation.donationHistory.length})
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    {donation.donationHistory.map((donationItem: any) => (
-                                        <div key={donationItem.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
-                                            <Avatar className="w-10 h-10">
-                                                <AvatarFallback>{donationItem.donor.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1">
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <span className="font-medium text-gray-800">{donationItem.donor}</span>
-                                                    <div className="flex items-center gap-2">
-                                                        {donationItem.type === "money" && donationItem.amount && (
-                                                            <span className="font-bold text-green-600">฿{formatAmount(donationItem.amount)}</span>
-                                                        )}
-                                                        {donationItem.type === "items" && donationItem.items && (
-                                                            <span className="font-bold text-blue-600">{donationItem.items}</span>
-                                                        )}
-                                                        {donationItem.type === "volunteer" && donationItem.volunteer && (
-                                                            <span className="font-bold text-purple-600">{donationItem.volunteer}</span>
-                                                        )}
-                                                        <Badge className={getDonationTypeColor(donationItem.type)}>
-                                                            {getDonationTypeLabel(donationItem.type)}
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-                                                <p className="text-sm text-gray-600 mb-1">{formatDate(donationItem.date)}</p>
-                                                {donationItem.message && <p className="text-sm text-gray-700 italic">"{donationItem.message}"</p>}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="updates" className="space-y-6">
-                        {donation.updates.map((update: any) => (
-                            <Card key={update.id}>
-                                <CardHeader>
-                                    <div className="flex items-center justify-between">
-                                        <CardTitle className="text-lg">{update.title}</CardTitle>
-                                        <span className="text-sm text-gray-500">{formatDate(update.date)}</span>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <p className="text-gray-700">{update.content}</p>
-                                    {update.images && update.images.length > 0 && (
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                            {update.images.map((image: string, index: number) => (
-                                                <img
-                                                    key={index}
-                                                    src={image}
-                                                    alt={`Update ${update.id} - ${index + 1}`}
-                                                    className="w-full h-48 object-cover rounded-lg"
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </TabsContent>
-
-                    {isOrganizer && (
-                        <TabsContent value="receipts" className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <Card>
-                                    <CardContent className="p-4 text-center">
-                                        <TrendingUp className="w-6 h-6 text-green-600 mx-auto mb-2" />
-                                        <p className="text-xl font-bold text-green-600">
-                                            ฿{new Intl.NumberFormat("th-TH").format(receiptStats.totalAmount)}
-                                        </p>
-                                        <p className="text-xs text-gray-600">ยอดรวมที่ได้รับ</p>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardContent className="p-4 text-center">
-                                        <FileText className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                                        <p className="text-xl font-bold text-blue-600">{receiptStats.totalReceipts}</p>
-                                        <p className="text-xs text-gray-600">สลิปทั้งหมด</p>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardContent className="p-4 text-center">
-                                        <span className="text-2xl block mb-2">⏳</span>
-                                        <p className="text-xl font-bold text-yellow-600">{receiptStats.pendingReceipts}</p>
-                                        <p className="text-xs text-gray-600">รอดำเนินการ</p>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardContent className="p-4 text-center">
-                                        <span className="text-2xl block mb-2">✅</span>
-                                        <p className="text-xl font-bold text-green-600">{receiptStats.completedReceipts}</p>
-                                        <p className="text-xs text-gray-600">เสร็จสิ้น</p>
-                                    </CardContent>
-                                </Card>
+                                ))}
                             </div>
 
-                            <Card>
-                                <CardContent className="p-6 text-center">
-                                    <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                    <h3 className="text-lg font-medium text-gray-900 mb-2">จัดการสลิปการรับเงิน</h3>
-                                    <p className="text-gray-600 mb-4">อัปโหลดและจัดการสลิปการรับเงินบริจาคเพื่อความโปร่งใสและการติดตาม</p>
-                                    <Button
-                                        onClick={() => setShowReceiptUploadModal(true)}
-                                        className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
-                                    >
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        อัปโหลดสลิปใหม่
-                                    </Button>
-                                </CardContent>
-                            </Card>
-
-                            {receipts.length > 0 && (
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Receipt className="w-5 h-5 text-green-500" />
-                                            สลิปล่าสุด ({receipts.length})
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="space-y-3">
-                                            {receipts.slice(0, 5).map((receipt) => {
-                                                const summary = receiptSystem.generateReceiptSummary(receipt)
-                                                return (
-                                                    <div
-                                                        key={receipt.id}
-                                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:shadow-sm transition-shadow cursor-pointer"
-                                                        onClick={() => handleViewReceiptDetails(receipt)}
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="text-2xl">
-                                                                {receipt.type === "money" ? "💰" : receipt.type === "items" ? "📦" : "👥"}
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="font-medium text-gray-900">{receipt.receiptNumber}</h4>
-                                                                <p className="text-sm text-gray-600">
-                                                                    {receipt.isAnonymous ? "ผู้บริจาคไม่ประสงค์ออกนาม" : receipt.donorName || "ไม่ระบุชื่อ"}
-                                                                </p>
-                                                                <p className="text-xs text-gray-500">
-                                                                    {new Date(receipt.createdAt).toLocaleDateString("th-TH")}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="font-bold text-lg">{summary.amount}</p>
-                                                            <Badge className={`${summary.statusColor} border text-xs`}>{summary.status}</Badge>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                        {receipts.length > 5 && (
-                                            <div className="text-center mt-4">
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={() => router.push(`/organizer-dashboard?tab=receipts&request=${id}`)}
-                                                >
-                                                    ดูสลิปทั้งหมด ({receipts.length})
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
+                            {mockStories.length > 3 && (
+                                <Button
+                                    variant="outline"
+                                    className="w-full bg-transparent"
+                                    onClick={() => setShowAllStories(!showAllStories)}
+                                >
+                                    {showAllStories ? "แสดงน้อยลง" : `ดู Stories ทั้งหมด (${mockStories.length})`}
+                                </Button>
                             )}
-                        </TabsContent>
-                    )}
-                </Tabs>
+
+                            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-gray-800">{mockStories.length}</div>
+                                    <div className="text-xs text-gray-600">Stories ทั้งหมด</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-gray-800">
+                                        {mockStories.reduce((sum, story) => sum + story.views, 0)}
+                                    </div>
+                                    <div className="text-xs text-gray-600">การดูรวม</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-gray-800">
+                                        {mockStories.reduce((sum, story) => sum + story.likes, 0)}
+                                    </div>
+                                    <div className="text-xs text-gray-600">ถูกใจรวม</div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
 
             <ShareModal

@@ -12,6 +12,7 @@ import { receiptSystem } from "@/lib/receipt-system"
 import { generatePromptPayPayload } from "@/lib/promptpay-qr"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
+import { verifyThaiBankSlip } from "@/lib/thai-bank-slip-verification"
 
 interface DonationModalProps {
     isOpen: boolean
@@ -50,7 +51,7 @@ interface VerifyResult {
 }
 
 export default function DonationModal({ isOpen, onClose, donation }: DonationModalProps) {
-    const [step, setStep] = useState<"method" | "amount" | "payment" | "success">("method")
+    const [step, setStep] = useState<"method" | "amount" | "warning" | "payment" | "success">("method")
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("qr")
     const [amount, setAmount] = useState("")
     const [customAmount, setCustomAmount] = useState("")
@@ -68,6 +69,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     const [slipPreview, setSlipPreview] = useState<string | null>(null)
     const [verifying, setVerifying] = useState(false)
     const [slipResult, setSlipResult] = useState<VerifyResult | null>(null)
+    const [agreedToTerms, setAgreedToTerms] = useState(false)
+    const [warningStepTimestamp, setWarningStepTimestamp] = useState<Date | null>(null) // เวลาที่กดปุ่ม "ยืนยันและดำเนินการต่อ"
     const slipInputRef = useRef<HTMLInputElement>(null)
 
     const { user } = useAuth()
@@ -267,349 +270,182 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     }
 
     /**
-     * ตรวจสอบสลิปด้วยระบบ 3 ระดับ:
+     * ตรวจสอบสลิปด้วยระบบ Thai Bank Slip Verification
      * - สีแดง (rejected): สลิปปลอมหรือรูปที่ไม่ใช่สลิป - ป้องกันการอัปโหลด
      * - สีเหลือง (needs_review): สลิปจริงแต่มีบางอย่างคลาดเคลื่อน - อนุญาตให้อัปโหลดได้
      * - สีเขียว (approved): ผ่าน ตรง 90% - อนุมัติอัตโนมัติ
+     * 
+     * เงื่อนไขเพิ่มเติม:
+     * - เวลาสลิปต้อง >= warningStepTimestamp (เวลาที่กดปุ่ม "ยืนยันและดำเนินการต่อ")
+     * - จำนวนเงินต้องตรงเท่านั้น (ไม่คลาดเคลื่อน)
      */
     const verifySlipClient = async (): Promise<VerifyResult> => {
-        if (!slipPreview) {
+        if (!slipFile) {
             return { decision: "rejected", reasons: ["ยังไม่มีสลิปให้ตรวจ"] }
         }
 
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const i = new Image()
-            i.crossOrigin = "anonymous"
-            i.onload = () => resolve(i)
-            i.onerror = () => reject(new Error("โหลดรูปไม่สำเร็จ"))
-            i.src = slipPreview
-        })
-
-        const reasons: string[] = []
-        const suspiciousEdits: string[] = []
-        let hasQR = false
-        let ocrText = ""
-
-        // ========== 1. ตรวจสอบ EXIF Metadata (ร่องรอยการแก้ไข) ==========
-        try {
-            const exifr = await import("exifr")
-            // @ts-ignore
-            const meta = await exifr.parse(img).catch(() => undefined)
-            const software = (meta as any)?.Software || (meta as any)?.software
-            if (software && typeof software === "string") {
-                const edits = ["Photoshop", "PicsArt", "Snapseed", "Canva", "GIMP", "Pixelmator", "Lightroom"]
-                if (edits.some((e) => software.includes(e))) {
-                    suspiciousEdits.push(`พบร่องรอยแก้ไขภาพ (Software: ${software})`)
-                }
-            }
-        } catch (_) {
-            // ข้ามได้ถ้าไม่มีไลบรารี
+        if (!warningStepTimestamp) {
+            return { decision: "rejected", reasons: ["ยังไม่ได้กดปุ่มยืนยันและดำเนินการต่อ - กรุณากลับไปกดปุ่มยืนยันก่อน"] }
         }
 
-        // ========== 2. ตรวจสอบ QR Code ==========
-        try {
-            const canvas = document.createElement("canvas")
-            canvas.width = img.naturalWidth
-            canvas.height = img.naturalHeight
-            const ctx = canvas.getContext("2d")
-            if (ctx) {
-                ctx.drawImage(img, 0, 0)
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-                const { default: jsqr } = await import("jsqr")
-                const qr = jsqr(imageData.data, imageData.width, imageData.height)
-                hasQR = Boolean(qr)
-            }
-        } catch (_) {
-            // ข้ามได้
-        }
-
-        // ลองตรวจ QR อีกครั้งด้วยขนาดที่เล็กลง (ถ้ายังไม่เจอ)
-        if (!hasQR) {
-            try {
-                const targetWidth = Math.min(800, img.naturalWidth)
-                const scale = targetWidth / img.naturalWidth
-                const canvas = document.createElement("canvas")
-                canvas.width = targetWidth
-                canvas.height = Math.floor(img.naturalHeight * scale)
-                const ctx = canvas.getContext("2d")
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-                    const { default: jsqr } = await import("jsqr")
-                    const qr = jsqr(imageData.data, imageData.width, imageData.height)
-                    hasQR = Boolean(qr)
-                }
-            } catch (_) {
-                // ข้ามได้
-            }
-        }
-
-        // ========== 3. OCR - อ่านข้อความจากสลิป ==========
-        try {
-            const tesseract = await import("tesseract.js")
-            // @ts-ignore
-            const res = await tesseract.recognize(img, "tha+eng", { logger: () => {} }).catch(() => null)
-            ocrText = res?.data?.text?.replace(/\s+/g, " ").trim() || ""
-        } catch (_) {
-            // ข้ามได้
-        }
-
-        // ========== 4. ตรวจสอบคำสำคัญที่บ่งบอกว่าเป็นสลิป ==========
-        // คำสำคัญที่บ่งบอกว่าเป็นสลิปโอนเงิน (ต้องมีอย่างน้อย 2-3 คำ)
-        const essentialTokens = [
-            // ภาษาไทย
-            "โอน", "โอนเงิน", "โอนสำเร็จ", "โอนเงินสำเร็จ",
-            "บัญชี", "เลขที่บัญชี", "บัญชีผู้รับ",
-            "บาท", "จำนวน", "จำนวนเงิน",
-            "เวลา", "วันที่", "วันเวลา",
-            "พร้อมเพย์", "PromptPay", "พร้อมเพย์",
-            "ธนาคาร", "ธ.", "ธนาคารไทย",
-            "กสิกร", "กรุงเทพ", "กรุงไทย", "ไทยพาณิชย์", "SCB", "KBANK", "BBL", "KTB",
-            "Transaction", "Reference", "เลขที่รายการ",
-            "Transfer", "Amount", "Fee", "ค่าธรรมเนียม",
-            "สำเร็จ", "Success", "Completed"
-        ]
-        
-        const foundTokens = ocrText ? essentialTokens.filter((t) => 
-            ocrText.toLowerCase().includes(t.toLowerCase())
-        ) : []
-
-        // ========== 5. หาจำนวนเงินจาก OCR ==========
-        let ocrAmount: number | null = null
-        if (ocrText) {
-            // รูปแบบ: "100.00 บาท", "1,000 บาท", "100 บาท"
-            const amountPatterns = [
-                /(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)\s*บาท/,
-                /จำนวน[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/,
-                /Amount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/,
-            ]
-            
-            for (const pattern of amountPatterns) {
-                const match = ocrText.match(pattern)
-                if (match) {
-                    ocrAmount = parseFloat(match[1].replace(/,/g, ""))
-                    break
-                }
-            }
-        }
-
-        // ========== 6. หาวันที่จาก OCR ==========
-        const parseDateFromText = (text: string) => {
-            const todayYear = new Date().getFullYear()
-            const normalizeYear = (yearRaw: number) => {
-                if (yearRaw >= 2400) return yearRaw - 543 // พ.ศ. เป็น ค.ศ.
-                if (yearRaw < 100) {
-                    const adCandidate = 2000 + yearRaw
-                    const beCandidate = 1957 + yearRaw
-                    return Math.abs(adCandidate - todayYear) <= Math.abs(beCandidate - todayYear)
-                        ? adCandidate
-                        : beCandidate
-                }
-                return yearRaw
-            }
-
-            // รูปแบบ: DD/MM/YYYY, DD-MM-YYYY
-            const numericMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/)
-            if (numericMatch) {
-                const day = Number(numericMatch[1])
-                const month = Number(numericMatch[2])
-                const yearRaw = Number(numericMatch[3])
-                const year = normalizeYear(yearRaw)
-                if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-                    return new Date(year, month - 1, day)
-                }
-            }
-            
-            // รูปแบบ: YYYY/MM/DD, YYYY-MM-DD
-            const isoMatch = text.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
-            if (isoMatch) {
-                const year = normalizeYear(Number(isoMatch[1]))
-                const month = Number(isoMatch[2])
-                const day = Number(isoMatch[3])
-                if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-                    return new Date(year, month - 1, day)
-                }
-            }
-
-            // รูปแบบ: DD ม.ค. YYYY, DD มกราคม YYYY
-            const thaiMonths: Record<string, number> = {
-                "ม.ค": 1, "มค": 1, "มกราคม": 1,
-                "ก.พ": 2, "กพ": 2, "กุมภาพันธ์": 2,
-                "มี.ค": 3, "มีค": 3, "มีนาคม": 3,
-                "เม.ย": 4, "เมย": 4, "เมษายน": 4,
-                "พ.ค": 5, "พค": 5, "พฤษภาคม": 5,
-                "มิ.ย": 6, "มิย": 6, "มิถุนายน": 6,
-                "ก.ค": 7, "กค": 7, "กรกฎาคม": 7,
-                "ส.ค": 8, "สค": 8, "สิงหาคม": 8,
-                "ก.ย": 9, "กย": 9, "กันยายน": 9,
-                "ต.ค": 10, "ตค": 10, "ตุลาคม": 10,
-                "พ.ย": 11, "พย": 11, "พฤศจิกายน": 11,
-                "ธ.ค": 12, "ธค": 12, "ธันวาคม": 12,
-            }
-            const thaiMatch = text.match(
-                /(\d{1,2})\s*(ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{2,4})/,
-            )
-            if (thaiMatch) {
-                const day = Number(thaiMatch[1])
-                const monthKey = thaiMatch[2].replace(/\./g, "")
-                const month = thaiMonths[thaiMatch[2]] ?? thaiMonths[monthKey]
-                const yearRaw = Number(thaiMatch[3])
-                const year = normalizeYear(yearRaw)
-                if (month && day >= 1 && day <= 31) {
-                    return new Date(year, month - 1, day)
-                }
-            }
-            return null
-        }
-
-        const ocrDate = ocrText ? parseDateFromText(ocrText) : null
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        const ocrDateOnly = ocrDate ? new Date(ocrDate.getFullYear(), ocrDate.getMonth(), ocrDate.getDate()) : null
-        const isSameDay = ocrDateOnly && ocrDateOnly.getTime() === today.getTime()
-        
-        // อนุญาตให้คลาดเคลื่อนได้ 1-2 วัน (สำหรับสลิปที่อัปโหลดช้า)
-        const isWithin2Days = ocrDateOnly ? Math.abs((ocrDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) <= 2 : false
-
-        const required = amount ? Number(amount) : null
-
-        // ========== 7. คำนวณคะแนนการตรวจสอบ ==========
-        let score = 0
-        const maxScore = 100
-
-        // QR Code (30 คะแนน)
-        if (hasQR) score += 30
-
-        // คำสำคัญ (25 คะแนน) - ต้องมีอย่างน้อย 3 คำ
-        if (foundTokens.length >= 3) score += 25
-        else if (foundTokens.length >= 2) score += 15
-        else if (foundTokens.length >= 1) score += 5
-
-        // จำนวนเงิน (25 คะแนน)
-        if (ocrAmount !== null) {
-            if (required !== null) {
-                // ตรวจสอบความคลาดเคลื่อน (อนุญาต ±1 บาท)
-                const diff = Math.abs(ocrAmount - required)
-                if (diff === 0) score += 25
-                else if (diff <= 1) score += 20 // คลาดเคลื่อนเล็กน้อย
-                else if (diff <= 10) score += 10 // คลาดเคลื่อนปานกลาง
-                // ถ้าคลาดเคลื่อนมากกว่า 10 บาท ไม่ให้คะแนน
-            } else {
-                score += 15 // มีจำนวนเงินแต่ไม่มีค่าที่ต้องตรวจสอบ
-            }
-        }
-
-        // วันที่ (20 คะแนน)
-        if (ocrDate !== null) {
-            if (isSameDay) score += 20
-            else if (isWithin2Days) score += 15 // คลาดเคลื่อน 1-2 วัน
-            else score += 5 // มีวันที่แต่ไม่ตรง
-        }
-
-        // ========== 8. ตรวจสอบว่าเป็นสลิปจริงหรือไม่ ==========
         const errors: string[] = []
         const warnings: string[] = []
 
-        // ตรวจสอบร่องรอยการแก้ไข (Critical - สีแดง)
-        if (suspiciousEdits.length > 0) {
-            errors.push(...suspiciousEdits)
-        }
+        try {
+            // ใช้ Thai Bank Slip Verification
+            const verificationResult = await verifyThaiBankSlip({
+                slipFile,
+                expectedAmount: amount ? Number(amount) : undefined,
+                expectedAccountName: bankAccount.accountName !== "-" ? bankAccount.accountName : undefined,
+                expectedBankName: bankAccount.bank !== "-" ? bankAccount.bank : undefined,
+                expectedPromptpayId: promptpayId || undefined
+            })
 
-        // ตรวจสอบว่าเป็นสลิปจริงหรือไม่ (Critical - สีแดง)
-        // ต้องมีอย่างน้อย 1 ใน 3: QR Code, คำสำคัญ 2+ คำ, หรือจำนวนเงิน
-        const hasSlipEvidence = hasQR || foundTokens.length >= 2 || ocrAmount !== null
-        
-        if (!hasSlipEvidence) {
-            // ถ้าไม่มีหลักฐานเลยว่าเป็นสลิป = สีแดง
-            errors.push("ไม่พบหลักฐานว่าเป็นสลิปโอนเงิน - กรุณาอัปโหลดสลิปที่ถูกต้อง")
-        } else if (foundTokens.length === 0 && !hasQR && ocrAmount === null) {
-            // มีหลักฐานน้อยมาก = สีแดง
-            errors.push("ไม่พบข้อมูลสำคัญจากสลิป - กรุณาตรวจสอบความชัดเจนของรูปภาพ")
-        }
+            // ตรวจสอบผลการ verify
+            if (!verificationResult.verified) {
+                errors.push(verificationResult.error || "สลิปไม่ผ่านการตรวจสอบ")
+            }
 
-        // ตรวจสอบจำนวนเงิน (Warning หรือ Error ขึ้นอยู่กับความคลาดเคลื่อน)
-        // หมายเหตุ: การตัดสินใจสีแดง/เหลือง/เขียวจะทำในส่วนที่ 9 ตามเกณฑ์ที่เข้มงวด
-        if (required !== null) {
-            if (ocrAmount === null) {
-                warnings.push("อ่านจำนวนเงินจากสลิปไม่ชัดเจน - กรุณาตรวจสอบว่าจำนวนเงินถูกต้อง")
-            } else {
-                const diff = Math.abs(ocrAmount - required)
-                if (diff > 10) {
-                    // คลาดเคลื่อนมากกว่า 10 บาท = จะเป็น Error ในส่วนตัดสินใจ
-                    warnings.push(`จำนวนเงินไม่ตรงกัน: สลิปแสดง ${ocrAmount.toLocaleString("th-TH")} บาท, ควรเป็น ${required.toLocaleString("th-TH")} บาท (คลาดเคลื่อน ${diff} บาท)`)
-                } else if (diff > 1) {
-                    warnings.push(`จำนวนเงินคลาดเคลื่อนเล็กน้อย: สลิปแสดง ${ocrAmount.toLocaleString("th-TH")} บาท, ควรเป็น ${required.toLocaleString("th-TH")} บาท (คลาดเคลื่อน ${diff} บาท)`)
+            // ตรวจสอบจำนวนเงิน - ต้องตรงเท่านั้น (ไม่คลาดเคลื่อน)
+            const requiredAmount = amount ? Number(amount) : null
+            if (requiredAmount !== null) {
+                const qrAmount = verificationResult.qrData?.amount
+                const basicAmount = verificationResult.basicVerification?._debug?.ocrAmount
+                const slipAmount = qrAmount || basicAmount
+
+                if (slipAmount === null || slipAmount === undefined) {
+                    errors.push("ไม่สามารถอ่านจำนวนเงินจากสลิปได้ - กรุณาตรวจสอบความชัดเจนของสลิป")
+                } else {
+                    const diff = Math.abs(slipAmount - requiredAmount)
+                    if (diff > 0) {
+                        // จำนวนเงินไม่ตรง = สีแดง
+                        errors.push(`จำนวนเงินไม่ตรงกัน: สลิปแสดง ${slipAmount.toLocaleString("th-TH")} บาท, ควรเป็น ${requiredAmount.toLocaleString("th-TH")} บาท (คลาดเคลื่อน ${diff} บาท) - จำนวนเงินต้องตรงเท่านั้น`)
+                    }
                 }
             }
-        }
 
-        // ตรวจสอบวันที่ (Warning เท่านั้น - ไม่เป็น Error เพราะอาจอัปโหลดช้า)
-        if (ocrDate === null) {
-            warnings.push("อ่านวันที่จากสลิปไม่ชัดเจน")
-        } else if (!isSameDay && !isWithin2Days) {
-            warnings.push(`วันที่ทำรายการ: ${ocrDate.toLocaleDateString("th-TH")} (อาจเป็นสลิปเก่า)`)
-        }
+            // ตรวจสอบเวลา - ต้อง >= warningStepTimestamp
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const i = new Image()
+                i.crossOrigin = "anonymous"
+                i.onload = () => resolve(i)
+                i.onerror = () => reject(new Error("โหลดรูปไม่สำเร็จ"))
+                i.src = slipPreview || ""
+            })
 
-        // Warning เพิ่มเติม
-        if (!hasQR && foundTokens.length < 2) {
-            warnings.push("ไม่พบ QR Code และคำสำคัญน้อย - กรุณาตรวจสอบความชัดเจนของสลิป")
-        } else if (!hasQR) {
-            warnings.push("ไม่พบ QR Code ในสลิป")
-        }
-
-        // ========== 9. ตัดสินใจตามคะแนนและเงื่อนไข ==========
-        let decision: SlipDecision = "rejected"
-
-        // ตรวจสอบจำนวนเงินสำหรับสีเหลือง/เขียว (ต้องตรงหรือคลาดเคลื่อน ≤ 10 บาท)
-        const amountDiff = required !== null && ocrAmount !== null ? Math.abs(ocrAmount - required) : null
-        const amountOkForYellow = amountDiff === null || amountDiff <= 10 // อนุญาตคลาดเคลื่อน ≤ 10 บาท
-
-        // สีแดง (rejected): มี Error หรือคะแนน < 80 หรือจำนวนเงินคลาดเคลื่อน > 10 บาท
-        if (errors.length > 0) {
-            decision = "rejected"
-        } else if (score < 80) {
-            // คะแนนต่ำกว่า 80 = ไม่ผ่าน
-            decision = "rejected"
-            errors.push("คะแนนการตรวจสอบต่ำเกินไป - กรุณาตรวจสอบความชัดเจนของสลิป")
-        } else if (required !== null && !amountOkForYellow) {
-            // จำนวนเงินคลาดเคลื่อนมากกว่า 10 บาท = สีแดง
-            decision = "rejected"
-            errors.push(`จำนวนเงินไม่ตรงกันมากเกินไป: สลิปแสดง ${ocrAmount?.toLocaleString("th-TH") || "ไม่พบ"} บาท, ควรเป็น ${required.toLocaleString("th-TH")} บาท (คลาดเคลื่อน ${amountDiff} บาท)`)
-        }
-        // สีเขียว (approved): คะแนนสูง (≥90) และผ่านเงื่อนไขสำคัญ
-        else if (score >= 90 && hasQR && foundTokens.length >= 2 && ocrAmount !== null && required !== null && amountDiff !== null && amountDiff <= 1) {
-            decision = "approved"
-        }
-        // สีเหลือง (needs_review): คะแนน ≥ 80 และจำนวนเงินคลาดเคลื่อน ≤ 10 บาท
-        else if (score >= 80 && amountOkForYellow) {
-            decision = "needs_review"
-        }
-        // ถ้าไม่เข้าเงื่อนไขใดๆ = สีแดง
-        else {
-            decision = "rejected"
-            if (!errors.some(e => e.includes("คะแนน") || e.includes("จำนวนเงิน"))) {
-                errors.push("ไม่ผ่านเกณฑ์การตรวจสอบ - กรุณาตรวจสอบสลิปและอัปโหลดใหม่อีกครั้ง")
+            // OCR - อ่านข้อความจากสลิป
+            let ocrText = ""
+            try {
+                const tesseract = await import("tesseract.js")
+                // @ts-ignore
+                const res = await tesseract.recognize(img, "tha+eng", { logger: () => {} }).catch(() => null)
+                ocrText = res?.data?.text?.replace(/\s+/g, " ").trim() || ""
+            } catch (_) {
+                // ข้ามได้
             }
-        }
 
-        // รวม reasons
-        const allReasons = [...errors, ...warnings]
-        if (allReasons.length === 0 && decision === "approved") {
-            allReasons.push("✅ ตรวจสอบผ่าน - สลิปถูกต้องและครบถ้วน")
-        }
+            // Parse เวลาจาก OCR
+            // รูปแบบ: "19 ม.ค. 69 20:18 น." หรือ "19/01/2026 20:18"
+            let ocrDateTime: Date | null = null
+            if (ocrText) {
+                // รูปแบบ: DD ม.ค. YY HH:MM น.
+                const thaiDateTimeMatch = ocrText.match(/(\d{1,2})\s*(ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s*(\d{2})\s+(\d{1,2}):(\d{2})\s*น\.?/i)
+                if (thaiDateTimeMatch) {
+                    const thaiMonths: Record<string, number> = {
+                        "ม.ค": 1, "มค": 1, "ก.พ": 2, "กพ": 2, "มี.ค": 3, "มีค": 3,
+                        "เม.ย": 4, "เมย": 4, "พ.ค": 5, "พค": 5, "มิ.ย": 6, "มิย": 6,
+                        "ก.ค": 7, "กค": 7, "ส.ค": 8, "สค": 8, "ก.ย": 9, "กย": 9,
+                        "ต.ค": 10, "ตค": 10, "พ.ย": 11, "พย": 11, "ธ.ค": 12, "ธค": 12,
+                    }
+                    const day = Number(thaiDateTimeMatch[1])
+                    const monthKey = thaiDateTimeMatch[2].replace(/\./g, "")
+                    const month = thaiMonths[monthKey] || thaiMonths[thaiDateTimeMatch[2]]
+                    const yearRaw = Number(thaiDateTimeMatch[3])
+                    const hour = Number(thaiDateTimeMatch[4])
+                    const minute = Number(thaiDateTimeMatch[5])
+                    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw
+                    if (month && day >= 1 && day <= 31 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                        ocrDateTime = new Date(year, month - 1, day, hour, minute)
+                    }
+                }
 
-        return { 
-            decision, 
-            reasons: allReasons, 
-            hasQR, 
-            ocrPreview: ocrText.slice(0, 300),
-            // เพิ่มข้อมูลเพิ่มเติมสำหรับ debug
-            _debug: {
-                score,
-                foundTokens: foundTokens.slice(0, 5),
-                ocrAmount,
-                ocrDate: ocrDate ? ocrDate.toLocaleDateString("th-TH") : null,
-                hasSlipEvidence
+                // รูปแบบ: DD/MM/YYYY HH:MM หรือ DD-MM-YYYY HH:MM
+                if (!ocrDateTime) {
+                    const numericDateTimeMatch = ocrText.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\s+(\d{1,2}):(\d{2})/)
+                    if (numericDateTimeMatch) {
+                        const day = Number(numericDateTimeMatch[1])
+                        const month = Number(numericDateTimeMatch[2])
+                        const yearRaw = Number(numericDateTimeMatch[3])
+                        const hour = Number(numericDateTimeMatch[4])
+                        const minute = Number(numericDateTimeMatch[5])
+                        const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw
+                        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                            ocrDateTime = new Date(year, month - 1, day, hour, minute)
+                        }
+                    }
+                }
+            }
+
+            // ตรวจสอบว่าเวลาสลิป >= warningStepTimestamp
+            if (ocrDateTime) {
+                if (ocrDateTime < warningStepTimestamp) {
+                    errors.push(`เวลาสลิป (${ocrDateTime.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) น้อยกว่าเวลาที่กดปุ่มยืนยัน (${warningStepTimestamp.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) - สลิปต้องทำรายการหลังจากกดปุ่มยืนยันเท่านั้น`)
+                }
+            } else {
+                warnings.push("ไม่สามารถอ่านเวลาจากสลิปได้ - กรุณาตรวจสอบความชัดเจนของสลิป")
+            }
+
+            // ตรวจสอบผลจาก basicVerification และ advancedVerification
+            if (verificationResult.basicVerification) {
+                if (verificationResult.basicVerification.decision === "rejected") {
+                    errors.push(...verificationResult.basicVerification.reasons)
+                } else if (verificationResult.basicVerification.decision === "needs_review") {
+                    warnings.push(...verificationResult.basicVerification.reasons)
+                }
+            }
+
+            if (verificationResult.advancedVerification) {
+                if (verificationResult.advancedVerification.decision === "rejected") {
+                    errors.push(...verificationResult.advancedVerification.reasons)
+                } else if (verificationResult.advancedVerification.decision === "needs_review") {
+                    warnings.push(...verificationResult.advancedVerification.reasons)
+                }
+            }
+
+            // ตัดสินใจ
+            let decision: SlipDecision = "rejected"
+            if (errors.length > 0) {
+                decision = "rejected"
+            } else if (warnings.length > 0 || !verificationResult.verified) {
+                decision = "needs_review"
+            } else {
+                decision = "approved"
+            }
+
+            const allReasons = [...errors, ...warnings]
+            if (allReasons.length === 0 && decision === "approved") {
+                allReasons.push("✅ ตรวจสอบผ่าน - สลิปถูกต้องและครบถ้วน")
+            }
+
+            return {
+                decision,
+                reasons: allReasons,
+                hasQR: verificationResult.qrScanned,
+                ocrPreview: ocrText.slice(0, 300),
+                _debug: {
+                    score: verificationResult.verified ? 90 : 70,
+                    foundTokens: [],
+                    ocrAmount: verificationResult.qrData?.amount || null,
+                    ocrDate: ocrDateTime ? ocrDateTime.toLocaleDateString("th-TH") : null,
+                    hasSlipEvidence: verificationResult.qrScanned
+                }
+            }
+
+        } catch (error: any) {
+            console.error("Error verifying slip:", error)
+            return {
+                decision: "rejected",
+                reasons: [error.message || "เกิดข้อผิดพลาดในการตรวจสอบสลิป"]
             }
         }
     }
@@ -798,6 +634,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         setSlipFile(null)
         setSlipPreview(null)
         setSlipResult(null)
+        setAgreedToTerms(false)
+        setWarningStepTimestamp(null)
     }
 
     const handleClose = () => {
@@ -818,7 +656,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                 size="sm"
                                 onClick={() => {
                                     if (step === "amount") setStep("method")
-                                    else if (step === "payment") setStep("amount")
+                                    else if (step === "warning") setStep("amount")
+                                    else if (step === "payment") setStep("warning")
                                 }}
                             >
                                 <ArrowLeft className="w-4 h-4" />
@@ -827,6 +666,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                         <CardTitle className="text-lg">
                             {step === "method" && "เลือกวิธีการบริจาค"}
                             {step === "amount" && "ระบุจำนวนเงิน"}
+                            {step === "warning" && "ข้อตกลงและคำเตือน"}
                             {step === "payment" && "ชำระเงิน"}
                             {step === "success" && "บริจาคสำเร็จ"}
                         </CardTitle>
@@ -991,10 +831,119 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                             <Button
                                 className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-                                onClick={() => setStep("payment")}
+                                onClick={() => setStep("warning")}
                                 disabled={!amount || Number(amount) <= 0 || (remainingAmount !== null && Number(amount) > remainingAmount)}
                             >
                                 ชำระเงิน ฿{amount ? formatAmount(amount) : "0"}
+                            </Button>
+                        </div>
+                    )}
+
+                    {step === "warning" && (
+                        <div className="space-y-4">
+                            <div className="space-y-4">
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <h4 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                                        <AlertTriangle className="w-5 h-5" />
+                                        1. วิธีการบริจาค
+                                    </h4>
+                                    <div className="space-y-2 text-sm text-blue-800">
+                                        {paymentMethod === "qr" && (
+                                            <>
+                                                <p className="font-medium">• QR Code PromptPay</p>
+                                                <p className="pl-4">- สแกน QR Code ด้วยแอปธนาคารของคุณ</p>
+                                                <p className="pl-4">- ยืนยันการชำระเงิน</p>
+                                                <p className="pl-4">- อัปโหลดสลิปการชำระเงิน</p>
+                                            </>
+                                        )}
+                                        {paymentMethod === "bank" && (
+                                            <>
+                                                <p className="font-medium">• โอนเงินผ่านธนาคาร</p>
+                                                <p className="pl-4">- เปิดแอปธนาคารของคุณ</p>
+                                                <p className="pl-4">- เลือกโอนเงินและกรอกข้อมูลบัญชีปลายทาง</p>
+                                                <p className="pl-4">- ระบุจำนวนเงินและยืนยันการโอน</p>
+                                                <p className="pl-4">- อัปโหลดสลิปการโอนเงิน</p>
+                                            </>
+                                        )}
+                                        {paymentMethod === "credit" && (
+                                            <>
+                                                <p className="font-medium">• บัตรเครดิต/เดบิต</p>
+                                                <p className="pl-4">- กรอกข้อมูลบัตรเครดิต/เดบิต</p>
+                                                <p className="pl-4">- ยืนยันการชำระเงิน</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-red-50 rounded-lg border-2 border-red-300">
+                                    <h4 className="font-bold text-red-900 mb-3 flex items-center gap-2">
+                                        <ShieldAlert className="w-5 h-5" />
+                                        2. คำเตือนสำคัญ
+                                    </h4>
+                                    <div className="space-y-2 text-sm text-red-800">
+                                        <p className="font-semibold">⚠️ การอัปโหลดสลิปปลอมหรือสลิปที่แก้ไข:</p>
+                                        <ul className="list-disc pl-5 space-y-1">
+                                            <li>ระบบจะตรวจสอบสลิปด้วยเทคโนโลยี AI และ OCR</li>
+                                            <li>หากพบว่าสลิปเป็นของปลอมหรือถูกแก้ไข จะถูกปฏิเสธทันที</li>
+                                            <li>บัญชีผู้ใช้จะถูกระงับการใช้งานชั่วคราวหรือถาวร</li>
+                                            <li>อาจถูกเพิ่มเข้าในรายชื่อผู้ใช้ที่ถูกจำกัดสิทธิ์ (Restricted List)</li>
+                                            <li>การกระทำนี้อาจผิดกฎหมายและมีผลทางกฎหมาย</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                    <h4 className="font-medium text-yellow-900 mb-3 flex items-center gap-2">
+                                        <span className="text-xl">🙏</span>
+                                        3. คำสอนทางพุทธศาสนา
+                                    </h4>
+                                    <div className="space-y-2 text-sm text-yellow-800 italic">
+                                        <p className="font-medium">"การบริจาคด้วยใจบริสุทธิ์ย่อมนำมาซึ่งบุญกุศล"</p>
+                                        <p>"การโกหกและหลอกลวงย่อมนำมาซึ่งทุกข์และบาปกรรม"</p>
+                                        <p className="pt-2">ตามหลักธรรมในพระพุทธศาสนา การพูดเท็จ (มุสาวาท) เป็นหนึ่งในศีล 5 ที่ควรละเว้น</p>
+                                        <p>การบริจาคด้วยความจริงใจและซื่อสัตย์จะสร้างกุศลกรรมที่ดีให้กับตนเอง</p>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="flex items-start gap-3">
+                                        <input
+                                            type="checkbox"
+                                            id="agreeTerms"
+                                            checked={agreedToTerms}
+                                            onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                            className="mt-1 w-5 h-5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+                                        />
+                                        <Label htmlFor="agreeTerms" className="text-sm text-gray-700 cursor-pointer flex-1">
+                                            <span className="font-semibold">ฉันยืนยันว่า:</span>
+                                            <ul className="list-disc pl-5 mt-2 space-y-1">
+                                                <li>เข้าใจวิธีการบริจาคที่เลือกแล้ว</li>
+                                                <li>ตระหนักถึงผลกระทบของการอัปโหลดสลิปปลอม</li>
+                                                <li>จะอัปโหลดสลิปที่ถูกต้องและเป็นจริงเท่านั้น</li>
+                                                <li>ยอมรับว่าหากอัปโหลดสลิปปลอมจะถูกระงับบัญชี</li>
+                                                <li>ยินดีปฏิบัติตามหลักธรรมทางพุทธศาสนาในการบริจาคด้วยความซื่อสัตย์</li>
+                                            </ul>
+                                        </Label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">จำนวนที่บริจาค</span>
+                                    <span className="font-bold text-lg">฿{formatAmount(amount)}</span>
+                                </div>
+                            </div>
+
+                            <Button
+                                className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                                onClick={() => {
+                                    setWarningStepTimestamp(new Date()) // บันทึกเวลาที่กดปุ่ม
+                                    setStep("payment")
+                                }}
+                                disabled={!agreedToTerms}
+                            >
+                                ยืนยันและดำเนินการต่อ
                             </Button>
                         </div>
                     )}
@@ -1196,17 +1145,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                 )}
                                             </div>
                                         )}
-
-                                        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                            <p className="text-xs text-blue-800 font-medium mb-2">
-                                                📋 มาตรฐานการตรวจสอบสลิป:
-                                            </p>
-                                            <ul className="text-xs text-blue-700 space-y-1 list-disc pl-5">
-                                                <li><span className="font-semibold text-green-600">สีเขียว:</span> ผ่าน 90%+ (มี QR, จำนวนเงินตรง, วันที่ตรง)</li>
-                                                <li><span className="font-semibold text-yellow-600">สีเหลือง:</span> สลิปจริงแต่คลาดเคลื่อนเล็กน้อย (ให้ผู้สร้างคำขอตรวจสอบ)</li>
-                                                <li><span className="font-semibold text-red-600">สีแดง:</span> สลิปปลอมหรือรูปที่ไม่ใช่สลิป (ไม่สามารถอัปโหลดได้)</li>
-                                            </ul>
-                                        </div>
                                     </div>
 
                                     <Button
@@ -1460,17 +1398,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                 )}
                                             </div>
                                         )}
-
-                                        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                            <p className="text-xs text-blue-800 font-medium mb-2">
-                                                📋 มาตรฐานการตรวจสอบสลิป:
-                                            </p>
-                                            <ul className="text-xs text-blue-700 space-y-1 list-disc pl-5">
-                                                <li><span className="font-semibold text-green-600">สีเขียว:</span> ผ่าน 90%+ (มี QR, จำนวนเงินตรง, วันที่ตรง)</li>
-                                                <li><span className="font-semibold text-yellow-600">สีเหลือง:</span> สลิปจริงแต่คลาดเคลื่อนเล็กน้อย (ให้ผู้สร้างคำขอตรวจสอบ)</li>
-                                                <li><span className="font-semibold text-red-600">สีแดง:</span> สลิปปลอมหรือรูปที่ไม่ใช่สลิป (ไม่สามารถอัปโหลดได้)</li>
-                                            </ul>
-                                        </div>
                                     </div>
 
                                     <Button
