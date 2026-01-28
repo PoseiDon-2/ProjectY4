@@ -185,17 +185,37 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
             }
         }
 
-        // หา amount จาก pattern
+        // หา amount จาก pattern (รองรับทศนิยมอย่างถูกต้อง)
         const amountPatterns = [
-            /(\d+\.?\d*)\s*(?:บาท|THB|baht|฿)/i,
-            /amount[:\s]*(\d+\.?\d*)/i,
-            /จำนวน[:\s]*(\d+\.?\d*)/i
+            // รูปแบบ: "1.00 บาท", "1,000.50 บาท" (มีทศนิยมชัดเจน)
+            /(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*(?:บาท|THB|baht|฿)/i,
+            /amount[:\s]*(\d{1,3}(?:,\d{3})*\.\d{1,2})/i,
+            /จำนวน[:\s]*(\d{1,3}(?:,\d{3})*\.\d{1,2})/i,
+            // รูปแบบ: "1 00 บาท" (กรณี OCR อ่าน "1.00" เป็น "1 00")
+            /(\d{1,2})\s+(\d{2})\s*(?:บาท|THB|baht|฿)/i,
+            // รูปแบบ: "100 บาท" (ไม่มีทศนิยม)
+            /(\d{1,3}(?:,\d{3})*)\s*(?:บาท|THB|baht|฿)(?!\s*\.\d)/i,
+            /amount[:\s]*(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)/i,
+            /จำนวน[:\s]*(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)/i,
         ]
         
-        for (const pattern of amountPatterns) {
+        for (let i = 0; i < amountPatterns.length; i++) {
+            const pattern = amountPatterns[i]
             const match = payload.match(pattern)
             if (match && !result.amount) {
-                result.amount = Number(match[1])
+                // กรณี pattern ที่ 4: "1 00 บาท" -> แปลงเป็น "1.00"
+                if (i === 3 && match[1] && match[2]) {
+                    const wholePart = match[1]
+                    const decimalPart = match[2]
+                    // ถ้าส่วนทศนิยมมี 2 หลัก และส่วนหลักมี 1-2 หลัก = น่าจะเป็นทศนิยม
+                    if (decimalPart.length === 2 && wholePart.length <= 2) {
+                        result.amount = parseFloat(`${wholePart}.${decimalPart}`)
+                    } else {
+                        result.amount = Number(match[1].replace(/,/g, ""))
+                    }
+                } else {
+                    result.amount = Number(match[1].replace(/,/g, ""))
+                }
                 break
             }
         }

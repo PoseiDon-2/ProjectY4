@@ -105,19 +105,23 @@ export async function verifyThaiBankSlip(
         
         try {
             // Basic verification
+            // ไม่ส่ง expectedBankName เพราะ expectedBankName คือ recipient bank
+            // ผู้บริจาคสามารถใช้ธนาคารไหนก็ได้
             const basicResult = await verifySlip({
                 slipImageUrl: verificationImageUrl,
                 requiredAmount: expectedAmount || undefined,
                 expectedAccountName: expectedAccountName || undefined,
-                expectedBankName: expectedBankName || qrData?.bankInfo?.name || undefined
+                expectedBankName: undefined // ไม่ตรวจสอบ sender bank
             })
 
             // Advanced verification
+            // ไม่ส่ง expectedBankName เพราะ expectedBankName คือ recipient bank
+            // ผู้บริจาคสามารถใช้ธนาคารไหนก็ได้
             const advancedResult = await verifySlipAdvanced({
                 slipImageUrl: verificationImageUrl,
                 requiredAmount: expectedAmount || undefined,
                 expectedAccountName: expectedAccountName || undefined,
-                expectedBankName: expectedBankName || qrData?.bankInfo?.name || undefined,
+                expectedBankName: undefined, // ไม่ตรวจสอบ sender bank
                 maxSlipAgeDays: 7
             })
 

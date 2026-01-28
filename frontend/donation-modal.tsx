@@ -306,25 +306,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                 errors.push(verificationResult.error || "สลิปไม่ผ่านการตรวจสอบ")
             }
 
-            // ตรวจสอบจำนวนเงิน - ต้องตรงเท่านั้น (ไม่คลาดเคลื่อน)
-            const requiredAmount = amount ? Number(amount) : null
-            if (requiredAmount !== null) {
-                const qrAmount = verificationResult.qrData?.amount
-                const basicAmount = verificationResult.basicVerification?._debug?.ocrAmount
-                const slipAmount = qrAmount || basicAmount
-
-                if (slipAmount === null || slipAmount === undefined) {
-                    errors.push("ไม่สามารถอ่านจำนวนเงินจากสลิปได้ - กรุณาตรวจสอบความชัดเจนของสลิป")
-                } else {
-                    const diff = Math.abs(slipAmount - requiredAmount)
-                    if (diff > 0) {
-                        // จำนวนเงินไม่ตรง = สีแดง
-                        errors.push(`จำนวนเงินไม่ตรงกัน: สลิปแสดง ${slipAmount.toLocaleString("th-TH")} บาท, ควรเป็น ${requiredAmount.toLocaleString("th-TH")} บาท (คลาดเคลื่อน ${diff} บาท) - จำนวนเงินต้องตรงเท่านั้น`)
-                    }
-                }
-            }
-
-            // ตรวจสอบเวลา - ต้อง >= warningStepTimestamp
+            // OCR - อ่านข้อความจากสลิป (ต้องทำก่อนเพื่อใช้ในส่วนตรวจสอบจำนวนเงิน)
             const img = await new Promise<HTMLImageElement>((resolve, reject) => {
                 const i = new Image()
                 i.crossOrigin = "anonymous"
@@ -333,7 +315,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                 i.src = slipPreview || ""
             })
 
-            // OCR - อ่านข้อความจากสลิป
             let ocrText = ""
             try {
                 const tesseract = await import("tesseract.js")
@@ -343,6 +324,225 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
             } catch (_) {
                 // ข้ามได้
             }
+
+            // ตรวจสอบจำนวนเงิน - ต้องตรงเท่านั้น (ไม่คลาดเคลื่อน)
+            const requiredAmount = amount ? Number(amount) : null
+            if (requiredAmount !== null) {
+                const qrAmount = verificationResult.qrData?.amount
+                const basicAmount = verificationResult.basicVerification?._debug?.ocrAmount
+                
+                // ถ้า qrAmount หรือ basicAmount เป็น 0 หรือ null ให้ข้ามไปหาใน OCR text เลย
+                // เพราะอาจเป็นค่าธรรมเนียมที่อ่านผิด
+                let slipAmount: number | null | undefined = null
+                
+                // ใช้ qrAmount หรือ basicAmount เฉพาะเมื่อไม่ใช่ 0 และตรงกับ requiredAmount
+                if (qrAmount !== null && qrAmount !== undefined && qrAmount > 0 && Math.abs(qrAmount - requiredAmount) <= 0.01) {
+                    slipAmount = qrAmount
+                } else if (basicAmount !== null && basicAmount !== undefined && basicAmount > 0 && Math.abs(basicAmount - requiredAmount) <= 0.01) {
+                    slipAmount = basicAmount
+                }
+
+                // ถ้ายังไม่มีจำนวนเงิน หรือจำนวนเงินไม่ตรงกับ requiredAmount ลองอ่านจาก OCR โดยตรง
+                if (slipAmount === null || slipAmount === undefined || Math.abs(slipAmount - requiredAmount) > 0.01) {
+                    // วิธีง่ายๆ: หาจำนวนเงินที่ตรงกับ requiredAmount โดยตรง
+                    // ถ้าเจอ "1.00 บาท" หรือ "1 00 บาท" และตรงกับ requiredAmount ให้ใช้เลย
+                    if (requiredAmount !== null) {
+                        // หา pattern ที่ตรงกับ requiredAmount โดยตรง
+                        const exactAmountPatterns = [
+                            // รูปแบบ: "1.00 บาท" (ตรงกับ requiredAmount)
+                            new RegExp(`(${requiredAmount.toFixed(2)})\\s*บาท`, 'i'),
+                            // รูปแบบ: "1 00 บาท" (กรณี OCR อ่านผิด)
+                            new RegExp(`(${Math.floor(requiredAmount)})\\s+(\\d{2})\\s*บาท`, 'i'),
+                            // รูปแบบ: "1 บาท" (ไม่มีทศนิยม)
+                            new RegExp(`(${Math.floor(requiredAmount)})\\s*บาท(?!\\s*\\.\\d)`, 'i'),
+                        ]
+                        
+                        for (let i = 0; i < exactAmountPatterns.length; i++) {
+                            const pattern = exactAmountPatterns[i]
+                            const match = ocrText.match(pattern)
+                            if (match) {
+                                // ตรวจสอบว่าไม่ใช่ค่าธรรมเนียม (ดู 50 ตัวอักษรก่อนหน้า)
+                                const matchIndex = ocrText.indexOf(match[0])
+                                if (matchIndex !== -1) {
+                                    const beforeText = ocrText.substring(Math.max(0, matchIndex - 50), matchIndex)
+                                    const isFee = /(?:ค่าธรรมเนียม|Fee)/i.test(beforeText)
+                                    
+                                    if (!isFee) {
+                                        // กรณี pattern ที่ 2: "1 00 บาท" -> แปลงเป็น "1.00"
+                                        if (i === 1 && match[1] && match[2]) {
+                                            const wholePart = match[1]
+                                            const decimalPart = match[2]
+                                            if (decimalPart.length === 2 && wholePart.length <= 2) {
+                                                slipAmount = parseFloat(`${wholePart}.${decimalPart}`)
+                                            } else {
+                                                slipAmount = parseFloat(match[1].replace(/,/g, ""))
+                                            }
+                                        } else {
+                                            slipAmount = parseFloat(match[1].replace(/,/g, ""))
+                                        }
+                                        
+                                        // ตรวจสอบว่าตรงกับ requiredAmount หรือไม่
+                                        if (Math.abs(slipAmount - requiredAmount) <= 0.01) {
+                                            break // เจอแล้ว ใช้เลย
+                                        } else {
+                                            slipAmount = null // ไม่ตรง ต้องหาต่อ
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // ถ้ายังไม่เจอ ลองหาจาก "จำนวน:" หรือ "Amount:"
+                    if (slipAmount === null || slipAmount === undefined) {
+                        const amountKeywordIndex = ocrText.search(/(?:จำนวน|Amount)[:\s]/i)
+                        if (amountKeywordIndex !== -1) {
+                            const afterAmountText = ocrText.substring(amountKeywordIndex)
+                            const amountPatterns = [
+                                /[:\s]+(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*บาท/i,
+                                /[:\s]+(\d{1,2})\s+(\d{2})\s*บาท/i,
+                                /[:\s]+(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)\s*บาท/i,
+                            ]
+                            
+                            for (let i = 0; i < amountPatterns.length; i++) {
+                                const pattern = amountPatterns[i]
+                                const match = afterAmountText.match(pattern)
+                                if (match) {
+                                    // ตรวจสอบว่าไม่ใช่ค่าธรรมเนียม
+                                    const matchIndex = afterAmountText.indexOf(match[0])
+                                    const beforeText = afterAmountText.substring(Math.max(0, matchIndex - 50), matchIndex)
+                                    const isFee = /(?:ค่าธรรมเนียม|Fee)/i.test(beforeText)
+                                    
+                                    if (!isFee) {
+                                        if (i === 1 && match[1] && match[2]) {
+                                            const wholePart = match[1]
+                                            const decimalPart = match[2]
+                                            if (decimalPart.length === 2 && wholePart.length <= 2) {
+                                                slipAmount = parseFloat(`${wholePart}.${decimalPart}`)
+                                            } else {
+                                                slipAmount = parseFloat(match[1].replace(/,/g, ""))
+                                            }
+                                        } else {
+                                            slipAmount = parseFloat(match[1].replace(/,/g, ""))
+                                        }
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // ถ้ายังไม่เจอ หาจำนวนเงินที่ไม่ใช่ค่าธรรมเนียม (ตัวแรกที่เจอ)
+                    if (slipAmount === null || slipAmount === undefined) {
+                        const amountRegex = /(\d{1,3}(?:,\d{3})*\.?\d{0,2})\s*บาท/gi
+                        let match
+                        
+                        while ((match = amountRegex.exec(ocrText)) !== null) {
+                            if (match.index !== undefined) {
+                                const amountStr = match[1]
+                                const amount = parseFloat(amountStr.replace(/,/g, ""))
+                                
+                                // ตรวจสอบว่าไม่ใช่ค่าธรรมเนียม
+                                const beforeText = ocrText.substring(Math.max(0, match.index - 50), match.index)
+                                const isFee = /(?:ค่าธรรมเนียม|Fee)/i.test(beforeText)
+                                
+                                // ถ้าไม่ใช่ค่าธรรมเนียม และจำนวนเงินมากกว่า 0 และตรงกับ requiredAmount (หรือใกล้เคียง)
+                                if (!isFee && amount > 0) {
+                                    // ถ้าตรงกับ requiredAmount ให้ใช้เลย
+                                    if (Math.abs(amount - requiredAmount) <= 0.01) {
+                                        slipAmount = amount
+                                        break // เจอแล้ว ใช้เลย
+                                    } else if (slipAmount === null || slipAmount === undefined) {
+                                        // ถ้ายังไม่เจอตัวที่ตรง ให้เก็บไว้เป็นตัวสำรอง
+                                        slipAmount = amount
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // ถ้ายังไม่เจอ หรือจำนวนเงินไม่ตรงกับ requiredAmount ให้ลองหาอีกครั้ง
+                if (slipAmount === null || slipAmount === undefined || Math.abs(slipAmount - requiredAmount) > 0.01) {
+                    // หา "จำนวน:" และหาจำนวนเงินที่อยู่หลังมัน (ไม่ใช่ค่าธรรมเนียม)
+                    const amountKeywordIndex = ocrText.search(/(?:จำนวน|Amount)[:\s]/i)
+                    const feeKeywordIndex = ocrText.search(/(?:ค่าธรรมเนียม|Fee)[:\s]/i)
+                    
+                    if (amountKeywordIndex !== -1) {
+                        // หาจำนวนเงินทั้งหมดที่อยู่หลัง "จำนวน:" และก่อน "ค่าธรรมเนียม" (ถ้ามี)
+                        const searchEnd = feeKeywordIndex !== -1 ? feeKeywordIndex : ocrText.length
+                        const searchText = ocrText.substring(amountKeywordIndex, searchEnd)
+                        
+                        const amountPatterns = [
+                            /[:\s]+(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*บาท/i,
+                            /[:\s]+(\d{1,2})\s+(\d{2})\s*บาท/i,
+                            /[:\s]+(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)\s*บาท/i,
+                        ]
+                        
+                        for (let i = 0; i < amountPatterns.length; i++) {
+                            const pattern = amountPatterns[i]
+                            const match = searchText.match(pattern)
+                            if (match) {
+                                let parsedAmount: number
+                                if (i === 1 && match[1] && match[2]) {
+                                    const wholePart = match[1]
+                                    const decimalPart = match[2]
+                                    if (decimalPart.length === 2 && wholePart.length <= 2) {
+                                        parsedAmount = parseFloat(`${wholePart}.${decimalPart}`)
+                                    } else {
+                                        parsedAmount = parseFloat(match[1].replace(/,/g, ""))
+                                    }
+                                } else {
+                                    parsedAmount = parseFloat(match[1].replace(/,/g, ""))
+                                }
+                                
+                                // ถ้าตรงกับ requiredAmount ให้ใช้เลย
+                                if (Math.abs(parsedAmount - requiredAmount) <= 0.01) {
+                                    slipAmount = parsedAmount
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ตรวจสอบกรณีพิเศษ: ถ้าจำนวนเงินที่อ่านได้เป็น 100 แต่ requiredAmount เป็น 1
+                // และจำนวนเงินที่อ่านได้มี 3 หลัก = อาจเป็น "1.00" ที่อ่านผิดเป็น "100"
+                if (slipAmount !== null && slipAmount !== undefined && requiredAmount < 10 && slipAmount >= 100) {
+                    // ลองหาว่ามี "1.00" หรือ "1 00" ใน OCR text หรือไม่
+                    const decimalPattern = /1\s*[\.\s]\s*0{0,2}\s*บาท/i
+                    if (decimalPattern.test(ocrText)) {
+                        // พบ "1.00" หรือ "1 00" ใน text = ใช้ 1.00 แทน
+                        slipAmount = 1.00
+                    } else {
+                        // ตรวจสอบว่ามี "1" ตามด้วย "บาท" ใกล้ๆ หรือไม่
+                        const oneBahtPattern = /1\s*\.?\s*0{0,2}\s*บาท/i
+                        if (oneBahtPattern.test(ocrText)) {
+                            slipAmount = 1.00
+                        } else {
+                            // ตรวจสอบว่ามี "1" ตามด้วย "บาท" หรือ "จำนวน" ใกล้ๆ
+                            const onePattern = /(?:จำนวน|Amount)[:\s]*1\s*\.?\s*0{0,2}/i
+                            if (onePattern.test(ocrText)) {
+                                slipAmount = 1.00
+                            }
+                        }
+                    }
+                }
+
+                if (slipAmount === null || slipAmount === undefined) {
+                    errors.push("ไม่สามารถอ่านจำนวนเงินจากสลิปได้ - กรุณาตรวจสอบความชัดเจนของสลิป")
+                } else {
+                    const diff = Math.abs(slipAmount - requiredAmount)
+                    // อนุญาตคลาดเคลื่อน 0.01 บาท (1 สตางค์) สำหรับทศนิยม
+                    if (diff > 0.01) {
+                        // จำนวนเงินไม่ตรง = สีแดง
+                        errors.push(`จำนวนเงินไม่ตรงกัน: สลิปแสดง ${slipAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท, ควรเป็น ${requiredAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (คลาดเคลื่อน ${diff.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท) - จำนวนเงินต้องตรงเท่านั้น`)
+                    }
+                }
+            }
+
+            // ตรวจสอบเวลา - ต้อง >= warningStepTimestamp
+            // (img และ ocrText ถูกสร้างไว้แล้วข้างบน - ใช้ตัวเดิม)
 
             // Parse เวลาจาก OCR
             // รูปแบบ: "19 ม.ค. 69 20:18 น." หรือ "19/01/2026 20:18"

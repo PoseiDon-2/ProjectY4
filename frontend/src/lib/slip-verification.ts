@@ -143,17 +143,39 @@ export async function verifySlip(options: VerifySlipOptions): Promise<VerifyResu
     // ========== 5. หาจำนวนเงินจาก OCR ==========
     let ocrAmount: number | null = null
     if (ocrText) {
-        // รูปแบบ: "100.00 บาท", "1,000 บาท", "100 บาท"
+        // รูปแบบ: "1.00 บาท", "1,000.50 บาท", "100 บาท", "1 00 บาท" (กรณี OCR อ่านผิด)
+        // สำคัญ: ต้องหลีกเลี่ยง "ค่าธรรมเนียม" หรือ "Fee" - ต้องหาเฉพาะ "จำนวน" หรือ "Amount"
         const amountPatterns = [
-            /(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)\s*บาท/,
-            /จำนวน[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/,
-            /Amount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/,
+            // รูปแบบ: "จำนวน: 1.00 บาท" หรือ "Amount: 1.00 บาท" (มีทศนิยมชัดเจน + มีคำว่า "จำนวน" หรือ "Amount")
+            /(?:จำนวน|Amount)[:\s]+(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*บาท/i,
+            /(?:จำนวน|Amount)[:\s]+(\d{1,3}(?:,\d{3})*\.\d{1,2})(?!\s*(?:บาท|THB|Fee|ค่าธรรมเนียม))/i,
+            // รูปแบบ: "1.00 บาท" (มีทศนิยมชัดเจน - แต่ต้องไม่ใช่ค่าธรรมเนียม)
+            /(?!.*(?:ค่าธรรมเนียม|Fee))(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*บาท/i,
+            // รูปแบบ: "1 00 บาท" (กรณี OCR อ่าน "1.00" เป็น "1 00" - แต่ต้องไม่ใช่ค่าธรรมเนียม)
+            /(?!.*(?:ค่าธรรมเนียม|Fee))(\d{1,2})\s+(\d{2})\s*บาท/i,
+            // รูปแบบ: "จำนวน: 100 บาท" (ไม่มีทศนิยม - แต่ต้องมีคำว่า "จำนวน" หรือ "Amount")
+            /(?:จำนวน|Amount)[:\s]+(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)\s*บาท/i,
+            // รูปแบบ: "100 บาท" (ไม่มีทศนิยม - แต่ต้องไม่ใช่ค่าธรรมเนียม)
+            /(?!.*(?:ค่าธรรมเนียม|Fee))(\d{1,3}(?:,\d{3})*)\s*บาท(?!\s*\.\d)/i,
         ]
         
-        for (const pattern of amountPatterns) {
+        for (let i = 0; i < amountPatterns.length; i++) {
+            const pattern = amountPatterns[i]
             const match = ocrText.match(pattern)
             if (match) {
-                ocrAmount = parseFloat(match[1].replace(/,/g, ""))
+                // กรณี pattern ที่ 4: "1 00 บาท" -> แปลงเป็น "1.00"
+                if (i === 3 && match[1] && match[2]) {
+                    const wholePart = match[1]
+                    const decimalPart = match[2]
+                    // ถ้าส่วนทศนิยมมี 2 หลัก และส่วนหลักมี 1-2 หลัก = น่าจะเป็นทศนิยม
+                    if (decimalPart.length === 2 && wholePart.length <= 2) {
+                        ocrAmount = parseFloat(`${wholePart}.${decimalPart}`)
+                    } else {
+                        ocrAmount = parseFloat(match[1].replace(/,/g, ""))
+                    }
+                } else {
+                    ocrAmount = parseFloat(match[1].replace(/,/g, ""))
+                }
                 break
             }
         }

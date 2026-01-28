@@ -425,17 +425,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             กลับ
                         </Button>
                         <div className="flex gap-2">
-                            {isOrganizer && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setShowReceiptUploadModal(true)}
-                                    className="hover:bg-green-50 text-green-700 border-green-200"
-                                >
-                                    <Receipt className="w-4 h-4 mr-2" />
-                                    อัปโหลดสลิป
-                                </Button>
-                            )}
                             <Button
                                 variant="ghost"
                                 size="sm"
