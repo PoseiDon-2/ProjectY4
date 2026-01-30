@@ -3,7 +3,7 @@
  * รองรับทุกธนาคารไทย: KBank, SCB, BBL, TTB, KTB, TMB, CIMB, etc.
  */
 
-export type ThaiBankCode = 
+export type ThaiBankCode =
     | "004" // KBank (กสิกรไทย)
     | "014" // SCB (ไทยพาณิชย์)
     | "002" // BBL (กรุงเทพ)
@@ -76,7 +76,7 @@ export interface ThaiBankSlipQRData {
 
 /**
  * Parse QR Code payload จากสลิปธนาคารไทย
- * 
+ *
  * รองรับหลาย format:
  * 1. EMVCo QR Code (PromptPay standard)
  * 2. Mini QR Code (ธนาคารเฉพาะ)
@@ -92,9 +92,9 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
         // ========== 1. ลอง parse เป็น JSON ก่อน ==========
         if (payload.trim().startsWith("{")) {
             const jsonData = JSON.parse(payload)
-            
-            result.transactionRefId = jsonData.transRef || jsonData.transactionRef || jsonData.ref || 
-                                     jsonData.transaction_id || jsonData.transactionId
+
+            result.transactionRefId = jsonData.transRef || jsonData.transactionRef || jsonData.ref ||
+                jsonData.transaction_id || jsonData.transactionId
             result.amount = jsonData.amount ? Number(jsonData.amount) : undefined
             result.bankCode = jsonData.bankCode || jsonData.bank_id || jsonData.bankId as ThaiBankCode
             result.dateTime = jsonData.dateTime || jsonData.date_time || jsonData.timestamp
@@ -102,39 +102,31 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
             result.promptpayId = jsonData.promptpayId || jsonData.promptpay_id || jsonData.promptPayId
             result.senderAccount = jsonData.senderAccount || jsonData.sender_account
             result.receiverAccount = jsonData.receiverAccount || jsonData.receiver_account
-            
+
             if (result.bankCode && THAI_BANKS[result.bankCode]) {
                 result.bankInfo = THAI_BANKS[result.bankCode]
             }
-            
+
             return result
         }
 
         // ========== 2. Parse EMVCo Format ==========
-        // EMVCo QR Code format: 000201010212...|01|...|...
         if (payload.startsWith("0002") || payload.includes("|")) {
             const parts = payload.split("|")
-            
-            // หา bank code (มักเป็น 3 หลัก)
+
             for (const part of parts) {
                 const trimmed = part.trim()
-                
-                // หา bank code (004, 014, 002, etc.)
                 if (/^[0-9]{3}$/.test(trimmed) && THAI_BANKS[trimmed as ThaiBankCode]) {
                     result.bankCode = trimmed as ThaiBankCode
                     result.bankInfo = THAI_BANKS[trimmed as ThaiBankCode]
                 }
             }
-            
-            // หา transaction reference ID
-            // Pattern: YYMMDDHHMMSS + APP/REF + numbers
-            // เช่น: 016019201846APP05320 (KBank)
-            // เช่น: 240119201846REF12345 (SCB)
+
             const transRefPatterns = [
                 /([0-9]{12}(?:APP|REF|TXN|TRX)[0-9]{5,10})/i,
                 /([0-9A-Z]{15,30})/i
             ]
-            
+
             for (const pattern of transRefPatterns) {
                 const match = payload.match(pattern)
                 if (match && match[1] && match[1].length >= 15) {
@@ -145,8 +137,6 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
         }
 
         // ========== 3. Parse จาก pattern ทั่วไป ==========
-        
-        // หา bank code จาก payload
         for (const [code, bank] of Object.entries(THAI_BANKS)) {
             const patterns = [
                 new RegExp(code, "i"),
@@ -154,7 +144,7 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
                 new RegExp(bank.nameEn.replace(/\s+/g, ".*"), "i"),
                 new RegExp(bank.name.replace(/ธนาคาร/g, "").trim(), "i")
             ]
-            
+
             for (const pattern of patterns) {
                 if (pattern.test(payload)) {
                     result.bankCode = code as ThaiBankCode
@@ -162,21 +152,17 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
                     break
                 }
             }
-            
+
             if (result.bankCode) break
         }
 
-        // หา transaction reference ID จาก pattern
-        // KBank: 016019201846APP05320
-        // SCB: 240119201846REF12345
-        // BBL: YYMMDDHHMMSS + prefix + numbers
         const transRefPatterns = [
             /([0-9]{12}(?:APP|REF|TXN|TRX|BBL|SCB|KTB)[0-9]{5,10})/i,
             /(?:Ref|Reference|เลขที่รายการ|เลขที่อ้างอิง)[:\s]*([0-9A-Z]{15,30})/i,
             /([0-9]{12}[A-Z]{3,6}[0-9]{5,10})/i,
             /([0-9A-Z]{15,30})/i
         ]
-        
+
         for (const pattern of transRefPatterns) {
             const match = payload.match(pattern)
             if (match && match[1] && match[1].length >= 15 && !result.transactionRefId) {
@@ -185,29 +171,23 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
             }
         }
 
-        // หา amount จาก pattern (รองรับทศนิยมอย่างถูกต้อง)
         const amountPatterns = [
-            // รูปแบบ: "1.00 บาท", "1,000.50 บาท" (มีทศนิยมชัดเจน)
             /(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*(?:บาท|THB|baht|฿)/i,
             /amount[:\s]*(\d{1,3}(?:,\d{3})*\.\d{1,2})/i,
             /จำนวน[:\s]*(\d{1,3}(?:,\d{3})*\.\d{1,2})/i,
-            // รูปแบบ: "1 00 บาท" (กรณี OCR อ่าน "1.00" เป็น "1 00")
             /(\d{1,2})\s+(\d{2})\s*(?:บาท|THB|baht|฿)/i,
-            // รูปแบบ: "100 บาท" (ไม่มีทศนิยม)
             /(\d{1,3}(?:,\d{3})*)\s*(?:บาท|THB|baht|฿)(?!\s*\.\d)/i,
             /amount[:\s]*(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)/i,
             /จำนวน[:\s]*(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)/i,
         ]
-        
+
         for (let i = 0; i < amountPatterns.length; i++) {
             const pattern = amountPatterns[i]
             const match = payload.match(pattern)
             if (match && !result.amount) {
-                // กรณี pattern ที่ 4: "1 00 บาท" -> แปลงเป็น "1.00"
                 if (i === 3 && match[1] && match[2]) {
                     const wholePart = match[1]
                     const decimalPart = match[2]
-                    // ถ้าส่วนทศนิยมมี 2 หลัก และส่วนหลักมี 1-2 หลัก = น่าจะเป็นทศนิยม
                     if (decimalPart.length === 2 && wholePart.length <= 2) {
                         result.amount = parseFloat(`${wholePart}.${decimalPart}`)
                     } else {
@@ -220,17 +200,53 @@ export function parseThaiBankSlipQR(payload: string): ThaiBankSlipQRData {
             }
         }
 
-        // หา PromptPay ID
         const promptpayPatterns = [
             /(?:promptpay|พร้อมเพย์)[:\s]*([0-9\-]{10,15})/i,
             /([0-9]{3}-[0-9]{3}-[0-9]{4})/,
             /([0-9]{10,13})/
         ]
-        
+
         for (const pattern of promptpayPatterns) {
             const match = payload.match(pattern)
             if (match && match[1] && match[1].length >= 10) {
                 result.promptpayId = match[1]
+                break
+            }
+        }
+
+        // ========== 4. ดึงเวลาและจำนวนเงินจาก payload แบบกสิกร/ธนาคาร (ตัวเลขล้วน) ==========
+        if (!result.dateTime && /^\d+/.test(payload)) {
+            const dateTimeMatch = payload.match(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:CPP|APP|REF|TXN)/)
+            if (dateTimeMatch) {
+                const [mm, yy, dd, hh, mi, ss] = dateTimeMatch.slice(1, 7).map(Number)
+                if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && hh <= 23 && mi <= 59 && ss <= 59) {
+                    const yearBE = 2500 + yy
+                    const yearCE = yearBE - 543
+                    const d = new Date(yearCE, mm - 1, dd, hh, mi, ss)
+                    if (!isNaN(d.getTime())) {
+                        result.dateTime = d.toISOString().slice(0, 19).replace("T", " ")
+                    }
+                }
+            }
+        }
+
+        if (result.amount == null && /^\d+/.test(payload)) {
+            const bankCodes = Object.keys(THAI_BANKS) as ThaiBankCode[]
+            for (const code of bankCodes) {
+                if (!payload.startsWith(code)) continue
+                const after = payload.slice(code.length)
+                if (after.startsWith("100")) result.amount = 1
+                else if (after.startsWith("500")) result.amount = 5
+                else if (after.startsWith("1000")) result.amount = 10
+                else if (after.startsWith("5000")) result.amount = 50
+                else if (after.startsWith("10000")) result.amount = 100
+                else {
+                    const m = after.match(/^(\d{3,6})/)
+                    if (m) {
+                        const satang = parseInt(m[1], 10)
+                        if (satang >= 100 && satang <= 999999) result.amount = satang / 100
+                    }
+                }
                 break
             }
         }

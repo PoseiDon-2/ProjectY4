@@ -86,6 +86,23 @@ export async function verifyThaiBankSlip(
             // ========== 2. Parse QR Payload ==========
             console.log("📋 กำลัง parse ข้อมูลจาก QR Code...")
             qrData = parseThaiBankSlipQR(qrPayload)
+
+            // แสดงข้อมูลจาก QR ในคอนโซลสำหรับวิเคราะห์
+            console.group("📦 ข้อมูลจาก QR Code (สำหรับวิเคราะห์)")
+            console.log("Raw payload (ข้อความดิบ):", qrPayload)
+            console.log("ข้อมูลที่ parse ได้ (qrData):", {
+                transactionRefId: qrData.transactionRefId,
+                bankCode: qrData.bankCode,
+                bankInfo: qrData.bankInfo,
+                amount: qrData.amount,
+                dateTime: qrData.dateTime,
+                accountNumber: qrData.accountNumber,
+                promptpayId: qrData.promptpayId,
+                senderAccount: qrData.senderAccount,
+                receiverAccount: qrData.receiverAccount,
+                rawPayload: qrData.rawPayload,
+            })
+            console.groupEnd()
             
             console.log("✅ Parse สำเร็จ:", {
                 transactionRefId: qrData.transactionRefId,

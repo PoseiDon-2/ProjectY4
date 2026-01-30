@@ -301,9 +301,28 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                 expectedPromptpayId: promptpayId || undefined
             })
 
-            // ตรวจสอบผลการ verify
+            // แสดงข้อมูลจาก QR ในคอนโซลสำหรับวิเคราะห์ (เปิด DevTools > Console ดู)
+            if (verificationResult.qrScanned && verificationResult.qrData) {
+                console.group("📦 [Donation Modal] ข้อมูลจาก QR Code ที่สแกนได้")
+                console.log("qrScanned:", verificationResult.qrScanned)
+                console.log("qrData:", verificationResult.qrData)
+                console.log("transactionRefId:", verificationResult.qrData.transactionRefId)
+                console.log("bankCode / bankInfo:", verificationResult.qrData.bankCode, verificationResult.qrData.bankInfo)
+                console.log("amount:", verificationResult.qrData.amount)
+                console.log("promptpayId:", verificationResult.qrData.promptpayId)
+                console.log("rawPayload (ต้นฉบับ):", verificationResult.qrData.rawPayload)
+                console.groupEnd()
+            }
+
+            // ตรวจสอบผลการ verify: ถ้าสแกน QR ได้แต่ verified เป็น false (สแกนไม่แน่นอน) ให้เป็น warning แทน error
+            // เพื่อให้สลิปยังอัปโหลดได้เป็น needs_review และให้คนตรวจอีกครั้ง
             if (!verificationResult.verified) {
-                errors.push(verificationResult.error || "สลิปไม่ผ่านการตรวจสอบ")
+                const msg = verificationResult.error || "สลิปไม่ผ่านการตรวจสอบ"
+                if (verificationResult.qrScanned) {
+                    warnings.push(msg + " (สแกน QR ได้ แต่มีรายการที่ต้องตรวจเพิ่ม)")
+                } else {
+                    errors.push(msg)
+                }
             }
 
             // OCR - อ่านข้อความจากสลิป (ต้องทำก่อนเพื่อใช้ในส่วนตรวจสอบจำนวนเงิน)
@@ -324,6 +343,12 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
             } catch (_) {
                 // ข้ามได้
             }
+
+            // แสดงข้อมูลจากการสแกนรูป (OCR) ในคอนโซล
+            console.group("📷 ข้อมูลจากการสแกนรูป (OCR)")
+            console.log("ข้อความที่อ่านได้จากรูป (ความยาว " + ocrText.length + " ตัวอักษร):", ocrText || "(ไม่มี)")
+            console.log("ตัวอย่าง 500 ตัวแรก:", ocrText.slice(0, 500) || "(ไม่มี)")
+            console.groupEnd()
 
             // ตรวจสอบจำนวนเงิน - ต้องตรงเท่านั้น (ไม่คลาดเคลื่อน)
             const requiredAmount = amount ? Number(amount) : null
@@ -548,7 +573,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
             // รูปแบบ: "19 ม.ค. 69 20:18 น." หรือ "19/01/2026 20:18"
             let ocrDateTime: Date | null = null
             if (ocrText) {
-                // รูปแบบ: DD ม.ค. YY HH:MM น.
+                // รูปแบบ: DD ม.ค. YY HH:MM น. (YY เป็น พ.ศ. 2 หลัก เช่น 69 = 2569 = 2026 ค.ศ.)
                 const thaiDateTimeMatch = ocrText.match(/(\d{1,2})\s*(ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s*(\d{2})\s+(\d{1,2}):(\d{2})\s*น\.?/i)
                 if (thaiDateTimeMatch) {
                     const thaiMonths: Record<string, number> = {
@@ -563,7 +588,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                     const yearRaw = Number(thaiDateTimeMatch[3])
                     const hour = Number(thaiDateTimeMatch[4])
                     const minute = Number(thaiDateTimeMatch[5])
-                    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw
+                    // พ.ศ. 2 หลัก (69 = 2569) → ค.ศ. 2026 (2569 - 543)
+                    const year = yearRaw < 100 ? 1957 + yearRaw : (yearRaw >= 2400 ? yearRaw - 543 : yearRaw)
                     if (month && day >= 1 && day <= 31 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
                         ocrDateTime = new Date(year, month - 1, day, hour, minute)
                     }
@@ -586,10 +612,14 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                 }
             }
 
-            // ตรวจสอบว่าเวลาสลิป >= warningStepTimestamp
+            // ตรวจสอบเวลา: ผ่านเมื่อเวลาสลิป >= เวลาที่กดยืนยัน (มากกว่าหรือเท่ากับได้)
+            // ตัวอย่าง: กด 23:30 → บริจาค 23:30 หรือ 23:30:01 ได้; น้อยกว่า 23:30 ถึงไม่ผ่าน
+            // ปัดเวลากดลงเป็นต้นนาที เพื่อให้สลิปที่แสดงแค่ HH:MM (ไม่มีวินาที) ไม่ถูกตัดเพราะวินาที
             if (ocrDateTime) {
-                if (ocrDateTime < warningStepTimestamp) {
-                    errors.push(`เวลาสลิป (${ocrDateTime.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) น้อยกว่าเวลาที่กดปุ่มยืนยัน (${warningStepTimestamp.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) - สลิปต้องทำรายการหลังจากกดปุ่มยืนยันเท่านั้น`)
+                const clickAtStartOfMinute = new Date(warningStepTimestamp)
+                clickAtStartOfMinute.setSeconds(0, 0)
+                if (ocrDateTime < clickAtStartOfMinute) {
+                    errors.push(`เวลาสลิป (${ocrDateTime.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) น้อยกว่าเวลาที่กดปุ่มยืนยัน (${warningStepTimestamp.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) - สลิปต้องทำรายการหลังหรือพร้อมกับกดปุ่มยืนยัน`)
                 }
             } else {
                 warnings.push("ไม่สามารถอ่านเวลาจากสลิปได้ - กรุณาตรวจสอบความชัดเจนของสลิป")
@@ -626,6 +656,23 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
             if (allReasons.length === 0 && decision === "approved") {
                 allReasons.push("✅ ตรวจสอบผ่าน - สลิปถูกต้องและครบถ้วน")
             }
+
+            // สรุปข้อมูลจากการสแกนรูป (QR + OCR) ในคอนโซล
+            console.group("📷 สรุปข้อมูลจากการสแกนรูป")
+            console.log("QR:", {
+                สแกนได้: verificationResult.qrScanned,
+                จำนวนเงินจากQR: verificationResult.qrData?.amount,
+                วันที่จากQR: verificationResult.qrData?.dateTime,
+                เลขที่รายการ: verificationResult.qrData?.transactionRefId,
+                ธนาคาร: verificationResult.qrData?.bankInfo?.name,
+            })
+            console.log("OCR:", {
+                วันที่ที่อ่านได้: ocrDateTime ? ocrDateTime.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }) : null,
+                ข้อความยาว: ocrText.length + " ตัวอักษร",
+                ตัวอย่าง: ocrText.slice(0, 200) + (ocrText.length > 200 ? "…" : ""),
+            })
+            console.log("ผลการตรวจ:", { decision, จำนวนเหตุผล: allReasons.length })
+            console.groupEnd()
 
             return {
                 decision,
@@ -1314,9 +1361,14 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                     </p>
                                                 )}
                                                 {slipResult.decision === "rejected" && (
-                                                    <p className="text-xs text-red-700 mb-2 font-medium">
-                                                        กรุณาอัปโหลดสลิปโอนเงินที่ถูกต้องและชัดเจน
-                                                    </p>
+                                                    <>
+                                                        <p className="text-xs text-red-700 mb-2 font-medium">
+                                                            กรุณาอัปโหลดสลิปโอนเงินที่ถูกต้องและชัดเจน
+                                                        </p>
+                                                        <p className="text-xs text-red-600 mb-1">
+                                                            <strong>เหตุผลที่ไม่ผ่าน:</strong> ด้านล่างคือรายการที่ระบบตรวจพบ กรุณาแก้ไขตามนั้นแล้วอัปโหลดใหม่
+                                                        </p>
+                                                    </>
                                                 )}
                                                 {slipResult.decision === "needs_review" && (
                                                     <p className="text-xs text-yellow-700 mb-2">
@@ -1325,6 +1377,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                 )}
                                                 {slipResult.reasons?.length > 0 && (
                                                     <div className="mt-2">
+                                                        <p className="text-xs font-medium text-gray-700 mb-1">รายละเอียด:</p>
                                                         <ul className="list-disc pl-5 text-sm space-y-1">
                                                             {slipResult.reasons.map((r, i) => (
                                                                 <li 
@@ -1340,6 +1393,25 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                                     {r}
                                                                 </li>
                                                             ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {slipResult.decision === "rejected" && (slipResult._debug || slipResult.ocrPreview) && (
+                                                    <div className="mt-3 pt-3 border-t border-red-200">
+                                                        <p className="text-xs font-medium text-gray-700 mb-1">ข้อมูลที่ระบบดึงจากสลิปได้:</p>
+                                                        <ul className="text-xs text-gray-600 space-y-0.5">
+                                                            {slipResult._debug?.ocrAmount != null && (
+                                                                <li>• จำนวนเงินที่อ่านได้: ฿{Number(slipResult._debug.ocrAmount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</li>
+                                                            )}
+                                                            {slipResult._debug?.ocrDate && (
+                                                                <li>• วันที่ที่อ่านได้: {slipResult._debug.ocrDate}</li>
+                                                            )}
+                                                            {slipResult._debug?.hasSlipEvidence != null && (
+                                                                <li>• สแกน QR ในสลิปได้: {slipResult._debug.hasSlipEvidence ? "ใช่" : "ไม่"}</li>
+                                                            )}
+                                                            {slipResult.ocrPreview && (
+                                                                <li className="mt-1 break-all">• ข้อความจาก OCR (ส่วนต้น): &quot;{slipResult.ocrPreview.slice(0, 120)}{slipResult.ocrPreview.length > 120 ? "…" : ""}&quot;</li>
+                                                            )}
                                                         </ul>
                                                     </div>
                                                 )}
@@ -1567,9 +1639,14 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                     </p>
                                                 )}
                                                 {slipResult.decision === "rejected" && (
-                                                    <p className="text-xs text-red-700 mb-2 font-medium">
-                                                        กรุณาอัปโหลดสลิปโอนเงินที่ถูกต้องและชัดเจน
-                                                    </p>
+                                                    <>
+                                                        <p className="text-xs text-red-700 mb-2 font-medium">
+                                                            กรุณาอัปโหลดสลิปโอนเงินที่ถูกต้องและชัดเจน
+                                                        </p>
+                                                        <p className="text-xs text-red-600 mb-1">
+                                                            <strong>เหตุผลที่ไม่ผ่าน:</strong> ด้านล่างคือรายการที่ระบบตรวจพบ กรุณาแก้ไขตามนั้นแล้วอัปโหลดใหม่
+                                                        </p>
+                                                    </>
                                                 )}
                                                 {slipResult.decision === "needs_review" && (
                                                     <p className="text-xs text-yellow-700 mb-2">
@@ -1578,6 +1655,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                 )}
                                                 {slipResult.reasons?.length > 0 && (
                                                     <div className="mt-2">
+                                                        <p className="text-xs font-medium text-gray-700 mb-1">รายละเอียด:</p>
                                                         <ul className="list-disc pl-5 text-sm space-y-1">
                                                             {slipResult.reasons.map((r, i) => (
                                                                 <li 
@@ -1593,6 +1671,25 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                                     {r}
                                                                 </li>
                                                             ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {slipResult.decision === "rejected" && (slipResult._debug || slipResult.ocrPreview) && (
+                                                    <div className="mt-3 pt-3 border-t border-red-200">
+                                                        <p className="text-xs font-medium text-gray-700 mb-1">ข้อมูลที่ระบบดึงจากสลิปได้:</p>
+                                                        <ul className="text-xs text-gray-600 space-y-0.5">
+                                                            {slipResult._debug?.ocrAmount != null && (
+                                                                <li>• จำนวนเงินที่อ่านได้: ฿{Number(slipResult._debug.ocrAmount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</li>
+                                                            )}
+                                                            {slipResult._debug?.ocrDate && (
+                                                                <li>• วันที่ที่อ่านได้: {slipResult._debug.ocrDate}</li>
+                                                            )}
+                                                            {slipResult._debug?.hasSlipEvidence != null && (
+                                                                <li>• สแกน QR ในสลิปได้: {slipResult._debug.hasSlipEvidence ? "ใช่" : "ไม่"}</li>
+                                                            )}
+                                                            {slipResult.ocrPreview && (
+                                                                <li className="mt-1 break-all">• ข้อความจาก OCR (ส่วนต้น): &quot;{slipResult.ocrPreview.slice(0, 120)}{slipResult.ocrPreview.length > 120 ? "…" : ""}&quot;</li>
+                                                            )}
                                                         </ul>
                                                     </div>
                                                 )}

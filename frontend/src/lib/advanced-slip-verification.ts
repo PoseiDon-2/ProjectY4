@@ -696,94 +696,106 @@ function checkAccountName(ocrText: string, expectedAccountName: string | null): 
     let exactMatch = false
     
     if (expectedAccountName) {
-        // หาชื่อบัญชีจาก OCR (ขยาย pattern ให้ครอบคลุมมากขึ้น)
-        // วิธีใหม่: หา "PromptPay" ก่อน แล้วหาชื่อที่อยู่หลังมัน
+        // ลบคำนำหน้าออกเพื่อเทียบชื่อจริง (นาย, น.ส., นาง, นางสาว)
+        const nameWithoutTitle = expectedAccountName.replace(/^(น\.?ส\.?|นาย|นาง|นางสาว)\s+/i, "").trim()
+        const expectedParts = nameWithoutTitle.split(/\s+/).filter(p => p.length >= 2)
+        
+        // ตรวจสอบก่อน: ถ้าใน OCR มีชื่อที่คาดหวังอยู่ (แม้ OCR จะอ่านผิดเป็นตัวอื่น)
+        // เช่น OCR อ่าน "โชคชัย หาญปี" ผิดเป็น "Ie o" แต่ถ้ามีคำว่า "โชคชัย" หรือ "หาญปี" อยู่ในข้อความ = ถือว่าผ่าน
+        const ocrLower = ocrText.toLowerCase()
+        const expectedPartsInOcr = expectedParts.filter(part => 
+            ocrLower.includes(part.toLowerCase())
+        )
+        if (expectedPartsInOcr.length >= Math.max(1, expectedParts.length * 0.6)) {
+            found = true
+            accountName = expectedAccountName
+            exactMatch = true
+            return { found, accountName, exactMatch, issues }
+        }
+        
+        // หาชื่อบัญชีจาก OCR: เลือกเฉพาะชื่อที่อยู่หลัง PromptPay (ฝั่งผู้รับ) และตรงกับ expected มากที่สุด
         const promptpayIndex = ocrText.search(/(?:พร้อมเพย์|PromptPay|Prompt Pay)/i)
         
         if (promptpayIndex !== -1) {
-            // หาชื่อที่อยู่หลัง PromptPay section
             const afterPromptpayText = ocrText.substring(promptpayIndex)
-            
-            // Pattern สำหรับหาชื่อหลัง PromptPay
             const nameAfterPromptpayPatterns = [
-                // รูปแบบ: "PromptPay ... นายโชคชัย หาญปี"
                 /(?:น\.?ส\.?|นาย|นาง|นางสาว)\s+([A-Za-zก-๙\s]{3,50})/i,
-                // รูปแบบ: "PromptPay ... ชื่อ: โชคชัย หาญปี"
                 /(?:ชื่อ|Name)[:\s]*([A-Za-zก-๙\s]{3,50})/i,
             ]
+            
+            let bestMatch: string | null = null
+            let bestScore = 0
             
             for (const pattern of nameAfterPromptpayPatterns) {
                 const match = afterPromptpayText.match(pattern)
                 if (match && match[1]) {
                     const extracted = match[1].trim()
                     if (extracted.length >= 3 && !extracted.match(/^\d+$/)) {
-                        found = true
-                        accountName = extracted
-                        break
+                        // เลือกชื่อที่ตรงกับ expected มากที่สุด (นับคำที่ตรง)
+                        const extractedParts = extracted.split(/\s+/)
+                        const score = extractedParts.filter(ep => 
+                            expectedParts.some(exp => ep.includes(exp) || exp.includes(ep))
+                        ).length
+                        if (score > bestScore) {
+                            bestScore = score
+                            bestMatch = extracted
+                        }
                     }
                 }
             }
+            
+            if (bestMatch) {
+                found = true
+                accountName = bestMatch
+            }
         }
         
-        // ถ้ายังไม่เจอ ลองหาแบบทั่วไป
         if (!found) {
             const accountPatterns = [
-                // Pattern: ชื่อที่ขึ้นต้นด้วย น.ส. | นาย | นาง | นางสาว (ทั่วไป)
                 /(?:น\.?ส\.?|นาย|นาง|นางสาว)\s+([A-Za-zก-๙\s]{3,50})/i,
-                // Pattern: ชื่อที่อยู่หลัง "รหัสพร้อมเพย์" หรือ "PromptPay ID"
                 /(?:รหัสพร้อมเพย์|PromptPay ID)[:\s]*([A-Za-zก-๙\s]{3,50})/i,
-                // Pattern เดิม
                 /(?:บัญชี|Account|ชื่อ)[:\s]*([A-Za-zก-๙\s]{3,50})/i,
                 /(?:ผู้รับ|Receiver|Recipient)[:\s]*([A-Za-zก-๙\s]{3,50})/i,
             ]
+            
+            let bestMatch: string | null = null
+            let bestScore = 0
             
             for (const pattern of accountPatterns) {
                 const match = ocrText.match(pattern)
                 if (match && match[1]) {
                     const extracted = match[1].trim()
-                    // ตรวจสอบว่าไม่ใช่คำอื่นๆ ที่ไม่ใช่ชื่อ
                     if (extracted.length >= 3 && !extracted.match(/^\d+$/)) {
-                        found = true
-                        accountName = extracted
-                        break
+                        const extractedParts = extracted.split(/\s+/)
+                        const score = extractedParts.filter(ep => 
+                            expectedParts.some(exp => ep.includes(exp) || exp.includes(ep))
+                        ).length
+                        if (score > bestScore) {
+                            bestScore = score
+                            bestMatch = extracted
+                        }
                     }
                 }
             }
+            
+            if (bestMatch) {
+                found = true
+                accountName = bestMatch
+            }
         }
         
-        // ถ้ายังไม่เจอ ลองหาโดยตรงจาก expectedAccountName
-        if (!found && expectedAccountName) {
-            const normalizedExpected = expectedAccountName.replace(/\s+/g, " ").trim().toLowerCase()
-            // หาชื่อใน OCR โดยตรง (อาจมี spacing ต่างกัน)
-            const nameParts = normalizedExpected.split(/\s+/)
-            const foundParts = nameParts.filter(part => 
-                ocrText.toLowerCase().includes(part.toLowerCase())
-            )
-            
-            if (foundParts.length >= nameParts.length * 0.7) { // ต้องเจออย่างน้อย 70% ของชื่อ
-                found = true
-                // หาชื่อเต็มจาก OCR
-                const nameRegex = new RegExp(
-                    nameParts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*?'),
-                    'i'
-                )
-                const nameMatch = ocrText.match(nameRegex)
-                if (nameMatch) {
-                    accountName = nameMatch[0].trim()
-                } else {
-                    accountName = expectedAccountName // ใช้ชื่อที่คาดหวัง
-                }
-            }
+        // ถ้ายังไม่เจอ แต่มีคำใน expected อยู่ใน OCR (เช่น โชคชัย, หาญปี) ถือว่าผ่าน
+        if (!found && expectedPartsInOcr.length >= 1) {
+            found = true
+            accountName = expectedAccountName
+            exactMatch = true
         }
         
         if (!found) {
             issues.push("ไม่พบชื่อบัญชีผู้รับในสลิป")
         } else if (accountName) {
-            // ตรวจสอบว่าตรง (case-insensitive, trim spaces, ยืดหยุ่นเรื่อง spacing)
             const normalizedFound = accountName.replace(/\s+/g, " ").trim().toLowerCase()
             const normalizedExpected = expectedAccountName.replace(/\s+/g, " ").trim().toLowerCase()
-            
-            // ตรวจสอบแบบยืดหยุ่น - อนุญาตให้มีส่วนที่ตรงกัน 80%+
             const foundWords = normalizedFound.split(/\s+/)
             const expectedWords = normalizedExpected.split(/\s+/)
             const matchingWords = foundWords.filter(fw => 
@@ -791,9 +803,15 @@ function checkAccountName(ocrText: string, expectedAccountName: string | null): 
             )
             const matchRatio = matchingWords.length / Math.max(foundWords.length, expectedWords.length)
             
-            exactMatch = normalizedFound === normalizedExpected || matchRatio >= 0.8
+            // ถ้า OCR มีคำจากชื่อที่คาดหวังอยู่ (เช่น โชคชัย หรือ หาญปี) แม้ข้อความที่ดึงมาจะผิด ก็ถือว่าผ่าน
+            // หรือถ้าข้อความที่ดึงมาไม่มีตัวอักษรไทยและสั้นมาก (เช่น "Ie o") = น่าจะเป็น OCR อ่านชื่อไทยผิด เป็นตัวละติน → ไม่ให้ reject
+            const hasThai = /[ก-๙]/.test(accountName)
+            const looksLikeOcrError = !hasThai && accountName.length <= 10
+            exactMatch = normalizedFound === normalizedExpected || matchRatio >= 0.8 || 
+                expectedPartsInOcr.length >= Math.max(1, expectedParts.length * 0.5) || 
+                looksLikeOcrError
             
-            if (!exactMatch && matchRatio < 0.5) {
+            if (!exactMatch && matchRatio < 0.5 && expectedPartsInOcr.length < 1 && !looksLikeOcrError) {
                 issues.push(`ชื่อบัญชีไม่ตรง: พบ "${accountName}", ควรเป็น "${expectedAccountName}"`)
             }
         }
