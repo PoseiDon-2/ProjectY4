@@ -22,12 +22,15 @@ interface User {
     lastName: string
     phone: string
     avatar?: string
-    joinDate: string
+    joinDate: string 
+    createdAt?: string 
+    created_at?: string
+    
     totalDonated: number
     donationCount: number
     favoriteCategories: string[]
     interests: string[]
-    role: "user" | "organizer" | "admin"  // เปลี่ยนเป็น lowercase
+    role: "user" | "organizer" | "admin"
     organizationName?: string
     organizationType?: string
     isVerified: boolean
@@ -103,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 // แปลง role
                 const mappedRole = (() => {
-                    const role = data.role.toUpperCase()
+                    const role = data.role ? data.role.toUpperCase() : 'USER'
                     if (role === 'DONOR') return 'user'
                     if (role === 'ORGANIZATION' || role === 'ORGANIZER') return 'organizer'
                     if (role === 'ADMIN') return 'admin'
@@ -126,12 +129,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     interests = data.interests ?? []
                 }
 
+                // จัดการเรื่องวันที่ให้แน่นอน
+                // ถ้า Backend ส่ง created_at หรือ createdAt มา ให้ใช้เป็น joinDate ด้วย
+                const realJoinDate = data.joinDate || data.createdAt || data.created_at || new Date().toISOString()
+
                 setUser({
                     ...data,
                     role: mappedRole,
                     donations,
                     favoriteCategories: data.favoriteCategories ?? [],
                     interests,
+                    joinDate: realJoinDate, // มั่นใจได้ว่ามีค่าเสมอ
                 })
             } else {
                 setUser(null)

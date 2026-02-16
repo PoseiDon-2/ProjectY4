@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use App\Enums\UserRole;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\RecommendationController;
+use App\Http\Controllers\UserController;
+
 
 
 Route::prefix('auth')->group(function () {
@@ -266,6 +268,8 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
         }
     });
 });
+
+Route::get('/users', [AdminUserController::class, 'getUsers']);
 
 // === ADMIN APIs ===
 Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
@@ -530,6 +534,11 @@ Route::middleware(['auth:sanctum'])->prefix('upload')->group(function () {
     });
 });
 
+Route::post('/donation-requests/{id}/approve', [DonationRequestController::class, 'approveRequest']);
+Route::post('/donation-requests/{id}/reject', [DonationRequestController::class, 'rejectRequest']);
+Route::post('/donation-requests/{id}/approve-edit', [DonationRequestController::class, 'approveEditRequest']);
+
+Route::get('/users/{id}', [UserController::class, 'show']);
 // === HEALTH CHECK ===
 Route::get('/health', function () {
     return response()->json([

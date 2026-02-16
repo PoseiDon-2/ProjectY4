@@ -7,16 +7,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\UserBehavior;
 use App\Enums\UserInteractionType;
+use Illuminate\Validation\Rule;
 
 class UserBehaviorController extends Controller
 {
     public function store(Request $request)
     {
-        // 1. Validation
+        // 1. Validation (ปรับให้รับ Integer)
         $validated = $request->validate([
             'session_id'          => 'required|string',
             'donation_request_id' => 'required|exists:donation_requests,id',
-            'action_type'         => 'required|string|in:' . implode(',', array_column(UserInteractionType::cases(), 'value')),
+
+            // แก้ตรงนี้: รับค่าเป็นตัวเลข (Integer) ที่ถูกต้องตาม Enum
+            'action_type'         => ['required', 'integer', Rule::enum(UserInteractionType::class)],
+
             'duration_ms'         => 'nullable|integer',
             'meta_data'           => 'nullable'
         ]);
@@ -30,33 +34,49 @@ class UserBehaviorController extends Controller
 
         // 3. Logic ป้องกันการเขียนทับ (Priority Logic)
         if ($existingBehavior) {
-            $oldAction = $existingBehavior->action_type; // เป็น Enum (เพราะมี casting ใน Model)
-            $newAction = UserInteractionType::tryFrom($validated['action_type']);
+            // $oldAction เป็น Enum Object อัตโนมัติ (เพราะ Cast ใน Model)
+            $oldAction = $existingBehavior->action_type;
 
-            // กำหนดความสำคัญ (3 = สูงสุด, 1 = ต่ำสุด)
+            // $newActionInput เป็น Integer (1, 2, 3, 4) จาก Request
+            $newActionInput = $validated['action_type'];
+
+            // กำหนดความสำคัญ (Key เป็น Integer ตาม Enum)
             $priority = [
-                UserInteractionType::SWIPE_LIKE->value => 3,
-                UserInteractionType::SWIPE_PASS->value => 3,
+                UserInteractionType::SWIPE_LIKE->value => 1,   // สำคัญที่สุด
+                UserInteractionType::SWIPE_PASS->value => 1,   // สำคัญเท่ากัน (ไม่ต้องการเห็นซ้ำ)
                 UserInteractionType::CLICK_DETAIL->value => 2,
-                UserInteractionType::VIEW_STORY->value => 1,
+                UserInteractionType::VIEW_STORY->value => 3,   // สำคัญน้อยสุด
             ];
-
+            // ดึงค่า Priority (ถ้าไม่มีให้เป็น 0)
             $oldPriority = $priority[$oldAction->value] ?? 0;
-            $newPriority = $priority[$newAction->value] ?? 0;
+            $newPriority = $priority[$newActionInput] ?? 0;
 
             // ถ้า Action ใหม่ มีความสำคัญ "น้อยกว่า" Action เดิมที่มีอยู่แล้ว -> ห้ามอัปเดต
-            // เช่น: เดิมเป็น swipe_pass (3) แล้วมี view_story (1) ส่งเข้ามาทับ -> เราจะไม่เซฟ
             if ($newPriority < $oldPriority) {
+                // อัปเดตเพราะใหม่สำคัญกว่า
+                $existingBehavior->update([
+                    'action_type' => $validated['action_type'],
+                    'duration_ms' => $validated['duration_ms'] ?? $existingBehavior->duration_ms,
+                    'meta_data'   => $validated['meta_data'] ?? $existingBehavior->meta_data
+                ]);
+
                 return response()->json([
                     'success' => true,
-                    'message' => 'Skipped: Higher priority action exists.',
+                    'message' => 'Updated: New action has higher priority.',
+                    'data'    => $existingBehavior
+                ]);
+            } else {
+                // ข้ามเพราะเดิมสำคัญกว่าหรือเท่ากัน
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Skipped: Existing action has equal or higher priority.',
                     'data'    => $existingBehavior
                 ]);
             }
         }
 
-        // 4. บันทึกข้อมูล (ถ้าผ่านเงื่อนไขด้านบนมาได้ หรือยังไม่มีข้อมูล)
-        // ใช้ updateOrCreate เหมือนเดิม แต่ตอนนี้ปลอดภัยแล้ว
+        // 4. บันทึกข้อมูล
+        // ใช้ updateOrCreate โดยส่ง Integer เข้าไปได้เลย Laravel จะจัดการ Cast ให้เอง
         $behavior = UserBehavior::updateOrCreate(
             [
                 'session_id'          => $validated['session_id'],
@@ -64,7 +84,7 @@ class UserBehaviorController extends Controller
             ],
             [
                 'user_id'     => $userId,
-                'action_type' => $validated['action_type'],
+                'action_type' => $validated['action_type'], // ส่งเลข 1, 2, 3, 4 ลงไป
                 'duration_ms' => $request->input('duration_ms', 0),
                 'meta_data'   => $validated['meta_data'] ?? null
             ]

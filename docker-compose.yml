@@ -73,7 +73,7 @@ services:
     environment:
     - FLASK_APP=recommender.py
     - FLASK_DEBUG=1     # <--- สำคัญ! ตัวนี้ทำให้แก้โค้ดแล้วรีสตาร์ทเอง
-  command: flask run --host=0.0.0.0
+    command: flask run --host=0.0.0.0
 
   # --- Database (MariaDB) ---
   database:

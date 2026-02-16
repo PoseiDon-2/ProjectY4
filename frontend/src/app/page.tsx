@@ -180,7 +180,17 @@ const trackUserBehavior = async (
     metaData?: any
 ) => {
     try {
-        const token = localStorage.getItem('auth_token') // หรือใช้ token จาก context
+        // แปลง action_type จาก string เป็น integer ตาม Enum
+        const actionTypeMap = {
+            'swipe_like': 1,
+            'swipe_pass': 2,
+            'click_detail': 3,
+            'view_story': 4
+        };
+
+        const actionTypeValue = actionTypeMap[actionType];
+
+        const token = localStorage.getItem('auth_token');
         const headers: any = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
@@ -193,7 +203,7 @@ const trackUserBehavior = async (
         const payload = {
             session_id: sessionId,
             donation_request_id: donationRequestId,
-            action_type: actionType,
+            action_type: actionTypeValue, // ส่งเป็น integer
             duration_ms: durationMs || 0,
             meta_data: metaData || null
         }
@@ -202,7 +212,6 @@ const trackUserBehavior = async (
 
     } catch (error) {
         console.error('Failed to track user behavior:', error)
-        // ไม่ควร throw error เพราะไม่ควรขัดจังหวะการใช้งานหลัก
     }
 }
 
@@ -297,11 +306,20 @@ export default function DonationSwipe() {
             setLoading(true)
             setError(null)
 
-            // --- 1. ดึง Token จากที่เก็บ (ปกติคือ localStorage หรือ cookie) ---
-            // ตรวจสอบชื่อ key ให้ตรงกับที่คุณเก็บตอน Login (เช่น 'token', 'auth_token', 'auth_token')
             const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
-            
-            console.log("🔑 Token ที่เจอ:", token ? "มี Token" : "ไม่มี Token");
+            const sessionId = getOrCreateSessionId(); // รับ sessionId ตรงนี้
+
+            console.log("🔑 Token:", token ? "มี Token" : "ไม่มี Token");
+            console.log("📝 Session ID:", sessionId);
+
+            // --- สร้าง query parameters ---
+            const params = new URLSearchParams();
+            if (sessionId) {
+                params.append('session_id', sessionId);
+            }
+
+            const queryString = params.toString();
+            const url = `${API_URL}/donation-requests${queryString ? `?${queryString}` : ''}`;
 
             // --- 2. สร้าง Config สำหรับ Axios ---
             const axiosConfig = {
@@ -313,18 +331,18 @@ export default function DonationSwipe() {
 
             // --- 3. ยิง Request พร้อม Header ---
             const [donationResponse, storiesResponse] = await Promise.all([
-                axios.get(`${API_URL}/donation-requests`, axiosConfig), // <--- ใส่ config ตรงนี้สำคัญมาก!
+                axios.get(url, axiosConfig), // ใช้ URL ที่มี query parameter
                 axios.get(`${API_URL}/stories`)
             ])
 
             const apiRequests = donationResponse.data.data || donationResponse.data || []
             const transformedRequests = apiRequests.length > 0 ? apiRequests.map(transformApiData) : []
-            
+
             // --- 4. Logic การเรียงลำดับใน Frontend ---
             // ใช้ index มากำหนดคะแนน เพื่อให้ตัวแรกสุดที่ Backend ส่งมา (ซึ่งควรจะเป็นตัวแนะนำ) อยู่บนสุดเสมอ
             const scoredRequests: ScoredDonationRequest[] = transformedRequests.map((req: DonationRequest, index: number) => ({
                 ...req,
-                internalScore: 1000 - index, 
+                internalScore: 1000 - index,
                 lastViewedAt: 0
             }));
 
@@ -338,7 +356,7 @@ export default function DonationSwipe() {
 
             setCardPool(initialPool);
             if (initialPool.length > 0) {
-                 setActiveCardIndex(0);
+                setActiveCardIndex(0);
             }
 
             const apiStories = storiesResponse.data.data || storiesResponse.data || []
@@ -616,9 +634,9 @@ export default function DonationSwipe() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
             <div className="max-w-6xl mx-auto">
-                <div className="flex items-center justify-between mb-6 pt-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between mb-6 pt-4 gap-4">
                     <h1 className="text-2xl font-bold text-gray-800">DonateSwipe</h1>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
                         <Button
                             variant="outline"
                             size="sm"
@@ -634,7 +652,7 @@ export default function DonationSwipe() {
                             onClick={() => router.push("/favorites")}
                             className="bg-pink-100 text-pink-700 border-pink-200 hover:bg-pink-200"
                         >
-                            ❤️ {likedRequests.length} รายการ
+                            ❤️ {likedRequests.length}
                         </Button>
                         {user ? (
                             <Button
@@ -710,8 +728,8 @@ export default function DonationSwipe() {
                         </div>
                     </Card>
                 ) : (
-                    <div className={`flex items-center justify-center gap-6 transition-colors duration-200 ${getSwipeBackground()}`}>
-                        <div className="flex-shrink-0">
+                    <div className={`flex items-center justify-center gap-2 md:gap-6 transition-colors duration-200 ${getSwipeBackground()}`}>
+                        <div className="hidden md:flex flex-shrink-0">
                             <Button
                                 size="lg"
                                 variant="outline"
@@ -722,7 +740,7 @@ export default function DonationSwipe() {
                             </Button>
                         </div>
 
-                        <div className="flex-1 max-w-md">
+                        <div className="w-full sm:max-w-md">
                             <div
                                 ref={cardRef}
                                 className="cursor-grab active:cursor-grabbing transition-transform duration-200"
@@ -740,7 +758,7 @@ export default function DonationSwipe() {
                                         <img
                                             src={currentRequest.image}
                                             alt={currentRequest.title}
-                                            className="w-full h-64 object-cover select-none pointer-events-none"
+                                            className="w-full h-56 sm:h-64 object-cover select-none pointer-events-none"
                                             onError={handleImageError}
                                             draggable="false"
                                             onDragStart={(e) => e.preventDefault()}
@@ -758,7 +776,7 @@ export default function DonationSwipe() {
                                         </Button>
                                     </div>
 
-                                    <CardContent className="p-6 flex-1 flex flex-col">
+                                    <CardContent className="p-4 sm:p-6 flex-1 flex flex-col">
                                         <div className="space-y-4 flex-1">
                                             <div className="flex-shrink-0">
                                                 <h2 className="text-xl font-bold text-gray-800 mb-2 line-clamp-2 leading-tight">{currentRequest.title}</h2>
@@ -810,7 +828,7 @@ export default function DonationSwipe() {
                                 </Card>
                             </div>
 
-                            <div className="flex justify-between items-center mt-4 px-2">
+                            <div className="flex justify-between items-center mt-4 px-2 md:hidden">
                                 <div className="text-center flex-1">
                                     <X className="w-5 h-5 text-red-500 mx-auto mb-1" />
                                     <span className="text-xs text-gray-600">ปัดซ้ายเพื่อข้าม</span>
@@ -822,7 +840,7 @@ export default function DonationSwipe() {
                             </div>
                         </div>
 
-                        <div className="flex-shrink-0">
+                        <div className="hidden md:flex flex-shrink-0">
                             <Button
                                 size="lg"
                                 className="w-20 h-20 rounded-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-xl transition-all duration-200 hover:scale-110"

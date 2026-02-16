@@ -11,28 +11,21 @@ return new class extends Migration
         Schema::create('user_behaviors', function (Blueprint $table) {
             $table->uuid('id')->primary(); // ใช้ UUID เป็น Primary Key
 
-            // User ID (Nullable เพราะคนทั่วไปที่ยังไม่ Login ก็เล่นได้)
             $table->uuid('user_id')->nullable()->index();
-
-            // Session ID (สำคัญสำหรับคนไม่ Login)
             $table->string('session_id')->index();
-
-            // เชื่อมกับตาราง donation_requests (ต้องมั่นใจว่าตารางนั้นใช้ UUID เหมือนกัน)
             $table->uuid('donation_request_id');
 
-            // ประเภทการกระทำ: swipe_like, swipe_pass, click_detail, view_story
-            $table->string('action_type');
+            // --- [จุดที่แก้] ---
+            // เปลี่ยนจาก string เป็น tinyInteger เพื่อเก็บเลข 1, 2, 3, 4 (ใช้พื้นที่แค่ 1 byte)
+            // unsigned() เพื่อกันค่าติดลบ (เก็บได้ 0-255)
+            $table->tinyInteger('action_type')->unsigned(); 
+            // ------------------
 
-            // ระยะเวลาที่ดู (ms)
             $table->integer('duration_ms')->default(0);
-
-            // ข้อมูลเพิ่มเติม (เก็บเป็น JSON)
             $table->json('meta_data')->nullable();
-
             $table->timestamps();
 
-            // Optional: ถ้าอยากทำ Foreign Key (ถ้าตาราง users หรือ donation_requests ใช้ ID แบบอื่น ให้แก้ตรงนี้)
-            // $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            // แนะนำ: ถ้าตาราง donation_requests มีอยู่จริง ควรเปิดคอมเมนต์บรรทัดนี้เพื่อทำ FK ครับ
             // $table->foreign('donation_request_id')->references('id')->on('donation_requests')->onDelete('cascade');
         });
     }

@@ -520,7 +520,7 @@ export default function OrganizerDashboard() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm text-gray-600">Stories ทั้งหมด</p>
-                                            <p className="text-2xl font-bold text-purple-600">12</p>
+                                            <p className="text-2xl font-bold text-purple-600">0</p>
                                         </div>
                                         <BarChart3 className="w-8 h-8 text-purple-500" />
                                     </div>
