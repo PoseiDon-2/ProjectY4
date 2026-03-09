@@ -13,15 +13,14 @@ import { favoritesAPI, type FavoriteRequestItem } from "@/lib/api"
 import ShareModal from "./share-modal"
 import axios from "axios"
 import { useAuth } from "@/contexts/auth-context"
-<<<<<<< HEAD
-=======
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
 
-<<<<<<< HEAD
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
+
 export default function Favorites() {
     const router = useRouter()
     const { user } = useAuth()
@@ -49,7 +48,7 @@ export default function Favorites() {
         router.push("/login")
         return null
     }
-=======
+
 interface DonationRequest {
     id: string
     title: string
@@ -256,17 +255,13 @@ export default function Favorites() {
     useEffect(() => {
         fetchFavorites()
     }, [user])
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
 
     const formatAmount = (amount: number) => {
         return new Intl.NumberFormat("th-TH").format(amount)
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     const removeFromFavorites = async (id: string) => {
         try {
             await favoritesAPI.remove(id)
@@ -278,12 +273,11 @@ export default function Favorites() {
 
     const getCategoryColor = (category: string | null) => {
         if (!category) return "bg-gray-100 text-gray-700"
-=======
     const getCategoryColor = (category: string) => {
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
     const getCategoryColor = (category: string) => {
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+    const getCategoryColor = (category: string) => {
         const colors: Record<string, string> = {
             ภัยพิบัติ: "bg-red-100 text-red-700",
             การแพทย์: "bg-blue-100 text-blue-700",
@@ -296,7 +290,6 @@ export default function Favorites() {
         return colors[category] || "bg-gray-100 text-gray-700"
     }
 
-<<<<<<< HEAD
     const getUrgencyBadge = (daysLeft: number | null | undefined) => {
         const d = daysLeft ?? 0
         if (d <= 7) return { text: "เร่งด่วน", class: "bg-red-500 text-white" }
@@ -311,7 +304,6 @@ export default function Favorites() {
         category: r.category ?? "",
         daysLeft: r.daysLeft ?? null,
     })
-=======
     const getUrgencyBadge = (daysLeft: number) => {
         if (daysLeft <= 3) return { text: "ด่วนมาก!", class: "bg-red-500 text-white" }
         if (daysLeft <= 7) return { text: "เร่งด่วน", class: "bg-orange-500 text-white" }
@@ -334,16 +326,12 @@ export default function Favorites() {
             </div>
         )
     }
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
             <div className="bg-white shadow-sm border-b">
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center gap-4">
                         <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="hover:bg-pink-50">
@@ -355,9 +343,7 @@ export default function Favorites() {
                             <p className="text-sm text-gray-600">
                                 {loading ? "กำลังโหลด..." : `${favoriteRequests.length} รายการที่คุณเลือกไว้`}
                             </p>
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                 <div className="max-w-6xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -386,23 +372,17 @@ export default function Favorites() {
                             >
                                 ดูเพิ่มเติม
                             </Button>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                         </div>
                     </div>
                 </div>
             </div>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
             <div className="max-w-4xl mx-auto p-4">
                 {loading ? (
                     <div className="text-center py-16 text-gray-500">กำลังโหลดรายการที่สนใจ...</div>
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
             <div className="max-w-6xl mx-auto p-4 md:p-6">
                 {error && favoriteRequests.length === 0 ? (
                     <div className="text-center py-16">
@@ -417,31 +397,22 @@ export default function Favorites() {
                             โหลดใหม่
                         </Button>
                     </div>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                 ) : favoriteRequests.length === 0 ? (
                     <div className="text-center py-16">
                         <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                         <h2 className="text-xl font-semibold text-gray-600 mb-2">ยังไม่มีคำขอที่สนใจ</h2>
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                         <p className="text-gray-500 mb-6">กลับไปเลือกคำขอบริจาคที่คุณต้องการสนับสนุน หรือกดปุ่มถูกใจที่หน้ารายละเอียดโครงการ</p>
                         <Button onClick={() => router.push("/")} className="bg-pink-500 hover:bg-pink-600">
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                         <p className="text-gray-500 mb-6">กลับไปเลือกคำขอบริจาคที่คุณต้องการสนับสนุน</p>
                         <Button
                             onClick={() => router.push("/swipe")}
                             className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                         >
                             <Heart className="w-4 h-4 mr-2" />
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                             เริ่มเลือกคำขอบริจาค
                         </Button>
                     </div>
@@ -459,29 +430,25 @@ export default function Favorites() {
                                 >
                                     <div className="relative">
                                         <img
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                             src={image}
 =======
                                             src={request.image}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                                             src={request.image}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                                            src={request.image}
                                             alt={request.title}
                                             className="w-full h-48 object-cover hover:scale-105 transition-transform duration-300"
                                             onError={handleImageError}
                                         />
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                         <div className="absolute top-3 left-3 flex gap-2">
                                             {category && (
                                                 <Badge className={getCategoryColor(category)}>{category}</Badge>
                                             )}
                                             <Badge className={urgency.class}>{urgency.text}</Badge>
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                         <div className="absolute top-3 left-3 flex flex-col gap-2">
                                             <Badge className={getCategoryColor(request.category)}>
                                                 {request.category}
@@ -489,10 +456,7 @@ export default function Favorites() {
                                             <Badge className={urgency.class}>
                                                 {urgency.text}
                                             </Badge>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                         </div>
                                         <Button
                                             size="sm"
@@ -512,8 +476,7 @@ export default function Favorites() {
                                     <CardContent className="p-4">
                                         <div className="space-y-3">
                                             <div>
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                                 <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">{request.title}</h3>
                                                 <p className="text-sm text-gray-600 line-clamp-2">{request.description || ""}</p>
                                             </div>
@@ -528,7 +491,6 @@ export default function Favorites() {
                                                 <div className="flex items-center gap-1">
                                                     <Users className="w-3 h-3" />
                                                     <span>{request.supporters}</span>
-=======
                                                 <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">
                                                     {request.title}
                                                 </h3>
@@ -537,7 +499,6 @@ export default function Favorites() {
                                                 </p>
                                             </div>
 
-=======
                                                 <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">
                                                     {request.title}
                                                 </h3>
@@ -546,7 +507,15 @@ export default function Favorites() {
                                                 </p>
                                             </div>
 
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                                                <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">
+                                                    {request.title}
+                                                </h3>
+                                                <p className="text-sm text-gray-600 line-clamp-2">
+                                                    {request.description}
+                                                </p>
+                                            </div>
+
                                             <div className="flex items-center justify-between text-xs text-gray-500">
                                                 <div className="flex items-center gap-2">
                                                     <div className="flex items-center gap-1">
@@ -563,10 +532,7 @@ export default function Favorites() {
                                                         <Calendar className="w-3 h-3" />
                                                         <span>{request.daysLeft}</span>
                                                     </div>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                                 </div>
                                             </div>
 
@@ -601,15 +567,13 @@ export default function Favorites() {
                                             <div className="flex gap-2 pt-2">
                                                 <Button
                                                     size="sm"
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                                     asChild
-=======
                                                     onClick={() => setShowDonationModal(request.id)}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                                                     onClick={() => setShowDonationModal(request.id)}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                                                    onClick={() => setShowDonationModal(request.id)}
                                                     className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                                                 >
                                                     <Link href={`/enhanced-donation/${request.id}`}>
@@ -620,8 +584,7 @@ export default function Favorites() {
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                                     className="border-pink-200 text-pink-600 hover:bg-pink-50 bg-transparent"
                                                     asChild
                                                 >
@@ -629,18 +592,13 @@ export default function Favorites() {
                                                         <ExternalLink className="w-4 h-4 mr-1" />
                                                         ดูรายละเอียด
                                                     </Link>
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                                     className="border-pink-200 text-pink-600 hover:bg-pink-50"
                                                     onClick={() => router.push(`/donation/${request.id}`)}
                                                 >
                                                     <ExternalLink className="w-4 h-4 mr-1" />
                                                     ดู
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                                 </Button>
                                                 <Button
                                                     size="sm"
@@ -661,11 +619,7 @@ export default function Favorites() {
                 )}
             </div>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
             {/* Donation Modal */}
             {showDonationModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -705,7 +659,6 @@ export default function Favorites() {
             )}
 
             {/* Share Modal */}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
             {showShareModal && (() => {
                 const request = favoriteRequests.find((r) => r.id === showShareModal)
                 if (!request) return null

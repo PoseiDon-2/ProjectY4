@@ -75,8 +75,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
     const { user } = useAuth()
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     // Normalize payment methods (รองรับทั้ง camelCase/snake_case และ JSON string)
     const rawPaymentMethods = donation.paymentMethods || {}
     const parsedPaymentMethods =
@@ -106,9 +105,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
               accountNumber: "-",
               accountName: "-",
           }
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     // Safe extraction + fallback
     const paymentMethods = donation.paymentMethods || {}
     const promptpayId = paymentMethods.promptpay?.trim() || ""
@@ -117,7 +114,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         accountNumber: "-",
         accountName: "-",
     }
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
 
     const [cardNumber, setCardNumber] = useState("")
     const [expiryDate, setExpiryDate] = useState("")
@@ -126,8 +123,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
     const quickAmounts = ["100", "500", "1000", "2000", "5000"]
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     useEffect(() => {
         if (!isOpen || !donation?.id) return
         const controller = new AbortController()
@@ -161,46 +157,46 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
     const formatAmount = (amount: string) => {
         return new Intl.NumberFormat("th-TH").format(Number(amount))
-=======
     const formatAmount = (amt: string | number) => {
         return new Intl.NumberFormat("th-TH").format(Number(amt))
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
     const formatAmount = (amt: string | number) => {
         return new Intl.NumberFormat("th-TH").format(Number(amt))
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+    const formatAmount = (amt: string | number) => {
+        return new Intl.NumberFormat("th-TH").format(Number(amt))
+
     }
 
     // Generate QR Code
     useEffect(() => {
-<<<<<<< HEAD
-<<<<<<< HEAD
+
         const shouldGenerate = step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
-=======
+
         const shouldGenerate =
             step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
 
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
         const shouldGenerate =
             step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
 
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+        const shouldGenerate =
+            step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
+
         if (!shouldGenerate) {
             setQrCodeUrl("")
             setQrError("")
             return
         }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 
         let isCurrent = true
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
 
         let isCurrent = true
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+
+        let isCurrent = true
 
         const generateQRCode = async () => {
             try {
@@ -209,8 +205,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                 if (!promptpayId) {
                     throw new Error("ไม่มีเลขพร้อมเพย์สำหรับคำขอบริจาคนี้")
-<<<<<<< HEAD
-<<<<<<< HEAD
                 }
 
                 // Sanitize PromptPay (รองรับทั้งเบอร์และอีเมล + รองรับเลขขึ้นต้นด้วยรหัสประเทศ)
@@ -231,14 +225,14 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                 if (!target || (!isEmail && target.length !== 10 && target.length !== 13)) {
                     throw new Error("รูปแบบพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นเบอร์ 10 หลัก, บัตร 13 หลัก หรืออีเมล)")
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                 }
 
-=======
                 }
 
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                }
+
                 // Sanitize PromptPay (รองรับทั้งเบอร์และอีเมล)
                 let target = promptpayId
                 const isEmail = target.includes("@")
@@ -288,19 +282,11 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         }
 
         generateQRCode()
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 
         return () => {
             isCurrent = false
         }
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     }, [step, paymentMethod, amount, promptpayId])
 
     const copyToClipboard = (text: string) => {
@@ -793,8 +779,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     const handlePayment = async () => {
         setIsProcessing(true)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
         if (remainingAmount !== null && Number(amount) > remainingAmount) {
             toast({
                 title: "ยอดเงินเกินที่เหลืออยู่",
@@ -898,12 +883,9 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
             setIsProcessing(false)
             return
         }
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
         // จำลองการตรวจสอบการชำระเงิน (ใน production ควรเรียก API จริง)
         await new Promise((resolve) => setTimeout(resolve, 3000))
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 
         if (user && amount) {
             const donationAmount = Number(amount)
@@ -995,17 +977,11 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         setPointsEarned(0)
         setQrCodeUrl("")
         setQrError("")
-<<<<<<< HEAD
-<<<<<<< HEAD
         setSlipFile(null)
         setSlipPreview(null)
         setSlipResult(null)
         setAgreedToTerms(false)
         setWarningStepTimestamp(null)
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
     }
 
     const handleClose = () => {
@@ -1392,8 +1368,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                             : promptpayId.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")
                                                         : "-"}
                                                 </span>
-<<<<<<< HEAD
-<<<<<<< HEAD
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
@@ -1401,9 +1375,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                 >
                                                     {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                                 </Button>
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                                 {promptpayId && (
                                                     <Button
                                                         size="sm"
@@ -1414,10 +1386,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                         {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                                                     </Button>
                                                 )}
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                             </div>
                                         </div>
 
@@ -1572,8 +1541,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                     <Button
                                         className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                                         onClick={handlePayment}
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                         disabled={
                                             isProcessing ||
                                             verifying ||
@@ -1582,12 +1550,11 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                             slipResult?.decision === "rejected" ||
                                             (remainingAmount !== null && Number(amount) > remainingAmount)
                                         }
-=======
                                         disabled={isProcessing || !!qrError}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                                         disabled={isProcessing || !!qrError}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                                        disabled={isProcessing || !!qrError}
                                     >
                                         {verifying ? (
                                             <>

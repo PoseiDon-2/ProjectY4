@@ -332,22 +332,21 @@ export default function DonationSwipe() {
     const router = useRouter()
 
     useEffect(() => {
-<<<<<<< HEAD
-<<<<<<< HEAD
+
         // Log API URL for debugging
         console.log("🔗 API URL:", API_URL)
         console.log("📡 Fetching from endpoints:", {
             donations: `${API_URL}/donation-requests`,
             stories: `${API_URL}/stories`
         })
-=======
         // กำหนด Session ID เมื่อ component โหลด
         setSessionId(getOrCreateSessionId())
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
         // กำหนด Session ID เมื่อ component โหลด
         setSessionId(getOrCreateSessionId())
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+        // กำหนด Session ID เมื่อ component โหลด
+        setSessionId(getOrCreateSessionId())
         fetchData()
     }, [])
 
@@ -358,8 +357,7 @@ export default function DonationSwipe() {
         }
     }, [])
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     // โหลดจำนวนรายการที่สนใจจาก API (เมื่อล็อกอิน) เพื่อให้ตรงกับหน้ารายการที่สนใจ
     useEffect(() => {
         if (!user) {
@@ -373,9 +371,7 @@ export default function DonationSwipe() {
             })
             .catch(() => setFavoriteCount(0))
     }, [user])
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     // Track view time เมื่อเปลี่ยนการ์ด
     useEffect(() => {
         if (cardPool.length > 0 && activeCardIndex >= 0 && activeTab === 'swipe') {
@@ -425,18 +421,14 @@ export default function DonationSwipe() {
         candidates.sort((a, b) => b.score - a.score);
         return candidates[0].index;
     }, []);
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
 
     const fetchData = async () => {
         try {
             setLoading(true)
             setError(null)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
             console.log("🔄 Starting data fetch...")
 
             // Fetch both endpoints with better error handling
@@ -461,7 +453,6 @@ export default function DonationSwipe() {
                     })
                     throw err
                 })
-=======
             const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
             const sessionId = getOrCreateSessionId(); // รับ sessionId ตรงนี้
 
@@ -486,8 +477,7 @@ export default function DonationSwipe() {
             const [donationResponse, storiesResponse] = await Promise.all([
                 axios.get(url, axiosConfig), // ใช้ URL ที่มี query parameter
                 axios.get(`${API_URL}/stories`, axiosConfig)
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
             const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
             const sessionId = getOrCreateSessionId(); // รับ sessionId ตรงนี้
 
@@ -512,7 +502,31 @@ export default function DonationSwipe() {
             const [donationResponse, storiesResponse] = await Promise.all([
                 axios.get(url, axiosConfig), // ใช้ URL ที่มี query parameter
                 axios.get(`${API_URL}/stories`, axiosConfig)
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+            const sessionId = getOrCreateSessionId(); // รับ sessionId ตรงนี้
+
+            // --- สร้าง query parameters ---
+            const params = new URLSearchParams();
+            if (sessionId) {
+                params.append('session_id', sessionId);
+            }
+
+            const queryString = params.toString();
+            const url = `${API_URL}/donation-requests${queryString ? `?${queryString}` : ''}`;
+
+            // --- 2. สร้าง Config สำหรับ Axios ---
+            const axiosConfig = {
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Accept': 'application/json'
+                }
+            };
+
+            // --- 3. ยิง Request พร้อม Header ---
+            const [donationResponse, storiesResponse] = await Promise.all([
+                axios.get(url, axiosConfig), // ใช้ URL ที่มี query parameter
+                axios.get(`${API_URL}/stories`, axiosConfig)
             ])
 
             console.log("✅ Both requests succeeded")
@@ -561,7 +575,6 @@ export default function DonationSwipe() {
             })
 
         } catch (error) {
-<<<<<<< HEAD
             console.error("❌ Data fetching failed:", error)
 
             // Detailed error logging
@@ -599,14 +612,11 @@ export default function DonationSwipe() {
             }
 
             setStoryGroups(getFallbackStoryGroups())
-=======
+
             console.error("Failed to fetch data:", error)
             setError("ไม่สามารถโหลดข้อมูลได้")
             setStoryGroups([])
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
         } finally {
             setLoading(false)
             setStoriesLoading(false)
@@ -684,14 +694,11 @@ export default function DonationSwipe() {
             const newLikedRequests = [...likedRequests, currentCard.id]
             setLikedRequests(newLikedRequests)
             localStorage.setItem("likedDonations", JSON.stringify(newLikedRequests))
-<<<<<<< HEAD
-<<<<<<< HEAD
+
             if (user) {
                 favoritesAPI.add(currentRequest.id).then(() => setFavoriteCount((c) => c + 1)).catch(() => {})
             }
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
 
             newPool = newPool.filter(item => item.id !== currentCard.id);
 
@@ -703,10 +710,7 @@ export default function DonationSwipe() {
             };
 
             newPool = newPool.map(item => item.id === currentCard.id ? updatedCard : item);
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
         }
 
         setCardPool(newPool);
@@ -918,15 +922,13 @@ export default function DonationSwipe() {
                             onClick={() => router.push("/favorites")}
                             className="bg-pink-100 text-pink-700 border-pink-200 hover:bg-pink-200"
                         >
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                             ❤️ {user ? favoriteCount : likedRequests.length} รายการ
-=======
                             ❤️ รายการที่สนใจ {likedRequests.length}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                             ❤️ รายการที่สนใจ {likedRequests.length}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                            ❤️ รายการที่สนใจ {likedRequests.length}
                         </Button>
                         {user ? (
                             <Button
@@ -1151,8 +1153,7 @@ export default function DonationSwipe() {
                                             alt={short.title}
                                             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-90 group-hover:opacity-100" 
                                         />
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                         <Badge className="absolute top-4 left-4 bg-white/90 text-gray-800 hover:bg-white/90">
                                             {currentRequest.category}
                                         </Badge>
@@ -1206,9 +1207,7 @@ export default function DonationSwipe() {
                                                         {currentRequest.organizerTrustLevelName}
                                                     </Badge>
                                                 )}
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                         
                                         {/* Gradient overlay for text readability */}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
@@ -1217,10 +1216,7 @@ export default function DonationSwipe() {
                                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                             <div className="bg-white/30 backdrop-blur-sm p-3 rounded-full">
                                                 <Play className="w-8 h-8 text-white fill-white" />
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                             </div>
                                         </div>
 

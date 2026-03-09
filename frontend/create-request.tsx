@@ -4,9 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import axios from "axios"
-<<<<<<< HEAD
 import { ArrowLeft, Upload, MapPin, Phone, CreditCard, Save, Eye, Building, CheckCircle2, Circle } from "lucide-react"
-=======
 import {
     ArrowLeft,
     Upload,
@@ -21,7 +19,6 @@ import {
     Calendar, 
     Clock     
 } from "lucide-react"
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -51,15 +48,10 @@ interface CreateRequestData {
         accountName: string
     }
     promptpayNumber?: string
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     bankName?: string
     accountNumber?: string
     accountName?: string
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
     organizationDetails: {
         organizationType: string
         registrationNumber: string
@@ -149,15 +141,11 @@ export default function CreateRequest() {
             accountName: "",
         },
         promptpayNumber: "",
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
         bankName: "",
         accountNumber: "",
         accountName: user?.organizationName || `${user?.firstName || ""} ${user?.lastName || ""}`,
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
         organizationDetails: {
             organizationType: "",
             registrationNumber: "",
@@ -166,13 +154,9 @@ export default function CreateRequest() {
         durationDays: 30
     })
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     // รีเซ็ต currentImageIndex เมื่อ imageFiles เปลี่ยน
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     useEffect(() => {
         if (imageFiles.length === 0) {
             setCurrentImageIndex(0)
@@ -233,8 +217,7 @@ export default function CreateRequest() {
 
     if (!user || !isAuthorized) return null
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     const handleInputChange = (field: string, value: string | number) => {
         if (field.startsWith("bankAccount.")) {
             const bankField = field.split(".")[1]
@@ -259,9 +242,7 @@ export default function CreateRequest() {
                 ...formData,
                 [field]: value,
             })
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     // ... (Helpers เดิม) ...
     const handleTextChange = (field: keyof CreateRequestData, value: string) => {
         setFormData((prev) => ({ ...prev, [field]: value }))
@@ -284,7 +265,6 @@ export default function CreateRequest() {
                 ...prev,
                 [field]: value === "" ? undefined : Number(value),
             }))
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
         }
     }
 
@@ -380,13 +360,11 @@ export default function CreateRequest() {
         try {
             const formDataToSend = new FormData()
 
-<<<<<<< HEAD
             formDataToSend.append("title", formData.title)
             formDataToSend.append("description", formData.description)
             formDataToSend.append("category_id", formData.category)
             formDataToSend.append("location", formData.location)
             formDataToSend.append("contact_phone", formData.contactPhone)
-=======
             // ข้อมูลพื้นฐาน
             formDataToSend.append("title", formData.title.trim())
             formDataToSend.append("description", formData.description.trim())
@@ -397,14 +375,14 @@ export default function CreateRequest() {
 
             formDataToSend.append("location", formData.location.trim())
             formDataToSend.append("contact_phone", formData.contactPhone.trim())
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
             formDataToSend.append("organization_type", formData.organizationDetails.organizationType)
             formDataToSend.append("registration_number", formData.organizationDetails.registrationNumber)
 
-<<<<<<< HEAD
             if (formData.detailedAddress.trim()) formDataToSend.append("detailed_address", formData.detailedAddress)
             if (formData.organizationDetails.taxId.trim()) formDataToSend.append("tax_id", formData.organizationDetails.taxId)
-=======
+            // [NEW] ส่งค่า Duration ไปยัง Backend
+            formDataToSend.append("duration_days", formData.durationDays.toString())
+
             // [NEW] ส่งค่า Duration ไปยัง Backend
             formDataToSend.append("duration_days", formData.durationDays.toString())
 
@@ -417,14 +395,12 @@ export default function CreateRequest() {
             if (formData.organizationDetails.taxId.trim()) {
                 formDataToSend.append("tax_id", formData.organizationDetails.taxId.trim())
             }
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 
             // Send donation_types as array notation (Laravel expects this for FormData arrays)
             formData.donationType.forEach(type => {
                 formDataToSend.append("donation_types[]", type)
             })
 
-<<<<<<< HEAD
             if (formData.donationType.includes("money")) {
                 formDataToSend.append("goal_amount", formData.goalAmount!.toString())
 
@@ -466,7 +442,6 @@ export default function CreateRequest() {
 
             if (formData.donationType.includes("items") && formData.goalItems) {
                 formDataToSend.append("items_needed", formData.goalItems)
-=======
             // เงินบริจาค
             if (formData.donationType.includes("money") && formData.goalAmount) {
                 formDataToSend.append("goal_amount", formData.goalAmount.toString());
@@ -494,7 +469,6 @@ export default function CreateRequest() {
 
             if (formData.donationType.includes("items") && formData.goalItems?.trim()) {
                 formDataToSend.append("items_needed", formData.goalItems.trim())
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
             }
 
             if (formData.donationType.includes("volunteer")) {
@@ -502,14 +476,10 @@ export default function CreateRequest() {
                 if (formData.volunteerDetails) formDataToSend.append("volunteer_details", formData.volunteerDetails)
             }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
             // เพิ่มรูปภาพหลายไฟล์
             imageFiles.forEach(file => formDataToSend.append("images[]", file))
 
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
             formDataToSend.append("urgency", "MEDIUM")
 
             imageFiles.forEach((file, index) => {
@@ -517,10 +487,7 @@ export default function CreateRequest() {
             })
 
             // ... (Axios Call เดิม) ...
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
             const response = await axios.post(`${API_URL}/donation-requests`, formDataToSend, {
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
@@ -530,8 +497,7 @@ export default function CreateRequest() {
             setSuccess(true)
             setIsSubmitting(false)
             setTimeout(() => router.push("/organizer-dashboard"), 2000)
-<<<<<<< HEAD
-<<<<<<< HEAD
+
         } catch (err: any) {
             console.error("Full error response:", JSON.stringify(err.response?.data, null, 2))
             console.error("Status:", err.response?.status)
@@ -545,13 +511,14 @@ export default function CreateRequest() {
                 "เกิดข้อผิดพลาดในการสร้างคำขอ"
             
             setError(errorMsg)
-=======
 
         } catch (err: any) {
-=======
+
 
         } catch (err: any) {
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+        } catch (err: any) {
+
             // ... (Error handling เดิม) ...
             console.error("เกิดข้อผิดพลาด:", err)
             console.error("Response data:", err.response?.data)
@@ -574,7 +541,7 @@ export default function CreateRequest() {
 
             setError(errorMessage)
         } finally {
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
             setIsSubmitting(false)
         }
     }
@@ -606,17 +573,17 @@ export default function CreateRequest() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-<<<<<<< HEAD
-<<<<<<< HEAD
+
             <div className="bg-white shadow-sm border-b">
-=======
+
             {/* ... (Header เดิม) ... */}
             <div className="bg-white shadow-sm border-b sticky top-0 z-50">
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
             {/* ... (Header เดิม) ... */}
             <div className="bg-white shadow-sm border-b sticky top-0 z-50">
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+            {/* ... (Header เดิม) ... */}
+            <div className="bg-white shadow-sm border-b sticky top-0 z-50">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center gap-4">
                         <Button variant="ghost" size="sm" onClick={() => router.back()} className="hover:bg-pink-50">
@@ -715,14 +682,11 @@ export default function CreateRequest() {
                                         </div>
                                     </div>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
                                     {/* รูปภาพประกอบ - เวอร์ชันใหม่ */}
                                     <div className="space-y-4">
                                         <Label>รูปภาพประกอบ (สูงสุด 10 รูป) *</Label>
 
                                         {imageFiles.length === 0 ? (
-=======
                                     {/* [NEW] UI สำหรับเลือกระยะเวลารับบริจาค */}
                                     <div className="space-y-2 pt-2 border-t mt-4">
                                         <Label htmlFor="duration" className="flex items-center gap-2 text-blue-800">
@@ -748,7 +712,6 @@ export default function CreateRequest() {
                                         </p>
                                     </div>
 
-=======
                                     {/* [NEW] UI สำหรับเลือกระยะเวลารับบริจาค */}
                                     <div className="space-y-2 pt-2 border-t mt-4">
                                         <Label htmlFor="duration" className="flex items-center gap-2 text-blue-800">
@@ -774,13 +737,36 @@ export default function CreateRequest() {
                                         </p>
                                     </div>
 
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+                                    {/* [NEW] UI สำหรับเลือกระยะเวลารับบริจาค */}
+                                    <div className="space-y-2 pt-2 border-t mt-4">
+                                        <Label htmlFor="duration" className="flex items-center gap-2 text-blue-800">
+                                            <Clock className="w-4 h-4" />
+                                            ระยะเวลารับบริจาค *
+                                        </Label>
+                                        <Select
+                                            value={formData.durationDays.toString()}
+                                            onValueChange={(value) => setFormData(prev => ({ ...prev, durationDays: parseInt(value) }))}
+                                        >
+                                            <SelectTrigger className="w-full md:w-1/2">
+                                                <SelectValue placeholder="เลือกระยะเวลา" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="30">30 วัน (1 เดือน)</SelectItem>
+                                                <SelectItem value="45">45 วัน (1.5 เดือน)</SelectItem>
+                                                <SelectItem value="60">60 วัน (2 เดือน)</SelectItem>
+                                                <SelectItem value="90">90 วัน (3 เดือน)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-blue-600">
+                                            * ระยะเวลาขั้นต่ำ 30 วัน เพื่อให้ผู้บริจาคมีเวลาเพียงพอในการช่วยเหลือ (คุณสามารถต่ออายุโครงการได้ภายหลัง)
+                                        </p>
+                                    </div>
+
                                     {/* ... (รูปภาพเหมือนเดิม) ... */}
                                     <div className="space-y-4 mt-4">
                                         <Label>รูปภาพประกอบ (สูงสุด 10 รูป) *</Label>
                                         {/* ... (Code Upload Image เหมือนเดิม) ... */}
                                         {imagePreviews.length === 0 ? (
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                             <label className="flex flex-col items-center justify-center w-full h-96 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-all">
                                                 <Upload className="w-16 h-16 text-gray-400 mb-4" />
                                                 <span className="text-lg font-medium text-gray-700">คลิกเพื่อเพิ่มรูปภาพ</span>
@@ -808,17 +794,13 @@ export default function CreateRequest() {
                                                 />
                                             </label>
                                         ) : (
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                             <div className="space-y-4">
                                                 {/* รูปหลัก - ปุ่มลบสวย ๆ แบบใหม่ */}
                                                 <div className="relative rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50">
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                             <div className="space-y-4 relative z-0">
                                                 <div className="relative rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50 aspect-[4/3]">
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                                     <img
                                                         src={URL.createObjectURL(imageFiles[currentImageIndex])}
                                                         alt="รูปหลัก"
@@ -852,18 +834,12 @@ export default function CreateRequest() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setCurrentImageIndex(index)}
-<<<<<<< HEAD
                                                                 className={`flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-3 transition-all shadow-md ${index === currentImageIndex
                                                                         ? 'border-pink-500 ring-4 ring-pink-200'
                                                                         : 'border-gray-300 hover:border-gray-400'
-=======
                                                                 className={`flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 transition-all ${index === currentImageIndex
                                                                     ? "border-pink-500 ring-2 ring-pink-200"
                                                                     : "border-gray-300 hover:border-gray-400"
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                                                     }`}
                                                             >
                                                                 <img
@@ -933,15 +909,12 @@ export default function CreateRequest() {
                                 </CardContent>
                             </Card>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
                             {/* Donation Types */}
-=======
                             {/* ... (Card ประเภทการบริจาค เหมือนเดิม) ... */}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                             {/* ... (Card ประเภทการบริจาค เหมือนเดิม) ... */}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                            {/* ... (Card ประเภทการบริจาค เหมือนเดิม) ... */}
                             <Card>
                                 <CardHeader>
                                     <div className="flex items-center justify-between">
@@ -960,15 +933,11 @@ export default function CreateRequest() {
                                         </div>
                                     </div>
                                 </CardHeader>
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                 <CardContent className="space-y-4">
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                 {/* ... (Content ประเภทการบริจาค + ข้อมูลธนาคาร + สิ่งของ + อาสา เหมือนเดิมทุกประการ) ... */}
                                 <CardContent className="space-y-6">
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                     <div className="grid gap-4">
                                         {donationTypes.map((type) => (
                                             <div
@@ -1007,16 +976,13 @@ export default function CreateRequest() {
                                     </div>
 
                                     {formData.donationType.includes("money") && (
-<<<<<<< HEAD
                                         <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className="text-lg">💰</span>
-=======
                                         <div className="p-5 bg-green-50 rounded-xl border border-green-200 space-y-4">
                                             {/* ... (Form เงิน เหมือนเดิม) ... */}
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xl">💰</span>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                                 <h4 className="font-semibold text-green-800">ข้อมูลการรับเงินบริจาค</h4>
                                             </div>
                                             <div className="space-y-2">
@@ -1036,16 +1002,13 @@ export default function CreateRequest() {
                                     )}
 
                                     {formData.donationType.includes("items") && (
-<<<<<<< HEAD
                                         <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className="text-lg">📦</span>
-=======
                                         <div className="p-5 bg-blue-50 rounded-xl border border-blue-200 space-y-4">
                                             {/* ... (Form สิ่งของ เหมือนเดิม) ... */}
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xl">📦</span>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                                 <h4 className="font-semibold text-blue-800">ข้อมูลสิ่งของที่ต้องการ</h4>
                                             </div>
                                             <div className="space-y-2">
@@ -1063,16 +1026,13 @@ export default function CreateRequest() {
                                     )}
 
                                     {formData.donationType.includes("volunteer") && (
-<<<<<<< HEAD
                                         <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className="text-lg">🤝</span>
-=======
                                         <div className="p-5 bg-purple-50 rounded-xl border border-purple-200 space-y-4">
                                             {/* ... (Form อาสา เหมือนเดิม) ... */}
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xl">🤝</span>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                                 <h4 className="font-semibold text-purple-800">ข้อมูลอาสาสมัครที่ต้องการ</h4>
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
@@ -1105,15 +1065,13 @@ export default function CreateRequest() {
                                 </CardContent>
                             </Card>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                             {/* Organization Details */}
-=======
                             {/* ข้อมูลองค์กร (Card เดิม) */}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                             {/* ข้อมูลองค์กร (Card เดิม) */}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                            {/* ข้อมูลองค์กร (Card เดิม) */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
@@ -1146,15 +1104,14 @@ export default function CreateRequest() {
                                 </CardContent>
                             </Card>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                             {/* Location Information */}
-=======
+
                             {/* ที่ตั้ง & ติดต่อ (Card เดิม) */}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                             {/* ที่ตั้ง & ติดต่อ (Card เดิม) */}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                            {/* ที่ตั้ง & ติดต่อ (Card เดิม) */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
@@ -1287,17 +1244,14 @@ export default function CreateRequest() {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                                     {imageFiles.length > 0 ? (
                                         <div className="aspect-video rounded-lg overflow-hidden border-2 border-gray-200">
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                     {/* ... (Preview Content เดิม) ... */}
                                     {imagePreviews.length > 0 ? (
                                         <div className="aspect-video rounded-lg overflow-hidden border border-gray-200">
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                             <img
                                                 src={URL.createObjectURL(imageFiles[0])}
                                                 alt="รูปตัวอย่าง"

@@ -26,8 +26,6 @@ class DonationRequestController extends Controller
      */
     public function index(Request $request)
     {
-<<<<<<< HEAD
-<<<<<<< HEAD
         try {
             $query = DonationRequest::with(['category', 'organization', 'organizer'])
                 ->where('status', DonationRequestStatus::APPROVED->value);
@@ -35,9 +33,7 @@ class DonationRequestController extends Controller
             // Filter by category
             if ($request->has('category_id')) {
                 $query->where('category_id', $request->category_id);
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
         // 1. เริ่มต้น Query พื้นฐาน
         $query = DonationRequest::with(['category', 'organization', 'organizer'])
             ->where('status', DonationRequestStatus::APPROVED);
@@ -54,9 +50,6 @@ class DonationRequestController extends Controller
                 $query->where('accepts_items', true);
             } elseif ($type === 'volunteer') {
                 $query->where('accepts_volunteer', true);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-            }
-<<<<<<< HEAD
 
             // Filter by donation type
             if ($request->has('donation_type')) {
@@ -106,11 +99,8 @@ class DonationRequestController extends Controller
                 'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
-<<<<<<< HEAD
-=======
-=======
         }
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+        }
         if ($request->has('location')) {
             $query->where('location', 'like', '%' . $request->location . '%');
         }
@@ -212,7 +202,7 @@ class DonationRequestController extends Controller
         $requests = $query->paginate($perPage);
 
         return response()->json($requests);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     }
 
     /**

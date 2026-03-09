@@ -41,13 +41,10 @@ import {
     XCircle,
     Clock,
     Palette,
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     HandHelping,
     Search,
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     BookOpen,
     Plus,
     Globe,
@@ -65,10 +62,7 @@ import {
     Accessibility,
     Home,
     Megaphone,
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
 } from "lucide-react"
 
 
@@ -193,7 +187,7 @@ export default function ProfilePage() {
         organizerIsMaxLevel: boolean
     } | null>(null)
 
-<<<<<<< HEAD
+
     // ประวัติบริจาค (แท็บ donations)
     const [donationHistory, setDonationHistory] = useState<DonationHistoryEntry[]>([])
     const [donationHistoryLoading, setDonationHistoryLoading] = useState(false)
@@ -208,8 +202,7 @@ export default function ProfilePage() {
     const [favoriteList, setFavoriteList] = useState<FavoriteRequestItem[]>([])
     const [favoriteLoading, setFavoriteLoading] = useState(false)
 
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     // Stories Logic
     const [myStories, setMyStories] = useState<MyStory[]>([])
     const [newStory, setNewStory] = useState({
@@ -236,7 +229,6 @@ export default function ProfilePage() {
 
     // Load Data
     useEffect(() => {
-<<<<<<< HEAD
         if (!user) return
         pointsSystem.loadFromStorage()
         setUserPoints(pointsSystem.getUserPoints(user.id))
@@ -322,7 +314,6 @@ export default function ProfilePage() {
         return () => { cancelled = true }
     }, [activeTab, user])
 
-=======
         if (user) {
             // Points
             pointsSystem.loadFromStorage()
@@ -623,10 +614,7 @@ export default function ProfilePage() {
     }
 
     // Guard Clause: ถ้าไม่มี User ให้เด้งไป Login
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     if (!user) {
         router.push("/login")
         return null
@@ -652,8 +640,7 @@ export default function ProfilePage() {
         return { level: "เริ่มต้น", color: "bg-blue-500", icon: "⭐" }
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     const renderCustomizedAvatar = () => {
         const theme = profileCustomization?.theme || "default"
         const frame = profileCustomization?.frame || "none"
@@ -711,10 +698,7 @@ export default function ProfilePage() {
         )
     }
 
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     const getDonationStatusBadge = (status: string) => {
         switch (status) {
             case "completed":
@@ -732,8 +716,7 @@ export default function ProfilePage() {
         }
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
     const getSlipStatusBadge = (status: string) => {
         switch (status) {
             case "verified":
@@ -771,9 +754,7 @@ export default function ProfilePage() {
 
     const applyHistoryFilters = () => {
         setHistoryPage(1)
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     const handleCreateStory = () => {
         if (!user || !newStory.title || !newStory.content) return
 
@@ -847,10 +828,7 @@ export default function ProfilePage() {
                 </Badge>
             </div>
         )
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
     }
 
     const userLevel = getUserLevel(user.totalDonated)
@@ -928,7 +906,6 @@ export default function ProfilePage() {
                                     <div>
                                         <h2 className="text-xl font-bold text-gray-800">{user.firstName} {user.lastName}</h2>
                                         <p className="text-gray-600">{user.email}</p>
-<<<<<<< HEAD
                                         {profileCustomization?.title && profileCustomization.title !== "none" && (() => {
                                             const t = profileCustomization.title
                                             const isHelper = t === "helper" || t === "title_helper"
@@ -937,7 +914,6 @@ export default function ProfilePage() {
                                             const label = isHelper ? "ผู้ช่วยเหลือ" : isGuardian ? "ผู้พิทักษ์" : isLegend ? "ตำนาน" : ""
                                             return label ? <Badge variant="outline" className="mt-1">{label}</Badge> : null
                                         })()}
-=======
                                         {profileCustomization?.title && profileCustomization.title !== "none" && (
                                             <Badge variant="outline" className="mt-1">
                                                 {profileCustomization.title === "helper" ? "ผู้ช่วยเหลือ" :
@@ -945,7 +921,6 @@ export default function ProfilePage() {
                                                         profileCustomization.title === "legend" ? "ตำนาน" : ""}
                                             </Badge>
                                         )}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4 pt-4">
@@ -983,8 +958,7 @@ export default function ProfilePage() {
                             </CardContent>
                         </Card>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                         {userPoints && (
                             <div className="mt-6">
                                 <PointsDisplay userPoints={userPoints} />
@@ -1047,14 +1021,14 @@ export default function ProfilePage() {
 
                         {/* Quick Stats */}
                         <Card className="mt-6">
-=======
                         {/* About Me & Social Links Section */}
                         <Card>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
                         {/* About Me & Social Links Section */}
                         <Card>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+                        {/* About Me & Social Links Section */}
+                        <Card>
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="flex items-center gap-2 text-lg">
@@ -1121,7 +1095,7 @@ export default function ProfilePage() {
                                 <TabsTrigger value="donations" className="rounded-lg">ประวัติการบริจาค</TabsTrigger>
                                 <TabsTrigger value="favorites" className="rounded-lg">รายการโปรด</TabsTrigger>
                             </TabsList>
-<<<<<<< HEAD
+
 
                             {/* Tab: Stories */}
                             <TabsContent value="stories" className="space-y-6">
@@ -1132,7 +1106,6 @@ export default function ProfilePage() {
                                     </Button>
                                 </div>
 
-<<<<<<< HEAD
                         {/* Tab Content */}
                         {activeTab === "profile" && (
                             <Card>
@@ -1252,8 +1225,6 @@ export default function ProfilePage() {
                                             <Button onClick={() => router.push("/")} className="mt-4 bg-pink-500 hover:bg-pink-600">
                                                 เริ่มบริจาค
                                             </Button>
-=======
-=======
 
                             {/* Tab: Stories */}
                             <TabsContent value="stories" className="space-y-6">
@@ -1264,7 +1235,6 @@ export default function ProfilePage() {
                                     </Button>
                                 </div>
 
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                 <div className="space-y-4">
                                     {myStories.length > 0 ? (
                                         myStories.map((story) => (
@@ -1303,10 +1273,7 @@ export default function ProfilePage() {
                                         <div className="text-center py-10 bg-white rounded-xl border border-dashed">
                                             <BookOpen className="w-10 h-10 mx-auto text-gray-300 mb-2" />
                                             <p className="text-gray-500">ยังไม่มีเรื่องราว แบ่งปันประสบการณ์ของคุณเลย!</p>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                                         </div>
                                     ) : (
                                         <>
@@ -1452,8 +1419,6 @@ export default function ProfilePage() {
                                 </div>
                             </TabsContent>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
                         {activeTab === "favorites" && (
                             <Card>
                                 <CardHeader>
@@ -1508,9 +1473,60 @@ export default function ProfilePage() {
                                 </CardContent>
                             </Card>
                         )}
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+
+                            {/* Tab: Stories */}
+                            <TabsContent value="stories" className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-semibold text-gray-800">เรื่องราวของฉัน</h3>
+                                    <Button onClick={() => setShowCreateStory(true)} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white border-none">
+                                        <Plus className="w-4 h-4 mr-2" /> เขียนเรื่องราว
+                                    </Button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {myStories.length > 0 ? (
+                                        myStories.map((story) => (
+                                            <Card key={story.id}>
+                                                <CardContent className="p-6">
+                                                    <div className="flex items-start justify-between mb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar className="w-10 h-10">
+                                                                <AvatarImage src={user.avatar} />
+                                                                <AvatarFallback>{getInitials(user.firstName, user.lastName)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <div>
+                                                                <p className="font-semibold text-sm">{user.firstName} {user.lastName}</p>
+                                                                <p className="text-xs text-gray-500">{new Date(story.createdAt).toLocaleDateString("th-TH")}</p>
+                                                            </div>
+                                                        </div>
+                                                        <Button variant="ghost" size="icon" className="text-gray-400" onClick={() => handleDeleteStory(story.id)}>
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                    <h4 className="text-lg font-bold mb-2">{story.title}</h4>
+                                                    <p className="text-gray-600 mb-4 whitespace-pre-wrap">{story.content}</p>
+                                                    {story.taggedDonations.length > 0 && (
+                                                        <div className="flex gap-2">
+                                                            {story.taggedDonations.map((tag, idx) => (
+                                                                <Badge key={idx} variant="secondary" className="bg-pink-50 text-pink-700">
+                                                                    ❤️ {tag.title}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </CardContent>
+                                            </Card>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-10 bg-white rounded-xl border border-dashed">
+                                            <BookOpen className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                                            <p className="text-gray-500">ยังไม่มีเรื่องราว แบ่งปันประสบการณ์ของคุณเลย!</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </TabsContent>
+
                             {/* Tab: Profile Info */}
                             <TabsContent value="profile" className="space-y-6">
                                 <Card>
@@ -1747,10 +1763,7 @@ export default function ProfilePage() {
                             </TabsContent>
 
                         </Tabs>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
                     </div>
                 </div>
             </div>
@@ -1758,11 +1771,13 @@ export default function ProfilePage() {
             {/* Dialog: Create Story */}
             <Dialog open={showCreateStory} onOpenChange={setShowCreateStory}>
                 <DialogContent className="max-w-2xl">
-<<<<<<< HEAD
+
                     <DialogHeader>
                         <DialogTitle>เขียนเรื่องราวความประทับใจ</DialogTitle>
                         <DialogDescription>แบ่งปันความรู้สึกดีๆ จากการให้</DialogDescription>
-=======
+                    <DialogHeader>
+                        <DialogTitle>เขียนเรื่องราวความประทับใจ</DialogTitle>
+                        <DialogDescription>แบ่งปันความรู้สึกดีๆ จากการให้</DialogDescription>
                     <DialogHeader>
                         <DialogTitle>เขียนเรื่องราวความประทับใจ</DialogTitle>
                         <DialogDescription>แบ่งปันความรู้สึกดีๆ จากการให้</DialogDescription>
@@ -1885,7 +1900,6 @@ export default function ProfilePage() {
                     <DialogHeader>
                         <DialogTitle>ตกแต่งโปรไฟล์</DialogTitle>
                         <DialogDescription>แลกคะแนนเพื่อปลดล็อคกรอบรูปและธีม</DialogDescription>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
@@ -1922,7 +1936,125 @@ export default function ProfilePage() {
                 </DialogContent>
             </Dialog>
 
-<<<<<<< HEAD
+            {/* Dialog: Edit Profile (อัปโหลดรูปได้) */}
+            <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>แก้ไขข้อมูลส่วนตัว</DialogTitle>
+                        <DialogDescription>เปลี่ยนแปลงข้อมูลพื้นฐานของคุณ</DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="firstName">ชื่อจริง</Label>
+                                <Input
+                                    id="firstName"
+                                    value={editForm.firstName}
+                                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="lastName">นามสกุล</Label>
+                                <Input
+                                    id="lastName"
+                                    value={editForm.lastName}
+                                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="phone">เบอร์โทรศัพท์</Label>
+                            <Input
+                                id="phone"
+                                value={editForm.phone}
+                                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                                placeholder="08x-xxx-xxxx"
+                            />
+                        </div>
+
+                        {/* ส่วนอัปโหลดรูปโปรไฟล์ */}
+                        <div className="space-y-2">
+                            <Label htmlFor="avatar">รูปโปรไฟล์</Label>
+                            <div className="flex gap-4 items-center">
+                                <Avatar className="w-16 h-16 border">
+                                    <AvatarImage
+                                        src={selectedImage ? URL.createObjectURL(selectedImage) : (editForm.avatar || "/placeholder.svg")}
+                                        className="object-cover"
+                                    />
+                                    <AvatarFallback>รูป</AvatarFallback>
+                                </Avatar>
+
+                                <div className="flex-1">
+                                    <Input
+                                        id="avatar-upload"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setSelectedImage(e.target.files[0]);
+                                            }
+                                        }}
+                                        className="cursor-pointer"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">รองรับไฟล์ JPG, PNG (ขนาดแนะนำไม่เกิน 2MB)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowEditProfile(false)} disabled={isSaving}>ยกเลิก</Button>
+                        <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                            {isSaving ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Dialog: Customization */}
+            <Dialog open={showCustomization} onOpenChange={setShowCustomization}>
+                <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>ตกแต่งโปรไฟล์</DialogTitle>
+                        <DialogDescription>แลกคะแนนเพื่อปลดล็อคกรอบรูปและธีม</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>หัวข้อ</Label>
+                            <Input value={newStory.title} onChange={(e) => setNewStory({ ...newStory, title: e.target.value })} placeholder="เช่น ความสุขจากการให้..." />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>เนื้อหา</Label>
+                            <Textarea value={newStory.content} onChange={(e) => setNewStory({ ...newStory, content: e.target.value })} placeholder="เล่าเรื่องราวของคุณ..." className="min-h-[150px]" />
+                        </div>
+                        {/* Tag Donations */}
+                        <div className="space-y-2">
+                            <Label>อ้างอิงการบริจาค (ถ้ามี)</Label>
+                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded">
+                                {user.donations?.map((don) => (
+                                    <div key={don.id} className="flex items-center gap-2">
+                                        <Switch
+                                            checked={newStory.taggedDonationIds.includes(don.id)}
+                                            onCheckedChange={(c) => {
+                                                if (c) setNewStory(p => ({ ...p, taggedDonationIds: [...p.taggedDonationIds, don.id] }))
+                                                else setNewStory(p => ({ ...p, taggedDonationIds: p.taggedDonationIds.filter(id => id !== don.id) }))
+                                            }}
+                                        />
+                                        <span className="text-sm">{don.requestTitle}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCreateStory(false)}>ยกเลิก</Button>
+                        <Button onClick={handleCreateStory} className="bg-pink-600 hover:bg-pink-700">โพสต์</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Dialog: Edit Profile (อัปโหลดรูปได้) */}
             <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
                 <DialogContent className="max-w-md">
@@ -2017,8 +2149,7 @@ export default function ProfilePage() {
                 </DialogContent>
             </Dialog>
 
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
         </div>
     )
 }

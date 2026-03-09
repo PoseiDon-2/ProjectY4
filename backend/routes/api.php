@@ -44,8 +44,7 @@ Route::prefix('auth')->group(function () {
     });
 });
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 // === POINTS API ===
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/points', [PointsController::class, 'index']);
@@ -69,10 +68,6 @@ Route::get('/users/{id}/trust', [TrustController::class, 'show']);
 Route::get('/rewards', [RewardController::class, 'index']);
 Route::middleware('auth:sanctum')->get('/me/rewards', [RewardController::class, 'myRewards']);
 Route::middleware('auth:sanctum')->post('/rewards/redeem', [RewardController::class, 'redeem']);
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 
 // === DONATION REQUESTS APIs ===
 Route::prefix('donation-requests')->group(function () {
@@ -81,20 +76,22 @@ Route::prefix('donation-requests')->group(function () {
     Route::get('/{id}', [DonationRequestController::class, 'show']);
 });
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 // === DONATION SLIPS APIs (public info) ===
 Route::get('/donations/remaining/{id}', [SlipController::class, 'remaining']);
-=======
+
 Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
 
 Route::post('/user-behaviors', [UserBehaviorController::class, 'store']);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
 Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
 
 Route::post('/user-behaviors', [UserBehaviorController::class, 'store']);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
+
+Route::post('/user-behaviors', [UserBehaviorController::class, 'store']);
+
 
 Route::middleware(['auth:sanctum'])->prefix('donation-requests')->group(function () {
     Route::post('/categories', [CategoryController::class, 'store']);

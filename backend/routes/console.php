@@ -3,25 +3,24 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 use App\Models\User;
 use App\Services\TrustLevelService;
-=======
+
 use Illuminate\Support\Facades\Http; // [สำคัญ] ต้องเพิ่มบรรทัดนี้
 use Illuminate\Support\Facades\Log;  // [สำคัญ] ต้องเพิ่มบรรทัดนี้
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
+
 use Illuminate\Support\Facades\Http; // [สำคัญ] ต้องเพิ่มบรรทัดนี้
 use Illuminate\Support\Facades\Log;  // [สำคัญ] ต้องเพิ่มบรรทัดนี้
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
+use Illuminate\Support\Facades\Http; // [สำคัญ] ต้องเพิ่มบรรทัดนี้
+use Illuminate\Support\Facades\Log;  // [สำคัญ] ต้องเพิ่มบรรทัดนี้
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 Artisan::command('trust:recalculate', function () {
     $service = app(TrustLevelService::class);
     $count = 0;
@@ -39,9 +38,7 @@ Artisan::command('trust:recalculate', function () {
 })->purpose('Recalculate donor and organizer trust levels for all users');
 
 Schedule::command('trust:recalculate')->daily();
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+
 Schedule::call(function () {
 
     $response = Http::timeout(120)->get('http://recommendation-engine:5000/run');
@@ -83,9 +80,8 @@ Schedule::call(function () {
 
 })
 ->everyMinute() // รันทุก 1 นาที เพื่อให้โพสต์ได้ตรงเวลาที่สุด
-<<<<<<< HEAD
+
 ->name('publish_scheduled_stories');
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
 ->name('publish_scheduled_stories');
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+->name('publish_scheduled_stories');
+

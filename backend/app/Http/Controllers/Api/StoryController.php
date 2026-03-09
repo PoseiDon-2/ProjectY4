@@ -4,17 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Story;
-<<<<<<< HEAD
-<<<<<<< HEAD
 use App\Models\DonationRequest;
 use App\Enums\StoryStatus;
 use App\Services\TrustLevelService;
-=======
 use App\Enums\UserRole;
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
 use App\Enums\UserRole;
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+use App\Enums\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -258,8 +253,7 @@ class StoryController extends Controller
             ], 500);
         }
     }
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 
     // อัพเดท methods อื่นๆ ให้ตรงกับโครงสร้างตาราง
     public function index(Request $request)
@@ -406,8 +400,4 @@ class StoryController extends Controller
             'message' => 'Like feature not implemented yet'
         ]);
     }
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 }
