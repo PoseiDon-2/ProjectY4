@@ -97,6 +97,10 @@ export default function Profile() {
             pointsSystem.loadFromStorage()
             setUserPoints(pointsSystem.getUserPoints(user.id))
 
+            pointsSystem.getUserPointsWithSync(user.id).then((up) => {
+                if (up) setUserPoints(up)
+            })
+
             const saved = localStorage.getItem(`profile_customization_${user.id}`)
             if (saved) {
                 try {

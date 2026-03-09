@@ -51,7 +51,7 @@ export default function ReceiptDetailModal({ receipt, isOpen, onClose }: Receipt
                     <DialogTitle className="flex items-center gap-3">
                         {getTypeIcon(receipt.type)}
                         <span>รายละเอียดใบเสร็จ</span>
-                        <Badge className={`${summary.statusColor} border-0 ml-auto`}>{summary.status}</Badge>
+                        <Badge className={`${summary.status} border-0 ml-auto`}>{summary.status}</Badge>
                     </DialogTitle>
                 </DialogHeader>
 

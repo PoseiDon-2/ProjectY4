@@ -3,32 +3,44 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use App\Enums\StoryStatus;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('stories', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id(); // id ของ stories จะเป็นตัวเลข (unsignedBigInteger)
+
+            // เชื่อมกับตาราง users และ donation_requests ด้วย UUID
+            $table->foreignUuid('organizer_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUuid('donation_request_id')->constrained('donation_requests')->onDelete('cascade');
+
             $table->string('title');
             $table->text('content');
-            $table->string('slug')->unique();
-            $table->longText('images')->nullable();
-            $table->longText('videos')->nullable();
-            $table->enum('status', array_column(StoryStatus::cases(), 'value'))->default('DRAFT');
-            $table->uuid('author_id');
-            $table->uuid('donation_request_id')->nullable();
+            $table->enum('type', ['progress', 'milestone', 'thank_you', 'completion'])->default('progress');
+
+            $table->enum('media_type', ['image', 'video'])->default('image');
+            $table->string('media_path')->nullable();
+
+            $table->integer('duration')->default(5)->comment('วินาที');
+            $table->enum('show_time', ['immediately', '24_hours', '3_days', '1_week'])->default('immediately');
+
+            $table->boolean('is_scheduled')->default(false);
+            $table->timestamp('scheduled_time')->nullable();
+
+            $table->boolean('is_published')->default(false);
             $table->timestamp('published_at')->nullable();
-            $table->integer('views')->default(0);
+            $table->timestamp('expires_at')->nullable();
+
+            $table->unsignedInteger('views')->default(0);
+            $table->unsignedInteger('likes')->default(0);
+
             $table->timestamps();
+            $table->softDeletes();
 
-            $table->foreign('author_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('donation_request_id')->references('id')->on('donation_requests')->onDelete('cascade');
-
-            $table->index('status');
-            $table->index('created_at');
-            $table->index('donation_request_id');
-            $table->index('author_id');
+            $table->index(['organizer_id', 'is_published']);
+            $table->index(['donation_request_id', 'is_published']);
+            $table->index('scheduled_time');
         });
     }
 

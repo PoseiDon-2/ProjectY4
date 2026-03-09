@@ -50,21 +50,37 @@ export interface UserReward {
 
 export interface ProfileCustomization {
     userId: string
-    theme: "default" | "gold" | "platinum" | "diamond"
-    badge: "" | "heart" | "crown" | "star" | "diamond"
-    frame: "none" | "rainbow" | "fire" | "ice"
-    title: "none" | "helper" | "guardian" | "legend"
+    /** "default" = ธีมปกติ, "theme_xxx" = id จาก catalog */
+    theme: string
+    /** "" = ไม่มีตรา, "badge_xxx" = id จาก catalog */
+    badge: string
+    /** "none" = ไม่มีกรอบ, "frame_xxx" = id จาก catalog */
+    frame: string
+    /** "none" = ไม่มีตำแหน่ง, "title_xxx" = id จาก catalog */
+    title: string
     background: string
     effects: string[]
 }
 export const POINTS_CONFIG = {
-    MONEY_DONATION: 10, // 10 points per 100 THB
-    ITEM_DONATION: 50, // 50 points per item
-    VOLUNTEER_HOURS: 20, // 20 points per hour
-    STORY_SHARE: 25, // 25 points for sharing story
-    REFERRAL: 100, // 100 points for successful referral
-    DAILY_LOGIN: 5, // 5 points for daily login
-    PROFILE_COMPLETE: 50, // 50 points for completing profile
+    // เงิน: น้อยกว่า 100 บาทได้ 5 คะแนน, 100 ขึ้นไปได้ 1 บาทละ 1 แต้ม
+    MONEY_UNDER_100_POINTS: 5,
+
+    // สิ่งของ: ยูสเซอร์กรอกมูลค่าโดยรวม น้อยกว่า 100 ได้ 5 คะแนน, 100 ขึ้นไปได้ 1 บาทละ 1 แต้ม, นำไปส่งถึงที่ x1.5
+    ITEM_UNDER_100_POINTS: 5,
+
+    // แรงงาน: คะแนนต่อชั่วโมงตามประเภท
+    VOLUNTEER_RATES: {
+        general: 10,     // งานทั่วไป
+        skilled: 15,     // งานใช้ทักษะ (แปล, ช่าง)
+        professional: 20, // งานเฉพาะทาง (แพทย์, วิศวกร)
+    } as Record<string, number>,
+    VOLUNTEER_MIN_POINTS: 30, // คะแนนขั้นต่ำต่อครั้ง (แม้ทำ < 1 ชม.)
+
+    // อื่นๆ
+    STORY_SHARE: 25,
+    REFERRAL: 100,
+    DAILY_LOGIN: 5,
+    PROFILE_COMPLETE: 50,
 }
 
 export const USER_LEVELS = [

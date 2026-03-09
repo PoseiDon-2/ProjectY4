@@ -27,6 +27,7 @@ import {
     Mail,
     LinkIcon,
     Receipt,
+    Package,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
 import OrganizerSlipManagement from "@/components/organizer-slip-management"
+import OrganizerApprovalPanel from "@/components/organizer-approval-panel"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -168,7 +170,7 @@ const mockVolunteerApplications: VolunteerApplication[] = [
 export default function OrganizerDashboard() {
     const router = useRouter()
     const { user } = useAuth()
-    const [activeTab, setActiveTab] = useState<"overview" | "requests" | "volunteer-applicants" | "analytics" | "receipts">("overview")
+    const [activeTab, setActiveTab] = useState<"overview" | "requests" | "volunteer-applicants" | "approvals" | "analytics" | "receipts">("overview")
     const [selectedRequestForReceipts, setSelectedRequestForReceipts] = useState<DonationRequest | null>(null)
 
     const [organizerRequests, setOrganizerRequests] = useState<DonationRequest[]>([])
@@ -417,6 +419,19 @@ export default function OrganizerDashboard() {
         return acc
     }, {})
 
+    const organizerRequestIds = organizerRequests.map((r) => String(r.id))
+    const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const items: any[] = JSON.parse(localStorage.getItem("pending_item_donations") || "[]")
+        const volunteers: any[] = JSON.parse(localStorage.getItem("pending_volunteer_applications") || "[]")
+        const ids = new Set(organizerRequestIds)
+        const count =
+            items.filter((i) => ids.has(String(i.requestId))).length +
+            volunteers.filter((v) => ids.has(String(v.requestId))).length
+        setPendingApprovalsCount(count)
+    }, [organizerRequestIds.join(","), activeTab])
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
             <div className="bg-white shadow-sm border-b">
@@ -509,6 +524,21 @@ export default function OrganizerDashboard() {
                                     )}
                                 </button>
                                 <button
+                                    onClick={() => setActiveTab("approvals")}
+                                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "approvals"
+                                        ? "border-b-2 border-pink-500 text-pink-600 bg-pink-50"
+                                        : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                                        }`}
+                                >
+                                    <Package className="w-4 h-4 mr-2 inline" />
+                                    รออนุมัติ
+                                    {pendingApprovalsCount > 0 && (
+                                        <Badge className="ml-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full">
+                                            {pendingApprovalsCount}
+                                        </Badge>
+                                    )}
+                                </button>
+                                <button
                                     onClick={() => setActiveTab("receipts")}
                                     className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "receipts"
                                         ? "border-b-2 border-pink-500 text-pink-600 bg-pink-50"
@@ -590,7 +620,7 @@ export default function OrganizerDashboard() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm text-gray-600">Stories ทั้งหมด</p>
-                                            <p className="text-2xl font-bold text-purple-600">12</p>
+                                            <p className="text-2xl font-bold text-purple-600">0</p>
                                         </div>
                                         <BarChart3 className="w-8 h-8 text-purple-500" />
                                     </div>
@@ -980,6 +1010,21 @@ export default function OrganizerDashboard() {
                             })}
                         </div>
                     </div>
+                )}
+
+                {!loading && activeTab === "approvals" && (
+                    <OrganizerApprovalPanel
+                        organizerRequestIds={organizerRequestIds}
+                        onRefresh={() => {
+                            const items: any[] = JSON.parse(localStorage.getItem("pending_item_donations") || "[]")
+                            const volunteers: any[] = JSON.parse(localStorage.getItem("pending_volunteer_applications") || "[]")
+                            const ids = new Set(organizerRequestIds)
+                            setPendingApprovalsCount(
+                                items.filter((i) => ids.has(String(i.requestId))).length +
+                                    volunteers.filter((v) => ids.has(String(v.requestId))).length
+                            )
+                        }}
+                    />
                 )}
 
                 {!loading && activeTab === "receipts" && (

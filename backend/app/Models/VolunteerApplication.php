@@ -15,7 +15,10 @@ class VolunteerApplication extends Model
     protected $fillable = [
         'id', 'message', 'skills', 'experience', 'availability', 'status',
         'hours_committed', 'start_date', 'end_date', 'approved_at',
-        'completed_at', 'volunteer_id', 'request_id'
+        'completed_at', 'volunteer_id', 'request_id',
+        'volunteer_phone', 'volunteer_email', 'age', 'emergency_contact', 'emergency_phone',
+        'has_vehicle', 'vehicle_type', 'available_dates', 'preferred_time', 'duration',
+        'estimated_hours', 'skill_details',
     ];
 
     protected $casts = [
@@ -24,6 +27,7 @@ class VolunteerApplication extends Model
         'end_date' => 'datetime',
         'approved_at' => 'datetime',
         'completed_at' => 'datetime',
+        'available_dates' => 'array',
     ];
 
     public function volunteer(): BelongsTo

@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Models;
-
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,8 +13,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    use HasApiTokens;
-
+    use HasApiTokens, HasFactory;
     // UUID Settings
     protected $keyType = 'string';
     public $incrementing = false;
@@ -32,6 +31,11 @@ class User extends Authenticatable
     'bio',
     'total_donated',
     'donation_count',
+    'donor_trust_level',
+    'donor_trust_score',
+    'organizer_trust_level',
+    'organizer_trust_score',
+    'trust_calculated_at',
     'customization',
     
     'organization_name',
@@ -54,13 +58,44 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = ['organizer_trust_level_name', 'donor_trust_level_name'];
+
+    private const ORGANIZER_TRUST_NAMES = [
+        1 => 'เริ่มต้น',
+        2 => 'ได้รับความไว้วางใจ',
+        3 => 'ผู้รับที่เชื่อถือได้',
+        4 => 'พันธมิตรความดี',
+        5 => 'มาตรฐานทอง',
+    ];
+
+    private const DONOR_TRUST_NAMES = [
+        1 => 'เริ่มต้น',
+        2 => 'ผู้ให้สม่ำเสมอ',
+        3 => 'ผู้สนับสนุนที่น่าเชื่อถือ',
+        4 => 'พันธมิตรผู้ให้',
+        5 => 'มาตรฐานทอง',
+    ];
+
+    public function getOrganizerTrustLevelNameAttribute(): string
+    {
+        $level = (int) ($this->attributes['organizer_trust_level'] ?? 1);
+        return self::ORGANIZER_TRUST_NAMES[$level] ?? 'เริ่มต้น';
+    }
+
+    public function getDonorTrustLevelNameAttribute(): string
+    {
+        $level = (int) ($this->attributes['donor_trust_level'] ?? 1);
+        return self::DONOR_TRUST_NAMES[$level] ?? 'เริ่มต้น';
+    }
+
     protected $casts = [
         'role' => UserRole::class,
         'status' => UserStatus::class,
         'is_email_verified' => 'boolean',
         'documents_verified' => 'boolean',
         'preferred_categories' => 'array',
-        'email_verified_at' => 'datetime', // ถ้ามี
+        'email_verified_at' => 'datetime',
+        'trust_calculated_at' => 'datetime',
     ];
 
     // สร้าง UUID อัตโนมัติตอนสร้างผู้ใช้ใหม่

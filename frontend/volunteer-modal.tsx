@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { pointsSystem } from "@/lib/points-system"
+import { volunteerApplicationsAPI } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
@@ -17,7 +17,7 @@ interface VolunteerModalProps {
     isOpen: boolean
     onClose: () => void
     donation: {
-        id: number
+        id: number | string
         title: string
         volunteerDescription: string
         contactPhone: string
@@ -89,7 +89,6 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
     const [duration, setDuration] = useState("")
     const [message, setMessage] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [pointsEarned, setPointsEarned] = useState(0)
 
     const { user } = useAuth()
 
@@ -102,42 +101,80 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
     }
 
     const handleSubmit = async () => {
+        if (!user) return
         setIsSubmitting(true)
 
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        const estimatedHours = duration === "half-day" ? 4 : duration === "full-day" ? 8 : duration === "multiple-days" ? 16 : 4
+        const requestId = donation.id.toString()
 
-        if (user) {
-            // Calculate points based on volunteer hours (estimated from duration)
-            const estimatedHours = duration === "half-day" ? 4 : duration === "full-day" ? 8 : duration === "multiple-days" ? 16 : 4
-            const earnedPoints = pointsSystem.calculateDonationPoints(estimatedHours, "volunteer")
-            pointsSystem.addPoints(user.id, earnedPoints, "donation", `Volunteer application: ${donation.title}`, `volunteer_${Date.now()}`)
-            setPointsEarned(earnedPoints)
-
-            const volunteerRecord = {
-                id: `volunteer_${Date.now()}`,
-                userId: user.id,
-                requestId: donation.id.toString(),
-                requestTitle: donation.title,
-                type: "volunteer" as const,
-                date: new Date().toISOString(),
-                status: "pending" as const,
-                skills: selectedSkills,
-                availableDates,
-                preferredTime,
-                duration,
-                pointsEarned: earnedPoints,
+        try {
+            if (localStorage.getItem("auth_token")) {
+                const res = await volunteerApplicationsAPI.submit({
+                    donation_request_id: requestId,
+                    message: message || undefined,
+                    skills: selectedSkills,
+                    skill_details: skillDetails || undefined,
+                    experience: experience || undefined,
+                    available_dates: availableDates,
+                    preferred_time: preferredTime || undefined,
+                    duration: duration || undefined,
+                    estimated_hours: estimatedHours,
+                    volunteer_phone: volunteerPhone || user.phone,
+                    volunteer_email: volunteerEmail || user.email,
+                    age: age ? parseInt(age, 10) : undefined,
+                    emergency_contact: emergencyContact || undefined,
+                    emergency_phone: emergencyPhone || undefined,
+                    has_vehicle: hasVehicle,
+                    vehicle_type: vehicleType || undefined,
+                })
+                if (res.data) {
+                    toast({ title: "ส่งสมัครสำเร็จ", description: "รอการอนุมัติจากผู้จัด คะแนนจะได้รับเมื่ออนุมัติแล้ว" })
+                    setIsSubmitting(false)
+                    setStep("success")
+                    return
+                }
             }
-
-            const existingVolunteers = JSON.parse(localStorage.getItem(`user_volunteers_${user.id}`) || "[]")
-            existingVolunteers.push(volunteerRecord)
-            localStorage.setItem(`user_volunteers_${user.id}`, JSON.stringify(existingVolunteers))
-
-            toast({
-                title: `ได้รับ ${earnedPoints} คะแนน!`,
-                description: "คุณได้รับคะแนนจากการสมัครเป็นอาสาสมัคร",
-            })
+        } catch (e) {
+            console.warn("API submit failed, using localStorage fallback:", e)
         }
 
+        const volunteerId = `volunteer_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+        const volunteerRecord = {
+            id: volunteerId,
+            userId: user.id,
+            requestId,
+            requestTitle: donation.title,
+            type: "volunteer" as const,
+            date: new Date().toISOString(),
+            status: "pending_review" as const,
+            skills: selectedSkills,
+            skillDetails,
+            availableDates,
+            preferredTime,
+            duration,
+            estimatedHours,
+            volunteerName: volunteerName || `${user.firstName} ${user.lastName}`,
+            volunteerPhone,
+            volunteerEmail,
+            age,
+            experience,
+            emergencyContact,
+            emergencyPhone,
+            hasVehicle,
+            vehicleType,
+            message,
+            pointsEarned: 0,
+        }
+
+        const existingVolunteers = JSON.parse(localStorage.getItem(`user_volunteers_${user.id}`) || "[]")
+        existingVolunteers.push(volunteerRecord)
+        localStorage.setItem(`user_volunteers_${user.id}`, JSON.stringify(existingVolunteers))
+
+        const pendingVolunteers = JSON.parse(localStorage.getItem("pending_volunteer_applications") || "[]")
+        pendingVolunteers.push({ ...volunteerRecord, volunteerId: user.id })
+        localStorage.setItem("pending_volunteer_applications", JSON.stringify(pendingVolunteers))
+
+        toast({ title: "ส่งสมัครสำเร็จ", description: "รอการอนุมัติจากผู้จัด คะแนนจะได้รับเมื่ออนุมัติแล้ว" })
         setIsSubmitting(false)
         setStep("success")
     }
@@ -160,7 +197,6 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
         setDuration("")
         setMessage("")
         setIsSubmitting(false)
-        setPointsEarned(0)
     }
 
     const handleClose = () => {
@@ -532,6 +568,9 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
                                     <span className="text-sm text-gray-600">ระยะเวลา:</span>
                                     <span className="text-sm">{getDurationText(duration)}</span>
                                 </div>
+                                <div className="pt-2 border-t">
+                                    <p className="text-xs text-amber-600">ผู้จัดจะอนุมัติและระบุชั่วโมงจริงก่อน จึงจะได้รับคะแนน</p>
+                                </div>
                             </div>
 
                             <Button
@@ -558,19 +597,17 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
                             </div>
 
                             <div>
-                                <h3 className="text-xl font-bold text-gray-800 mb-2">สมัครสำเร็จ!</h3>
-                                <p className="text-gray-600">ขอบคุณที่เป็นอาสาสมัคร</p>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">ส่งสมัครสำเร็จ!</h3>
+                                <p className="text-gray-600">รอการอนุมัติจากผู้จัด คะแนนจะได้รับเมื่ออนุมัติแล้ว</p>
                             </div>
 
-                            {pointsEarned > 0 && (
-                                <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                                    <div className="flex items-center justify-center gap-2 mb-2">
-                                        <span className="text-2xl">🪙</span>
-                                        <span className="text-xl font-bold text-yellow-700">+{pointsEarned} คะแนน!</span>
-                                    </div>
-                                    <p className="text-sm text-yellow-600">คุณได้รับคะแนนจากการสมัครเป็นอาสาสมัคร สามารถนำไปแลกรางวัลได้</p>
+                            <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                                <div className="flex items-center justify-center gap-2 mb-2">
+                                    <span className="text-lg">📋</span>
+                                    <span className="font-bold text-amber-700">รอการอนุมัติ</span>
                                 </div>
-                            )}
+                                <p className="text-sm text-amber-600">ผู้จัดจะตรวจสอบและระบุชั่วโมงจริง คะแนนจะได้รับเมื่ออนุมัติแล้ว</p>
+                            </div>
 
                             <div className="p-4 bg-gray-50 rounded-lg space-y-2 text-left">
                                 <div className="flex justify-between">
@@ -593,12 +630,6 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
                                     <span className="text-sm text-gray-600">ระยะเวลา:</span>
                                     <span className="text-sm">{getDurationText(duration)}</span>
                                 </div>
-                                {pointsEarned > 0 && (
-                                    <div className="flex justify-between">
-                                        <span className="text-sm text-gray-600">คะแนนที่ได้รับ:</span>
-                                        <span className="text-sm font-medium text-yellow-600">+{pointsEarned} คะแนน</span>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -608,18 +639,6 @@ export default function VolunteerModal({ isOpen, onClose, donation }: VolunteerM
                                 >
                                     เสร็จสิ้น
                                 </Button>
-                                {pointsEarned > 0 && (
-                                    <Button
-                                        variant="outline"
-                                        className="w-full bg-transparent"
-                                        onClick={() => {
-                                            handleClose()
-                                            window.location.href = "/rewards"
-                                        }}
-                                    >
-                                        🎁 ไปดูรางวัลที่แลกได้
-                                    </Button>
-                                )}
                                 <Button variant="outline" className="w-full bg-transparent">
                                     แชร์การเป็นอาสาสมัคร
                                 </Button>

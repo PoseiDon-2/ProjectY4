@@ -14,6 +14,10 @@ class PointsTransaction extends Model
 
     protected $fillable = ['id', 'user_id', 'type', 'amount', 'source', 'description', 'date', 'related_id'];
 
+    protected $casts = [
+        'date' => 'datetime',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

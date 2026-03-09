@@ -13,135 +13,77 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { Coins, Crown, Palette, Award, Gift, Sparkles } from "lucide-react"
+import { Coins, Crown, Palette, Award, Gift, Sparkles, Loader2 } from "lucide-react"
 import type { Reward, UserPoints } from "@/types/rewards"
 import { pointsSystem } from "@/lib/points-system"
+import { pointsAPI, rewardsAPI } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
-const MOCK_REWARDS: Reward[] = [
-    // Profile Themes
-    {
-        id: "theme_gold",
-        name: "ธีมทอง",
-        description: "เปลี่ยนธีมโปรไฟล์เป็นสีทองหรูหรา",
-        category: "profile",
-        pointsCost: 500,
-        image: "https://via.placeholder.com/400x300?text=No+Image",
-        isActive: true,
-        isLimited: false,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-    },
-    {
-        id: "theme_platinum",
-        name: "ธีมแพลทินัม",
-        description: "ธีมสีเงินแพลทินัมสุดพรีเมียม",
-        category: "profile",
-        pointsCost: 1000,
-        image: "https://via.placeholder.com/400x300?text=No+Image",
-        isActive: true,
-        isLimited: false,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-    },
-    {
-        id: "theme_diamond",
-        name: "ธีมเพชร",
-        description: "ธีมเพชรสุดหรู สำหรับผู้บริจาคระดับตำนาน",
-        category: "profile",
-        pointsCost: 2500,
-        image: "https://via.placeholder.com/400x300?text=No+Image",
-        isActive: true,
-        isLimited: true,
-        limitQuantity: 100,
-        remainingQuantity: 87,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-        requirements: { minLevel: 5 },
-    },
-    // Profile Badges
-    {
-        id: "badge_heart",
-        name: "ตราหัวใจทอง",
-        description: "ตราสัญลักษณ์หัวใจทองคำ",
-        category: "badge",
-        pointsCost: 300,
-        image: "https://via.placeholder.com/400x300?text=No+Image",
-        isActive: true,
-        isLimited: false,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-    },
-    {
-        id: "badge_crown",
-        name: "มงกุฎแห่งความดี",
-        description: "มงกุฎสำหรับผู้บริจาคชั้นสูง",
-        category: "badge",
-        pointsCost: 800,
-        image: "/golden-crown-badge.png",
-        isActive: true,
-        isLimited: false,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-        requirements: { minLevel: 3 },
-    },
-    // Profile Frames
-    {
-        id: "frame_rainbow",
-        name: "กรอบสีรุ้ง",
-        description: "กรอบโปรไฟล์สีรุ้งสวยงาม",
-        category: "profile",
-        pointsCost: 400,
-        image: "https://via.placeholder.com/400x300?text=No+Image",
-        isActive: true,
-        isLimited: false,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-    },
-    {
-        id: "frame_fire",
-        name: "กรอบเปลวไฟ",
-        description: "กรอบเปลวไฟสำหรับผู้บริจาคที่ร้อนแรง",
-        category: "profile",
-        pointsCost: 600,
-        image: "https://via.placeholder.com/400x300?text=No+Image",
-        isActive: true,
-        isLimited: false,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-    },
-    // Special Features
-    {
-        id: "feature_priority",
-        name: "การแสดงผลพิเศษ",
-        description: "คำขอบริจาคของคุณจะแสดงในลำดับต้นๆ",
-        category: "feature",
-        pointsCost: 1500,
-        image: "https://via.placeholder.com/400x300?text=No+Image",
-        isActive: true,
-        isLimited: false,
-        createdBy: "system",
-        createdAt: "2024-01-01",
-        requirements: { minLevel: 4 },
-    },
-]
+function mapApiToReward(item: {
+    id: string
+    name: string
+    description: string
+    category: string
+    pointsCost: number
+    image: string | null
+    isActive: boolean
+    isLimited: boolean
+    limitQuantity?: number
+    remainingQuantity?: number
+    requirements?: Record<string, unknown>
+    createdBy: string
+    createdAt: string
+}): Reward {
+    return {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        category: item.category as Reward["category"],
+        pointsCost: item.pointsCost,
+        image: item.image ?? "https://via.placeholder.com/400x300?text=No+Image",
+        isActive: item.isActive,
+        isLimited: item.isLimited,
+        limitQuantity: item.limitQuantity,
+        remainingQuantity: item.remainingQuantity,
+        createdBy: item.createdBy,
+        createdAt: item.createdAt,
+        requirements: item.requirements ?? {},
+    }
+}
 
 export function RewardsStore() {
     const { user } = useAuth()
+    const [rewards, setRewards] = useState<Reward[]>([])
+    const [rewardsLoading, setRewardsLoading] = useState(true)
     const [userPoints, setUserPoints] = useState<UserPoints | null>(null)
     const [selectedReward, setSelectedReward] = useState<Reward | null>(null)
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
     const [activeCategory, setActiveCategory] = useState<string>("all")
+    const [redeemLoading, setRedeemLoading] = useState(false)
 
     useEffect(() => {
-        if (user) {
-            pointsSystem.loadFromStorage()
-            setUserPoints(pointsSystem.getUserPoints(user.id))
-        }
+        rewardsAPI.getList().then((res) => {
+            const list = Array.isArray(res.data) ? res.data.map(mapApiToReward) : []
+            setRewards(list)
+        }).catch(() => {
+            setRewards([])
+        }).finally(() => {
+            setRewardsLoading(false)
+        })
+    }, [])
+
+    useEffect(() => {
+        if (!user) return
+        pointsSystem.loadFromStorage()
+        setUserPoints(pointsSystem.getUserPoints(user.id))
+
+        pointsSystem.getUserPointsWithSync(user.id).then((up) => {
+            if (up) setUserPoints(up)
+        })
     }, [user])
 
-    const filteredRewards = MOCK_REWARDS.filter((reward) => {
+    const filteredRewards = rewards.filter((reward) => {
         if (activeCategory === "all") return true
         return reward.category === activeCategory
     })
@@ -149,7 +91,6 @@ export function RewardsStore() {
     const canPurchase = (reward: Reward): boolean => {
         if (!userPoints) return false
         if (userPoints.availablePoints < reward.pointsCost) return false
-        if (reward.requirements?.minLevel && userPoints.level < reward.requirements.minLevel) return false
         if (reward.isLimited && reward.remainingQuantity === 0) return false
         return true
     }
@@ -159,33 +100,52 @@ export function RewardsStore() {
         setShowConfirmDialog(true)
     }
 
-    const confirmPurchase = () => {
+    const confirmPurchase = async () => {
         if (!selectedReward || !user || !userPoints) return
 
-        const success = pointsSystem.spendPoints(
-            user.id,
-            selectedReward.pointsCost,
-            "reward_purchase",
-            `ซื้อ ${selectedReward.name}`,
-            selectedReward.id,
-        )
-
-        if (success) {
-            setUserPoints(pointsSystem.getUserPoints(user.id))
+        setRedeemLoading(true)
+        try {
+            const res = await rewardsAPI.redeem(selectedReward.id)
+            if (userPoints) {
+                setUserPoints({ ...userPoints, availablePoints: res.data.availablePoints })
+            }
+            const up = await pointsSystem.getUserPointsWithSync(user.id)
+            if (up) setUserPoints(up)
             toast({
-                title: "ซื้อรางวัลสำเร็จ!",
+                title: "แลกรางวัลสำเร็จ!",
                 description: `คุณได้รับ ${selectedReward.name} แล้ว`,
             })
-        } else {
+            setShowConfirmDialog(false)
+            setSelectedReward(null)
+            setRewards((prev) => {
+                const r = prev.find((x) => x.id === selectedReward.id)
+                if (!r || !r.isLimited || r.remainingQuantity == null) return prev
+                return prev.map((x) =>
+                    x.id === selectedReward.id ? { ...x, remainingQuantity: Math.max(0, (x.remainingQuantity ?? 0) - 1) } : x
+                )
+            })
+        } catch (e: unknown) {
+            let msg: string | null = null
+            if (e && typeof e === "object" && "response" in e) {
+                const res = (e as { response?: { data?: Record<string, unknown> } }).response
+                const data = res?.data
+                if (data && typeof data === "object") {
+                    if (typeof data.message === "string") msg = data.message
+                    else if (data.errors && typeof data.errors === "object") {
+                        const err = data.errors as Record<string, string[]>
+                        const first = Object.values(err).flat().find((s) => typeof s === "string")
+                        if (first) msg = first
+                    }
+                }
+            }
             toast({
-                title: "ซื้อรางวัลไม่สำเร็จ",
-                description: "คะแนนไม่เพียงพอ",
+                title: msg || "แลกรางวัลไม่สำเร็จ",
+                description: msg ? undefined : "คะแนนไม่เพียงพอหรือไม่ผ่านเงื่อนไข",
                 variant: "destructive",
             })
+        } finally {
+            setRedeemLoading(false)
         }
-
-        setShowConfirmDialog(false)
-        setSelectedReward(null)
     }
 
     const getCategoryIcon = (category: string) => {
@@ -225,6 +185,9 @@ export function RewardsStore() {
                             {userPoints.levelName}
                         </Badge>
                     </div>
+                    <p className="text-sm text-muted-foreground mt-3">
+                        คะแนนมาจากการบริจาคที่ได้รับการอนุมัติแล้ว (เงิน/สิ่งของ/แรงงาน)
+                    </p>
                 </CardContent>
             </Card>
 
@@ -250,15 +213,47 @@ export function RewardsStore() {
                 </TabsList>
 
                 <TabsContent value={activeCategory} className="mt-6">
+                    {rewardsLoading ? (
+                        <div className="flex items-center gap-2 text-muted-foreground py-12">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                            กำลังโหลดรางวัล...
+                        </div>
+                    ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredRewards.map((reward) => (
                             <Card key={reward.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                                <div className="aspect-square relative">
-                                    <img
-                                        src={reward.image || "https://via.placeholder.com/400x300?text=No+Image"}
-                                        alt={reward.name}
-                                        className="w-full h-full object-cover"
-                                    />
+                                <div className="aspect-square relative flex items-center justify-center bg-muted/50">
+                                    {reward.id.startsWith("theme_") ? (
+                                        <div className={`w-full h-full bg-gradient-to-r ${(reward.requirements as Record<string, string>)?.gradient ?? "from-gray-400 to-gray-600"}`} />
+                                    ) : reward.id.startsWith("badge_") ? (
+                                        <div className="w-full h-full flex items-center justify-center text-6xl">
+                                            {(reward.requirements as Record<string, string>)?.icon ?? "🎁"}
+                                        </div>
+                                    ) : reward.id.startsWith("frame_") ? (() => {
+                                        const req = reward.requirements as Record<string, unknown> | undefined
+                                        const frameColor = req?.frameColor as string | undefined
+                                        if (frameColor) {
+                                            const w = (req?.frameWidth as number) ?? 4
+                                            const h = frameColor.replace("#", "")
+                                            const hexToRgba = (hex: string, a: number) => {
+                                                if (hex.length !== 6) return `rgba(128,128,128,${a})`
+                                                return `rgba(${parseInt(hex.slice(0,2),16)},${parseInt(hex.slice(2,4),16)},${parseInt(hex.slice(4,6),16)},${a})`
+                                            }
+                                            const style = { border: `${w}px solid ${frameColor}`, boxShadow: `0 10px 15px -3px ${hexToRgba(h, 0.35)}`, borderRadius: "9999px" }
+                                            return <div className="w-full h-full rounded-full flex items-center justify-center bg-muted/50" style={style}><div className="w-full h-full rounded-full bg-muted" /></div>
+                                        }
+                                        return <div className={`w-full h-full rounded-full bg-gray-200 flex items-center justify-center ${(reward.requirements as Record<string, string>)?.preview ?? "border-2 border-gray-200"}`}><div className="w-full h-full rounded-full bg-muted" /></div>
+                                    })() : reward.id.startsWith("title_") ? (
+                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-purple-400 to-pink-400 text-white font-medium text-lg px-4 text-center">
+                                            {(reward.requirements as Record<string, string>)?.displayText ?? reward.name}
+                                        </div>
+                                    ) : (
+                                        <img
+                                            src={reward.image || "https://via.placeholder.com/400x300?text=No+Image"}
+                                            alt={reward.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    )}
                                     {reward.isLimited && (
                                         <Badge className="absolute top-2 right-2 bg-red-500">
                                             จำกัด {reward.remainingQuantity}/{reward.limitQuantity}
@@ -280,11 +275,6 @@ export function RewardsStore() {
                                             <Coins className="h-4 w-4 text-yellow-500" />
                                             <span className="font-semibold">{reward.pointsCost.toLocaleString()}</span>
                                         </div>
-                                        {reward.requirements?.minLevel && (
-                                            <Badge variant="outline" className="text-xs">
-                                                ระดับ {reward.requirements.minLevel}+
-                                            </Badge>
-                                        )}
                                     </div>
                                 </CardContent>
 
@@ -298,17 +288,16 @@ export function RewardsStore() {
                                         {!canPurchase(reward)
                                             ? userPoints.availablePoints < reward.pointsCost
                                                 ? "คะแนนไม่พอ"
-                                                : reward.requirements?.minLevel && userPoints.level < reward.requirements.minLevel
-                                                    ? "ระดับไม่พอ"
-                                                    : reward.isLimited && reward.remainingQuantity === 0
-                                                        ? "หมดแล้ว"
-                                                        : "ไม่สามารถซื้อได้"
-                                            : "ซื้อรางวัล"}
+                                                : reward.isLimited && reward.remainingQuantity === 0
+                                                    ? "หมดแล้ว"
+                                                    : "ไม่สามารถซื้อได้"
+                                            : "แลกรางวัล"}
                                     </Button>
                                 </CardFooter>
                             </Card>
                         ))}
                     </div>
+                    )}
                 </TabsContent>
             </Tabs>
 
@@ -316,16 +305,19 @@ export function RewardsStore() {
             <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>ยืนยันการซื้อรางวัล</DialogTitle>
+                        <DialogTitle>ยืนยันการแลกรางวัล</DialogTitle>
                         <DialogDescription>
-                            คุณต้องการซื้อ "{selectedReward?.name}" ด้วยคะแนน {selectedReward?.pointsCost.toLocaleString()} คะแนนใช่หรือไม่?
+                            คุณต้องการแลก "{selectedReward?.name}" ด้วยคะแนน {selectedReward?.pointsCost?.toLocaleString()} คะแนนใช่หรือไม่?
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
                             ยกเลิก
                         </Button>
-                        <Button onClick={confirmPurchase}>ยืนยันการซื้อ</Button>
+                        <Button onClick={confirmPurchase} disabled={redeemLoading}>
+                            {redeemLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            ยืนยันการแลก
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

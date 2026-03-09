@@ -9,9 +9,13 @@ return new class extends Migration {
     {
         Schema::create('shares', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            
             $table->uuid('user_id');
             $table->uuid('request_id')->nullable();
-            $table->uuid('story_id')->nullable();
+            
+            // story_id เป็นตัวเลข ให้ตรงกับ $table->id() ของตาราง stories
+            $table->unsignedBigInteger('story_id')->nullable(); 
+
             $table->string('platform');
             $table->timestamp('created_at')->useCurrent();
 

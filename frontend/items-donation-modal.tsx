@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { X, MapPin, Check, Truck } from "lucide-react"
+import { useState, useRef } from "react"
+import { X, MapPin, Check, Truck, Upload, Image as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { pointsSystem } from "@/lib/points-system"
 import { receiptSystem } from "@/lib/receipt-system"
+import { itemDonationsAPI } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
@@ -18,7 +18,7 @@ interface ItemsDonationModalProps {
     isOpen: boolean
     onClose: () => void
     donation: {
-        id: number
+        id: number | string
         title: string
         itemsNeeded: string
         contactPhone: string
@@ -30,6 +30,7 @@ type DeliveryMethod = "send-to-address" | "drop-off"
 
 export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsDonationModalProps) {
     const [step, setStep] = useState<"delivery" | "success">("delivery")
+    const [estimatedValue, setEstimatedValue] = useState("")
     const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("send-to-address")
     const [deliveryDate, setDeliveryDate] = useState("")
     const [deliveryTime, setDeliveryTime] = useState("")
@@ -40,75 +41,142 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
     const [isAnonymous, setIsAnonymous] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [trackingNumber, setTrackingNumber] = useState("")
-    const [pointsEarned, setPointsEarned] = useState(0)
+    const [evidenceFiles, setEvidenceFiles] = useState<File[]>([])
+    const [evidencePreviews, setEvidencePreviews] = useState<string[]>([])
+    const evidenceInputRef = useRef<HTMLInputElement>(null)
+    const MAX_IMAGES = 5
 
     const { user } = useAuth()
 
+    const fileToBase64 = (file: File): Promise<string> =>
+        new Promise((res, rej) => {
+            const r = new FileReader()
+            r.onload = () => res((r.result as string) || "")
+            r.onerror = rej
+            r.readAsDataURL(file)
+        })
+
+    const handleEvidenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || [])
+        if (evidenceFiles.length + files.length > MAX_IMAGES) {
+            toast({ title: "อัปโหลดได้สูงสุด 5 รูป", variant: "destructive" })
+            return
+        }
+        const valid = files.filter((f) => f.type.startsWith("image/"))
+        setEvidenceFiles((prev) => [...prev, ...valid].slice(0, MAX_IMAGES))
+        valid.forEach((f) => {
+            const reader = new FileReader()
+            reader.onload = () => setEvidencePreviews((p) => [...p, reader.result as string].slice(-MAX_IMAGES))
+            reader.readAsDataURL(f)
+        })
+        if (evidenceInputRef.current) evidenceInputRef.current.value = ""
+    }
+
+    const removeEvidence = (idx: number) => {
+        setEvidenceFiles((p) => p.filter((_, i) => i !== idx))
+        setEvidencePreviews((p) => p.filter((_, i) => i !== idx))
+    }
+
     const handleSubmit = async () => {
+        const valueNum = Number(estimatedValue)
+        if (isNaN(valueNum) || valueNum < 0) {
+            toast({ title: "กรุณาระบุมูลค่าสิ่งของโดยรวม (บาท)", variant: "destructive" })
+            return
+        }
+        if (evidenceFiles.length === 0) {
+            toast({ title: "กรุณาอัปโหลดหลักฐานอย่างน้อย 1 รูป", variant: "destructive" })
+            return
+        }
+        if (!user) return
         setIsSubmitting(true)
 
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        const evidenceBase64 = await Promise.all(evidenceFiles.map(fileToBase64))
+        const requestId = donation.id.toString()
 
-        if (user) {
-            const earnedPoints = pointsSystem.calculateDonationPoints(0, "item")
-            pointsSystem.addPoints(user.id, earnedPoints, "donation", `Item donation: ${donation.itemsNeeded}`, `donation_${Date.now()}`)
-            setPointsEarned(earnedPoints)
-
-            const receipt = receiptSystem.createReceipt({
-                donationId: `donation_${Date.now()}`,
-                requestId: donation.id.toString(),
-                requestTitle: donation.title,
-                donorId: user.id,
-                donorName: isAnonymous ? undefined : `${user.firstName} ${user.lastName}`,
-                type: "items",
-                items: [{ name: donation.itemsNeeded, quantity: 1 }],
-                deliveryMethod,
-                trackingNumber: trackingNumber || undefined,
-                message,
-                isAnonymous,
-                pointsEarned: earnedPoints,
-            })
-
-            // Keep existing localStorage logic for backward compatibility
-            const donationRecord = {
-                id: receipt.donationId,
-                userId: user.id,
-                requestId: donation.id.toString(),
-                requestTitle: donation.title,
-                type: "items" as const,
-                date: new Date().toISOString(),
-                status: "pending" as const,
-                deliveryMethod,
-                deliveryDate,
-                deliveryTime,
-                trackingNumber: trackingNumber || undefined,
-                items: [{ name: donation.itemsNeeded, quantity: 1, status: "pending" }],
-                pointsEarned: earnedPoints,
+        try {
+            if (localStorage.getItem("auth_token")) {
+                const res = await itemDonationsAPI.submit({
+                    donation_request_id: requestId,
+                    items_needed: donation.itemsNeeded,
+                    estimated_value: valueNum,
+                    evidence_images: evidenceBase64,
+                    delivery_method: deliveryMethod,
+                    delivery_date: deliveryDate || undefined,
+                    delivery_time: deliveryTime || undefined,
+                    tracking_number: trackingNumber || undefined,
+                    message: message || undefined,
+                })
+                if (res.data) {
+                    toast({ title: "ส่งแจ้งบริจาคสำเร็จ", description: "รอการอนุมัติจากผู้รับ คะแนนจะได้รับเมื่ออนุมัติแล้ว" })
+                    setIsSubmitting(false)
+                    setStep("success")
+                    return
+                }
             }
-
-            const existingDonations = JSON.parse(localStorage.getItem(`user_donations_${user.id}`) || "[]")
-            existingDonations.push(donationRecord)
-            localStorage.setItem(`user_donations_${user.id}`, JSON.stringify(existingDonations))
-
-            const userData = JSON.parse(localStorage.getItem("users") || "[]")
-            const userIndex = userData.findIndex((u: any) => u.id === user.id)
-            if (userIndex !== -1) {
-                userData[userIndex].donationCount = (userData[userIndex].donationCount || 0) + 1
-                localStorage.setItem("users", JSON.stringify(userData))
-            }
-
-            toast({
-                title: `ได้รับ ${earnedPoints} คะแนน!`,
-                description: "คุณได้รับคะแนนจากการบริจาคสิ่งของ",
-            })
+        } catch (e) {
+            console.warn("API submit failed, using localStorage fallback:", e)
         }
 
+        const donationId = `item_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+        const donationRecord = {
+            id: donationId,
+            userId: user.id,
+            requestId,
+            requestTitle: donation.title,
+            type: "items" as const,
+            date: new Date().toISOString(),
+            status: "pending_review" as const,
+            estimatedValue: valueNum,
+            deliveryMethod,
+            deliveryDate,
+            deliveryTime,
+            trackingNumber: trackingNumber || undefined,
+            itemsNeeded: donation.itemsNeeded,
+            evidenceImages: evidenceBase64,
+            message,
+            isAnonymous,
+            donorName: isAnonymous ? "ไม่ระบุชื่อ" : `${user.firstName} ${user.lastName}`,
+            pointsEarned: 0,
+        }
+
+        const existingDonations = JSON.parse(localStorage.getItem(`user_donations_${user.id}`) || "[]")
+        existingDonations.push(donationRecord)
+        localStorage.setItem(`user_donations_${user.id}`, JSON.stringify(existingDonations))
+
+        const pendingItems = JSON.parse(localStorage.getItem("pending_item_donations") || "[]")
+        pendingItems.push({ ...donationRecord, donorId: user.id })
+        localStorage.setItem("pending_item_donations", JSON.stringify(pendingItems))
+
+        receiptSystem.createReceipt({
+            donationId,
+            requestId,
+            requestTitle: donation.title,
+            donorId: user.id,
+            donorName: isAnonymous ? undefined : `${user.firstName} ${user.lastName}`,
+            type: "items",
+            items: [{ name: donation.itemsNeeded, quantity: 0 }],
+            deliveryMethod,
+            trackingNumber: trackingNumber || undefined,
+            message,
+            isAnonymous,
+            pointsEarned: 0,
+        })
+
+        const userData = JSON.parse(localStorage.getItem("users") || "[]")
+        const userIndex = userData.findIndex((u: any) => u.id === user.id)
+        if (userIndex !== -1) {
+            userData[userIndex].donationCount = (userData[userIndex].donationCount || 0) + 1
+            localStorage.setItem("users", JSON.stringify(userData))
+        }
+
+        toast({ title: "ส่งแจ้งบริจาคสำเร็จ", description: "รอการอนุมัติจากผู้รับ คะแนนจะได้รับเมื่ออนุมัติแล้ว" })
         setIsSubmitting(false)
         setStep("success")
     }
 
     const resetModal = () => {
         setStep("delivery")
+        setEstimatedValue("")
         setDeliveryMethod("send-to-address")
         setDeliveryDate("")
         setDeliveryTime("")
@@ -119,7 +187,8 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
         setIsAnonymous(false)
         setIsSubmitting(false)
         setTrackingNumber("")
-        setPointsEarned(0)
+        setEvidenceFiles([])
+        setEvidencePreviews([])
     }
 
     const handleClose = () => {
@@ -153,6 +222,7 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                 </CardHeader>
 
                 <CardContent className="space-y-4">
+                    {step === "delivery" && (
                     <div className="space-y-4">
                         <div>
                             <h3 className="font-medium text-gray-800 mb-2">บริจาคสิ่งของให้</h3>
@@ -166,6 +236,55 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                                 <p className="text-xs text-blue-600 mt-1">
                                     💡 คุณสามารถนำสิ่งของที่ต้องการมาบริจาคได้เลย ไม่จำเป็นต้องระบุรายละเอียดในเว็บ
                                 </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="estimatedValue">มูลค่าสิ่งของโดยรวม (บาท) *</Label>
+                                <Input
+                                    id="estimatedValue"
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    placeholder="เช่น 150"
+                                    value={estimatedValue}
+                                    onChange={(e) => setEstimatedValue(e.target.value)}
+                                />
+                                <p className="text-xs text-gray-500">
+                                    น้อยกว่า 100 บาทได้ 5 คะแนน | 100 บาทขึ้นไปได้ 1 บาทละ 1 แต้ม | เลือกนำไปส่งถึงที่ได้คะแนน x1.5
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>รูปหลักฐานการบริจาค *</Label>
+                                <p className="text-xs text-gray-500">อัปโหลดรูปถ่ายสิ่งของที่บริจาค (ขั้นต่ำ 1 รูป สูงสุด 5 รูป)</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {evidencePreviews.map((src, i) => (
+                                        <div key={i} className="relative group">
+                                            <img src={src} alt={`หลักฐาน ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border" />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeEvidence(i)}
+                                                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {evidenceFiles.length < MAX_IMAGES && (
+                                        <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition">
+                                            <Upload className="w-6 h-6 text-gray-400" />
+                                            <input
+                                                ref={evidenceInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                className="hidden"
+                                                onChange={handleEvidenceChange}
+                                            />
+                                        </label>
+                                    )}
+                                </div>
+                                <p className="text-xs text-amber-600">ผู้รับจะตรวจสอบหลักฐานและอนุมัติ คะแนนคำนวณจากมูลค่าที่คุณระบุ</p>
                             </div>
                         </div>
 
@@ -338,7 +457,7 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                         <Button
                             className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
                             onClick={handleSubmit}
-                            disabled={isSubmitting || !deliveryDate || !deliveryTime || (!isAnonymous && (!donorName || !donorPhone))}
+                            disabled={isSubmitting || evidenceFiles.length === 0 || !deliveryDate || !deliveryTime || !estimatedValue || Number(estimatedValue) < 0 || (!isAnonymous && (!donorName || !donorPhone))}
                         >
                             {isSubmitting ? (
                                 <>
@@ -350,6 +469,7 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                             )}
                         </Button>
                     </div>
+                    )}
 
                     {step === "success" && (
                         <div className="space-y-4 text-center">
@@ -358,19 +478,17 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                             </div>
 
                             <div>
-                                <h3 className="text-xl font-bold text-gray-800 mb-2">บริจาคสำเร็จ!</h3>
-                                <p className="text-gray-600">ขอบคุณสำหรับความใจดีของคุณ</p>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">ส่งแจ้งบริจาคสำเร็จ!</h3>
+                                <p className="text-gray-600">รอการอนุมัติจากผู้รับ บันทึกหลักฐานเรียบร้อยแล้ว</p>
                             </div>
 
-                            {pointsEarned > 0 && (
-                                <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                                    <div className="flex items-center justify-center gap-2 mb-2">
-                                        <span className="text-2xl">🪙</span>
-                                        <span className="text-xl font-bold text-yellow-700">+{pointsEarned} คะแนน!</span>
-                                    </div>
-                                    <p className="text-sm text-yellow-600">คุณได้รับคะแนนจากการบริจาคสิ่งของ สามารถนำไปแลกรางวัลได้</p>
+                            <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                                <div className="flex items-center justify-center gap-2 mb-2">
+                                    <ImageIcon className="w-5 h-5 text-amber-600" />
+                                    <span className="font-bold text-amber-700">รอการอนุมัติ</span>
                                 </div>
-                            )}
+                                <p className="text-sm text-amber-600">ผู้รับจะตรวจสอบหลักฐานและอนุมัติ คะแนนจะได้รับเมื่ออนุมัติแล้ว (คำนวณจากมูลค่าสิ่งของ)</p>
+                            </div>
 
                             <div className="p-4 bg-gray-50 rounded-lg space-y-2 text-left">
                                 <div className="flex justify-between">
@@ -381,12 +499,6 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                                     <span className="text-sm text-gray-600">วันที่นัดหมาย:</span>
                                     <span className="text-sm">{deliveryDate}</span>
                                 </div>
-                                {pointsEarned > 0 && (
-                                    <div className="flex justify-between">
-                                        <span className="text-sm text-gray-600">คะแนนที่ได้รับ:</span>
-                                        <span className="text-sm font-medium text-yellow-600">+{pointsEarned} คะแนน</span>
-                                    </div>
-                                )}
                                 {!isAnonymous && (
                                     <div className="flex justify-between">
                                         <span className="text-sm text-gray-600">ผู้บริจาค:</span>
@@ -408,18 +520,6 @@ export default function ItemsDonationModal({ isOpen, onClose, donation }: ItemsD
                                 >
                                     เสร็จสิ้น
                                 </Button>
-                                {pointsEarned > 0 && (
-                                    <Button
-                                        variant="outline"
-                                        className="w-full bg-transparent"
-                                        onClick={() => {
-                                            handleClose()
-                                            window.location.href = "/rewards"
-                                        }}
-                                    >
-                                        🎁 ไปดูรางวัลที่แลกได้
-                                    </Button>
-                                )}
                                 <Button variant="outline" className="w-full bg-transparent">
                                     แชร์การบริจาค
                                 </Button>

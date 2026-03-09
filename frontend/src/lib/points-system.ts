@@ -1,4 +1,5 @@
 import { type UserPoints, type PointsTransaction, POINTS_CONFIG, USER_LEVELS } from "@/types/rewards"
+import { pointsAPI } from "./api"
 
 class PointsSystem {
     private static instance: PointsSystem
@@ -11,15 +12,41 @@ class PointsSystem {
         return PointsSystem.instance
     }
 
-    // Calculate points from donation amount
-    calculateDonationPoints(amount: number, type: "money" | "item" | "volunteer"): number {
+    /**
+     * คำนวณคะแนนจากการบริจาค
+     * @param amount - จำนวนเงิน (บาท) หรือ ชั่วโมง (แรงงาน) หรือ จำนวนชิ้น (สิ่งของ)
+     * @param type - ประเภท: money | item | volunteer
+     * @param options - item: { category, quantity? } | volunteer: { skillType? }
+     */
+    calculateDonationPoints(
+        amount: number,
+        type: "money" | "item" | "volunteer",
+        options?: { category?: string; quantity?: number; skillType?: string; estimatedValue?: number; deliveryMethod?: string }
+    ): number {
         switch (type) {
-            case "money":
-                return Math.floor(amount / 100) * POINTS_CONFIG.MONEY_DONATION
-            case "item":
-                return POINTS_CONFIG.ITEM_DONATION
-            case "volunteer":
-                return amount * POINTS_CONFIG.VOLUNTEER_HOURS // amount = hours
+            case "money": {
+                if (amount <= 0) return 0
+                // น้อยกว่า 100 บาทได้ 5 คะแนน, 100 ขึ้นไปได้ 1 บาทละ 1 แต้ม
+                if (amount < 100) return 5
+                return Math.floor(amount)
+            }
+            case "item": {
+                // amount = มูลค่าประเมินโดยรวม (บาท), น้อยกว่า 100 ได้ 5 คะแนน, 100 ขึ้นไปได้ 1 บาทละ 1 แต้ม
+                const value = options?.estimatedValue ?? amount
+                let points = value < 100 ? 5 : Math.floor(value)
+                // นำไปส่งถึงที่ (drop-off): คะแนนคูณ 1.5
+                if (options?.deliveryMethod === "drop-off") {
+                    points = Math.round(points * 1.5)
+                }
+                return points
+            }
+            case "volunteer": {
+                const hours = amount
+                const skillType = options?.skillType || "general"
+                const rate = POINTS_CONFIG.VOLUNTEER_RATES[skillType] ?? POINTS_CONFIG.VOLUNTEER_RATES.general
+                const points = Math.ceil(hours * rate)
+                return Math.max(points, POINTS_CONFIG.VOLUNTEER_MIN_POINTS)
+            }
             default:
                 return 0
         }
@@ -142,10 +169,64 @@ class PointsSystem {
         if (typeof window !== "undefined") {
             const stored = localStorage.getItem("userPoints")
             if (stored) {
-                const entries = JSON.parse(stored)
-                this.userPoints = new Map(entries)
+                try {
+                    const entries = JSON.parse(stored)
+                    this.userPoints = new Map(entries)
+                } catch {
+                    this.userPoints = new Map()
+                }
             }
         }
+    }
+
+    /**
+     * Sync จาก Backend API - ใช้เป็น primary เมื่อ login แล้ว
+     * คืนค่า UserPoints ที่ได้จาก API หรือ null ถ้า fetch ล้มเหลว
+     */
+    async syncFromApi(userId: string): Promise<UserPoints | null> {
+        if (typeof window === "undefined") return null
+        if (!localStorage.getItem("auth_token")) return null
+        try {
+            const res = await pointsAPI.getMyPoints()
+            const d = res.data as any
+            if (!d || d.userId !== userId) return null
+
+            const history: PointsTransaction[] = (d.pointsHistory || []).map((t: any) => ({
+                id: t.id,
+                type: t.type as "earned" | "spent",
+                amount: t.amount,
+                source: t.source,
+                description: t.description,
+                date: t.date,
+                relatedId: t.relatedId,
+            }))
+
+            const up: UserPoints = {
+                userId: d.userId,
+                totalPoints: d.totalPoints ?? 0,
+                availablePoints: Math.max(0, d.availablePoints ?? 0),
+                pointsHistory: history,
+                level: d.level ?? 1,
+                levelName: d.levelName ?? "ผู้เริ่มต้น",
+                nextLevelPoints: d.nextLevelPoints ?? 0,
+            }
+
+            this.userPoints.set(userId, up)
+            this.saveToStorage()
+            return up
+        } catch (e) {
+            console.warn("Points sync from API failed:", e)
+            return null
+        }
+    }
+
+    /**
+     * ดึงคะแนน - ลอง sync จาก API ก่อน ถ้าได้ใช้ค่านั้น ไม่งั้นใช้ localStorage
+     */
+    async getUserPointsWithSync(userId: string): Promise<UserPoints> {
+        const fromApi = await this.syncFromApi(userId)
+        if (fromApi) return fromApi
+        return this.getUserPoints(userId)
     }
 }
 

@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { Separator } from "@/components/ui/separator"
 import ShareModal from "./share-modal"
 import { useAuth } from "@/contexts/auth-context"
+import { favoritesAPI } from "@/lib/api"
 import StoryPreview from "./story-preview"
 
 interface DonationRequest {
@@ -219,6 +220,7 @@ export default function DonationSwipe() {
     const [hasMounted, setHasMounted] = useState(false)
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null)
     const [isSwiping, setIsSwiping] = useState(false)
+    const [favoriteCount, setFavoriteCount] = useState(0)
 
     // Refs สำหรับจัดการ touch events
     const cardRef = useRef<HTMLDivElement>(null)
@@ -248,6 +250,19 @@ export default function DonationSwipe() {
             localStorage.setItem("likedDonations", JSON.stringify(sample))
         }
     }, [])
+
+    useEffect(() => {
+        if (!user) {
+            setFavoriteCount(0)
+            return
+        }
+        favoritesAPI.getList()
+            .then((res) => {
+                const list = Array.isArray(res.data) ? res.data : (res.data?.data ?? [])
+                setFavoriteCount(list.length)
+            })
+            .catch(() => setFavoriteCount(0))
+    }, [user])
 
     useEffect(() => {
         fetchStories()
@@ -337,6 +352,9 @@ export default function DonationSwipe() {
             const newLiked = [...likedRequests, currentRequest.id]
             setLikedRequests(newLiked)
             localStorage.setItem("likedDonations", JSON.stringify(newLiked))
+            if (user) {
+                favoritesAPI.add(String(currentRequest.id)).then(() => setFavoriteCount((c) => c + 1)).catch(() => {})
+            }
         }
 
         // เพิ่ม animation สำหรับ swipe
@@ -458,11 +476,11 @@ export default function DonationSwipe() {
                             <span className="flex items-center">
                                 ❤️
                                 {!isMobile ? (
-                                    <span className="ml-1">{likedRequests.length} รายการ</span>
+                                    <span className="ml-1">{user ? favoriteCount : likedRequests.length} รายการ</span>
                                 ) : (
-                                    likedRequests.length > 0 && (
+                                    (user ? favoriteCount : likedRequests.length) > 0 && (
                                         <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                                            {likedRequests.length}
+                                            {user ? favoriteCount : likedRequests.length}
                                         </span>
                                     )
                                 )}

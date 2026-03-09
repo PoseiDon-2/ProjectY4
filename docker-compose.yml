@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # --- Frontend (Next.js) ---
+  frontend:
+    build: ./frontend
+    container_name: frontend-container
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app             # แมพโฟลเดอร์เพื่อให้แก้โค้ดได้ทันที
+      - /app/node_modules           # ป้องกัน node_modules ในเครื่องชนกับใน docker
+    command: npm run dev            # สั่งรันโหมด Dev
+    depends_on:
+      - backend
+    networks:
+      - app_network
+    environment:
+      # - WATCHPACK_POLLING=true
+      - NODE_OPTIONS=--max_old_space_size=4096
+
+  # --- Backend (Laravel) ---
+  backend:
+    build: ./backend
+    container_name: backend-container
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www          # แมพโฟลเดอร์
+      - ./backend/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - /var/www/vendor
+    working_dir: /var/www           # กำหนด Folder ทำงานให้ชัดเจน
+    environment:
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_DATABASE: donation_db
+      DB_USERNAME: root
+      DB_PASSWORD: rootpassword
+    depends_on:
+      - database
+      - recommendation-engine
+    networks:
+      - app_network
+
+  # --- Scheduler (Laravel Cron Job) ---
+  scheduler:
+    build: ./backend                # Build จากโฟลเดอร์ backend เหมือนกัน
+    container_name: donate-app-scheduler
+    restart: unless-stopped
+    working_dir: /var/www           # [แก้] ต้องตรงกับ backend (/var/www)
+    command: php artisan schedule:work
+    volumes:
+      - ./backend:/var/www          # [แก้] ต้องตรงกับ backend
+      - /var/www/vendor
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - database                    # [แก้] ชื่อต้องตรงกับ service database
+      - backend
+      - recommendation-engine
+    networks:
+      - app_network                 # [แก้] ใช้ _ (underscore) ให้เหมือนตัวอื่น
+
+  # --- Recommendation Engine (Python) ---
+  recommendation-engine:
+    build: ./recommendation-engine
+    container_name: python-engine-container
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./recommendation-engine:/app
+    networks:
+      - app_network
+    environment:
+    - FLASK_APP=recommender.py
+    - FLASK_DEBUG=1     # <--- สำคัญ! ตัวนี้ทำให้แก้โค้ดแล้วรีสตาร์ทเอง
+    command: flask run --host=0.0.0.0
+
+  # --- Database (MariaDB) ---
+  database:
+    image: mariadb:10.6
+    container_name: db-container
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: donation_db
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app_network
+
+  # --- phpMyAdmin ---
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: pma-container
+    environment:
+      PMA_HOST: database
+      PMA_USER: root
+      PMA_PASSWORD: rootpassword
+    ports:
+      - "8080:80"
+    depends_on:
+      - database
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  db_data:

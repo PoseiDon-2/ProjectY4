@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Enums\DonationRequestStatus;
 use App\Enums\UrgencyLevel;
 use App\Enums\DonationType;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class DonationRequest extends Model
 {
+    use HasUuids;
     protected $keyType = 'string';
     public $incrementing = false;
     protected $table = 'donation_requests';
@@ -43,6 +45,7 @@ class DonationRequest extends Model
         'payment_methods',
         'promptpay_number',
         'promptpay_qr',
+        'pending_updates',
         'view_count',
         'expires_at',
         'volunteers_needed',
@@ -52,7 +55,8 @@ class DonationRequest extends Model
         'recommendation_score',
         'location',
         'latitude',
-        'longitude'
+        'longitude',
+        'expires_at'
     ];
 
     protected $casts = [
@@ -63,6 +67,7 @@ class DonationRequest extends Model
         'approved_at' => 'datetime',
         'images' => 'array',
         'payment_methods' => 'array',
+        'pending_updates' => 'array',
     ];
 
     public function category(): BelongsTo
@@ -93,6 +98,11 @@ class DonationRequest extends Model
     public function volunteerApplications(): HasMany
     {
         return $this->hasMany(VolunteerApplication::class, 'request_id');
+    }
+
+    public function itemDonations(): HasMany
+    {
+        return $this->hasMany(ItemDonation::class, 'donation_request_id');
     }
 
     public function stories(): HasMany

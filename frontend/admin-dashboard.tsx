@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
     Users, FileText, BarChart3, Settings, Shield, Eye, Check, X, Edit, Trash2,
-    ArrowLeft, AlertTriangle, UserPlus, Gift, Loader2
+    ArrowLeft, AlertTriangle, UserPlus, Gift, Loader2, Award, Plus, Save
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/contexts/auth-context"
 import axios from "axios"
+import { adminTrustLevelsAPI, type TrustLevelRow } from "@/lib/api"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -48,13 +49,19 @@ interface UserManagement {
 export default function AdminDashboard() {
     const router = useRouter()
     const { user, token } = useAuth()
-    const [activeTab, setActiveTab] = useState<"overview" | "requests" | "users" | "settings">("overview")
+    const [activeTab, setActiveTab] = useState<"overview" | "requests" | "users" | "trust-levels" | "settings">("overview")
     const [stats, setStats] = useState<AdminStats | null>(null)
     const [requests, setRequests] = useState<PendingRequest[]>([])
     const [users, setUsers] = useState<UserManagement[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+    // จัดการระดับความน่าเชื่อถือ (แท็บตั้งค่า)
+    const [trustLevels, setTrustLevels] = useState<{ donor: TrustLevelRow[]; organizer: TrustLevelRow[] } | null>(null)
+    const [trustLevelsLoading, setTrustLevelsLoading] = useState(false)
+    const [trustLevelsSaving, setTrustLevelsSaving] = useState(false)
+    const [trustLevelsError, setTrustLevelsError] = useState<string | null>(null)
 
     // ตรวจสอบสิทธิ์
     useEffect(() => {
@@ -115,6 +122,28 @@ export default function AdminDashboard() {
 
         fetchData()
     }, [token])
+
+    // โหลดระดับความน่าเชื่อถือเมื่อเปิดแท็บจัดการระดับความน่าเชื่อถือ
+    useEffect(() => {
+        if (activeTab !== "trust-levels" || !token) return
+        if (trustLevels !== null) return // โหลดแล้ว
+        const load = async () => {
+            setTrustLevelsLoading(true)
+            setTrustLevelsError(null)
+            try {
+                const res = await adminTrustLevelsAPI.getLevels()
+                setTrustLevels({
+                    donor: res.data.donor ?? [],
+                    organizer: res.data.organizer ?? [],
+                })
+            } catch (e: any) {
+                setTrustLevelsError(e.response?.data?.message || "โหลดระดับความน่าเชื่อถือไม่สำเร็จ")
+            } finally {
+                setTrustLevelsLoading(false)
+            }
+        }
+        load()
+    }, [activeTab, token])
 
     const formatAmount = (amount: number) => {
         return new Intl.NumberFormat("th-TH").format(amount)
@@ -187,6 +216,44 @@ export default function AdminDashboard() {
 
     const handleEditUser = (id: string) => {
         router.push(`/admin/users/edit/${id}`)
+    }
+
+    const updateTrustLevelRow = (role: "donor" | "organizer", index: number, field: keyof TrustLevelRow, value: number | string) => {
+        setTrustLevels(prev => {
+            if (!prev) return prev
+            const list = [...prev[role]]
+            list[index] = { ...list[index], [field]: value }
+            return { ...prev, [role]: list }
+        })
+    }
+    const addTrustLevelRow = (role: "donor" | "organizer") => {
+        setTrustLevels(prev => {
+            if (!prev) return prev
+            const list = prev[role]
+            const nextLevel = list.length ? Math.max(...list.map(r => r.level)) + 1 : 1
+            return { ...prev, [role]: [...list, { level: nextLevel, name: "ระดับ " + nextLevel, min_score: list.length ? Math.max(...list.map(r => r.min_score)) + 100 : 0 }] }
+        })
+    }
+    const removeTrustLevelRow = (role: "donor" | "organizer", index: number) => {
+        setTrustLevels(prev => {
+            if (!prev) return prev
+            const list = prev[role].filter((_, i) => i !== index)
+            return { ...prev, [role]: list }
+        })
+    }
+    const saveTrustLevels = async () => {
+        if (!trustLevels) return
+        setTrustLevelsSaving(true)
+        setTrustLevelsError(null)
+        try {
+            await adminTrustLevelsAPI.updateLevels(trustLevels)
+            setTrustLevelsError(null)
+            alert("บันทึกระดับความน่าเชื่อถือเรียบร้อย")
+        } catch (e: any) {
+            setTrustLevelsError(e.response?.data?.message || "บันทึกไม่สำเร็จ")
+        } finally {
+            setTrustLevelsSaving(false)
+        }
     }
 
     if (!user || user.role !== "admin") return null
@@ -266,6 +333,16 @@ export default function AdminDashboard() {
                             >
                                 <Gift className="w-4 h-4 mr-2 inline" />
                                 จัดการรางวัล
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("trust-levels")}
+                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "trust-levels"
+                                    ? "border-b-2 border-purple-500 text-purple-600 bg-purple-50"
+                                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                                    }`}
+                            >
+                                <Award className="w-4 h-4 mr-2 inline" />
+                                แก้ไขระดับความน่าเชื่อถือ
                             </button>
                             <button
                                 onClick={() => setActiveTab("settings")}
@@ -583,6 +660,173 @@ export default function AdminDashboard() {
                                         </tbody>
                                     </table>
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {activeTab === "trust-levels" && (
+                    <div className="space-y-6">
+                        <h2 className="text-xl font-bold text-gray-800">จัดการระดับความน่าเชื่อถือ</h2>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Award className="w-5 h-5 text-purple-500" />
+                                    ระดับผู้บริจาคและผู้รับบริจาค
+                                </CardTitle>
+                                <p className="text-sm text-gray-600">แก้ไขชื่อระดับและคะแนนขั้นต่ำ (min_score) ได้ ระดับจะแสดงในโปรไฟล์และหน้า /trust-levels</p>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {trustLevelsError && (
+                                    <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{trustLevelsError}</div>
+                                )}
+                                {trustLevelsLoading ? (
+                                    <div className="flex items-center gap-2 text-gray-600">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        กำลังโหลดระดับความน่าเชื่อถือ...
+                                    </div>
+                                ) : trustLevels && (
+                                    <>
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="font-medium text-gray-800">ระดับผู้บริจาค (Donor)</h4>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => addTrustLevelRow("donor")}>
+                                                    <Plus className="w-4 h-4 mr-1" />
+                                                    เพิ่มระดับ
+                                                </Button>
+                                            </div>
+                                            <div className="overflow-x-auto border rounded-lg">
+                                                <table className="w-full text-sm">
+                                                    <thead className="bg-gray-50">
+                                                        <tr>
+                                                            <th className="p-2 text-left font-medium">ระดับ</th>
+                                                            <th className="p-2 text-left font-medium">ชื่อระดับ</th>
+                                                            <th className="p-2 text-left font-medium">คะแนนขั้นต่ำ</th>
+                                                            <th className="p-2 w-20"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {trustLevels.donor.map((row, i) => (
+                                                            <tr key={`d-${i}`} className="border-t">
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min={1}
+                                                                        max={20}
+                                                                        className="w-16 border rounded px-2 py-1"
+                                                                        value={row.level}
+                                                                        onChange={e => updateTrustLevelRow("donor", i, "level", parseInt(e.target.value, 10) || 1)}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        maxLength={100}
+                                                                        className="w-full max-w-xs border rounded px-2 py-1"
+                                                                        value={row.name}
+                                                                        onChange={e => updateTrustLevelRow("donor", i, "name", e.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        className="w-24 border rounded px-2 py-1"
+                                                                        value={row.min_score}
+                                                                        onChange={e => updateTrustLevelRow("donor", i, "min_score", parseInt(e.target.value, 10) || 0)}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="text-red-600 hover:bg-red-50"
+                                                                        onClick={() => removeTrustLevelRow("donor", i)}
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </Button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="font-medium text-gray-800">ระดับผู้รับบริจาค (Organizer)</h4>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => addTrustLevelRow("organizer")}>
+                                                    <Plus className="w-4 h-4 mr-1" />
+                                                    เพิ่มระดับ
+                                                </Button>
+                                            </div>
+                                            <div className="overflow-x-auto border rounded-lg">
+                                                <table className="w-full text-sm">
+                                                    <thead className="bg-gray-50">
+                                                        <tr>
+                                                            <th className="p-2 text-left font-medium">ระดับ</th>
+                                                            <th className="p-2 text-left font-medium">ชื่อระดับ</th>
+                                                            <th className="p-2 text-left font-medium">คะแนนขั้นต่ำ</th>
+                                                            <th className="p-2 w-20"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {trustLevels.organizer.map((row, i) => (
+                                                            <tr key={`o-${i}`} className="border-t">
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min={1}
+                                                                        max={20}
+                                                                        className="w-16 border rounded px-2 py-1"
+                                                                        value={row.level}
+                                                                        onChange={e => updateTrustLevelRow("organizer", i, "level", parseInt(e.target.value, 10) || 1)}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        maxLength={100}
+                                                                        className="w-full max-w-xs border rounded px-2 py-1"
+                                                                        value={row.name}
+                                                                        onChange={e => updateTrustLevelRow("organizer", i, "name", e.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        className="w-24 border rounded px-2 py-1"
+                                                                        value={row.min_score}
+                                                                        onChange={e => updateTrustLevelRow("organizer", i, "min_score", parseInt(e.target.value, 10) || 0)}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="text-red-600 hover:bg-red-50"
+                                                                        onClick={() => removeTrustLevelRow("organizer", i)}
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </Button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <Button onClick={saveTrustLevels} disabled={trustLevelsSaving}>
+                                                {trustLevelsSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                                บันทึกระดับความน่าเชื่อถือ
+                                            </Button>
+                                        </div>
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

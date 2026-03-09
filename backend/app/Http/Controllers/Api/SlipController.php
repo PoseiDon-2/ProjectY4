@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\DonationRequest;
 use App\Models\DonationSlip;
 use App\Models\Notification;
+use App\Models\PointsTransaction;
+use App\Models\User;
 use App\Enums\DonationRequestStatus;
+use App\Services\TrustLevelService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -186,6 +189,26 @@ class SlipController extends Controller
                 'verified_at' => now(),
             ]);
 
+            // ให้คะแนนผู้บริจาค (เมื่อมี donor_id) น้อยกว่า 100 ได้ 5 คะแนน, 100 ขึ้นไปได้ 1 บาทละ 1 แต้ม
+            if ($slip->donor_id) {
+                $amount = (float) $slip->amount;
+                $points = $amount < 100 ? 5 : (int) floor($amount);
+                if ($points > 0) {
+                    $dr = $slip->donationRequest;
+                    $title = $dr ? $dr->title : 'คำขอบริจาค';
+                    PointsTransaction::create([
+                        'id' => 'ptx_' . uniqid(),
+                        'user_id' => $slip->donor_id,
+                        'type' => 'earned',
+                        'amount' => $points,
+                        'source' => 'donation',
+                        'description' => "Money donation ฿" . number_format($amount, 2) . " - {$title}",
+                        'date' => now(),
+                        'related_id' => 'slip_' . $slip->id,
+                    ]);
+                }
+            }
+
             // อัปเดตยอดสะสม
             $dr = $slip->donationRequest;
             if ($dr) {
@@ -226,9 +249,37 @@ class SlipController extends Controller
                     }
                 }
 
+                $dr->supporters = DonationSlip::where('donation_request_id', $dr->id)
+                    ->where('status', 'verified')
+                    ->pluck('donor_id')
+                    ->unique()
+                    ->count();
                 $dr->save();
             }
+
+            if ($slip->donor_id) {
+                User::where('id', $slip->donor_id)->increment('total_donated', (float) $slip->amount);
+                User::where('id', $slip->donor_id)->increment('donation_count', 1);
+            }
         });
+
+        try {
+            if ($slip->donor_id) {
+                $donor = User::find($slip->donor_id);
+                if ($donor) {
+                    app(TrustLevelService::class)->updateUserTrust($donor);
+                }
+            }
+            $dr = $slip->donationRequest;
+            if ($dr && $dr->organizer_id) {
+                $organizer = User::find($dr->organizer_id);
+                if ($organizer) {
+                    app(TrustLevelService::class)->updateUserTrust($organizer);
+                }
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Trust level update after slip approve failed: ' . $e->getMessage());
+        }
 
         $message = $isCompleted 
             ? 'อนุมัติสลิปแล้ว และคำขอบริจาคครบจำนวนเป้าหมายแล้ว! 🎉'

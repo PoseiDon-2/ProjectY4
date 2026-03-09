@@ -16,6 +16,7 @@ class Reward extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'created_at' => 'datetime',
         'expires_at' => 'datetime',
     ];
 

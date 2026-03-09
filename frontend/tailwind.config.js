@@ -1,6 +1,17 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
 	darkMode: ["class"],
+	// กรอบที่แอดมินสร้างเอง (ใส่ class จาก input) ต้อง safelist เพื่อให้ Tailwind รวม class เหล่านั้น
+	safelist: [
+		{ pattern: /^border-(2|4|8)$/ },
+		{ pattern: /^border-(gray|orange|cyan|emerald|violet|pink|red|yellow|amber|sky|rose|indigo|transparent)(-\d+)?$/ },
+		{ pattern: /^shadow-lg$/ },
+		{ pattern: /^shadow-(gray|orange|cyan|emerald|violet|pink|red|yellow|amber|sky|rose|indigo)(-\d+)?$/ },
+		{ pattern: /^rounded-full$/ },
+		{ pattern: /^bg-gradient-to-r$/ },
+		{ pattern: /^from-|^via-|^to-/ },
+		{ pattern: /^p-\[4px\]$/ },
+	],
 	content: [
 		"./src/app/**/*.{js,ts,jsx,tsx}",
 		"./src/components/**/*.{js,ts,jsx,tsx}",

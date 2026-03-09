@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { useEffect } from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, User, Mail, Phone, Save, X, Shield, Building, AlertTriangle, UserPlus } from "lucide-react"
@@ -82,9 +82,13 @@ export default function AddUserPage() {
     const [error, setError] = useState("")
     const [success, setSuccess] = useState("")
 
-    // Redirect if not admin
+    useEffect(() => {
+        if (!currentUser || currentUser.role !== "admin") {
+            router.push("/")
+        }
+    }, [currentUser, router])
+
     if (!currentUser || currentUser.role !== "admin") {
-        router.push("/")
         return null
     }
 

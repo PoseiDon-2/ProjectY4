@@ -29,6 +29,7 @@ import {
     Plus,
     ChevronLeft,
     ChevronRight,
+    Shield,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,6 +45,7 @@ import VolunteerModal from "../../volunteer-modal"
 import ReceiptUploadModal from "./receipt-upload-modal"
 import ReceiptDetailModal from "./receipt-detail-modal"
 import type { ReceiptData } from "@/types/receipt"
+import { favoritesAPI } from "@/lib/api"
 import axios from "axios"
 
 const API_URL: string = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
@@ -193,6 +195,8 @@ const transformApiData = (apiData: any) => {
             organization: apiData.organization?.name || "",
             avatar: "https://via.placeholder.com/100x100?text=No+Image",
             verified: true,
+            trustLevel: apiData.organizer?.organizer_trust_level ?? 1,
+            trustLevelName: apiData.organizer?.organizer_trust_level_name ?? "เริ่มต้น",
         },
         createdDate: apiData.created_at ? new Date(apiData.created_at).toISOString().split('T')[0] : "",
         tags: [],
@@ -233,8 +237,63 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [currentImageIndex, setCurrentImageIndex] = useState(0)
+    const [itemsProgress, setItemsProgress] = useState<{ receivedPieces: number; receivedCount: number; pendingCount: number }>({
+        receivedPieces: 0,
+        receivedCount: 0,
+        pendingCount: 0,
+    })
+    const [volunteerProgressExtra, setVolunteerProgressExtra] = useState<{ received: number; pending: number }>({ received: 0, pending: 0 })
 
     const isOrganizer = user?.role === "organizer"
+
+    const computeLocalProgress = () => {
+        if (typeof window === "undefined" || !id) return
+        const rid = String(id)
+        let itemsReceivedPieces = 0
+        let itemsReceivedCount = 0
+        let itemsPendingCount = 0
+        let volunteersReceived = 0
+        let volunteersPending = 0
+
+        try {
+            const pendingItems = JSON.parse(localStorage.getItem("pending_item_donations") || "[]")
+            itemsPendingCount = pendingItems.filter((p: any) => String(p.requestId) === rid).length
+            const pendingVols = JSON.parse(localStorage.getItem("pending_volunteer_applications") || "[]")
+            volunteersPending = pendingVols.filter((p: any) => String(p.requestId) === rid).length
+
+            Object.keys(localStorage)
+                .filter((k) => k.startsWith("user_donations_"))
+                .forEach((k) => {
+                    const arr = JSON.parse(localStorage.getItem(k) || "[]")
+                    arr.forEach((d: any) => {
+                        if (String(d.requestId) === rid && d.type === "items") {
+                            if (d.status === "completed") {
+                                itemsReceivedCount += 1
+                                itemsReceivedPieces += d.approvedQuantity || 0
+                            }
+                        }
+                    })
+                })
+            Object.keys(localStorage)
+                .filter((k) => k.startsWith("user_volunteers_"))
+                .forEach((k) => {
+                    const arr = JSON.parse(localStorage.getItem(k) || "[]")
+                    arr.forEach((v: any) => {
+                        if (String(v.requestId) === rid && v.status === "approved") volunteersReceived += 1
+                    })
+                })
+        } catch (e) {
+            console.error("Error computing progress:", e)
+        }
+        setItemsProgress({ receivedPieces: itemsReceivedPieces, receivedCount: itemsReceivedCount, pendingCount: itemsPendingCount })
+        setVolunteerProgressExtra({ received: volunteersReceived, pending: volunteersPending })
+    }
+
+    useEffect(() => {
+        computeLocalProgress()
+        const interval = setInterval(computeLocalProgress, 2000)
+        return () => clearInterval(interval)
+    }, [id, donation])
 
     useEffect(() => {
         const fetchDonation = async () => {
@@ -260,6 +319,18 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
         }
     }, [donation])
 
+    // โหลดสถานะถูกใจจาก API (เมื่อ login แล้ว)
+    useEffect(() => {
+        if (!user || !id) return
+        favoritesAPI.getList()
+            .then((res) => {
+                const list = Array.isArray(res.data) ? res.data : (res.data?.data ?? [])
+                const found = list.some((r: { id: string }) => String(r.id) === String(id))
+                setIsFavorited(found)
+            })
+            .catch(() => {})
+    }, [user, id])
+
     const loadReceipts = () => {
         try {
             const requestReceipts = receiptSystem.getReceiptsForRequest(id.toString())
@@ -275,8 +346,10 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
     const moneyProgressPercentage = donation?.goals?.money
         ? (donation.goals.money.current / donation.goals.money.target) * 100
         : 0
+    const volunteerCurrent = (donation?.goals?.volunteer?.current || 0) + volunteerProgressExtra.received
+    const volunteerTarget = donation?.goals?.volunteer?.target || 1
     const volunteerProgressPercentage = donation?.goals?.volunteer
-        ? (donation.goals.volunteer.current / donation.goals.volunteer.target) * 100
+        ? (volunteerCurrent / volunteerTarget) * 100
         : 0
 
     const formatAmount = (amount: number) => new Intl.NumberFormat("th-TH").format(amount)
@@ -428,7 +501,21 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setIsFavorited(!isFavorited)}
+                                onClick={async () => {
+                                    if (!user) return
+                                    const next = !isFavorited
+                                    try {
+                                        if (next) {
+                                            await favoritesAPI.add(id)
+                                        } else {
+                                            await favoritesAPI.remove(id)
+                                        }
+                                        setIsFavorited(next)
+                                    } catch (err: any) {
+                                        const msg = err.response?.data?.message || "ไม่สามารถเพิ่ม/ลบรายการที่สนใจได้"
+                                        if (typeof window !== "undefined" && window.alert) window.alert(msg)
+                                    }
+                                }}
                                 className={`hover:bg-pink-50 ${isFavorited ? "text-pink-600" : "text-gray-600"}`}
                             >
                                 <Heart className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`} />
@@ -568,18 +655,24 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                             <h4 className="font-medium text-blue-800">สิ่งของที่ต้องการ</h4>
                                         </div>
                                         <p className="text-sm text-gray-700">{donation.goals.items.description}</p>
-                                        <div className="space-y-2">
-                                            <h5 className="text-sm font-medium text-blue-800">ได้รับแล้ว:</h5>
-                                            <ul className="text-sm text-gray-700 space-y-1">
-                                                {donation.goals.items.received.map((item: string, index: number) => (
-                                                    <li key={index} className="flex items-center gap-2">
-                                                        <CheckCircle className="w-4 h-4 text-green-500" />
-                                                        {item}
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xl font-bold text-blue-600">ได้ {itemsProgress.receivedPieces} ชิ้น</span>
+                                            {itemsProgress.pendingCount > 0 && (
+                                                <span className="text-sm text-amber-600">รออนุมัติ {itemsProgress.pendingCount} รายการ</span>
+                                            )}
                                         </div>
-                                        <div className="text-sm text-gray-600">{donation.goals.items.supporters} ผู้บริจาคสิ่งของ</div>
+                                        <Progress
+                                            value={
+                                                itemsProgress.receivedCount + itemsProgress.pendingCount > 0
+                                                    ? (itemsProgress.receivedCount / (itemsProgress.receivedCount + itemsProgress.pendingCount)) * 100
+                                                    : 0
+                                            }
+                                            className="h-3"
+                                        />
+                                        <p className="text-sm text-gray-600">
+                                            ได้ {itemsProgress.receivedPieces} ชิ้น
+                                            {itemsProgress.pendingCount > 0 && ` • รออนุมัติ ${itemsProgress.pendingCount} รายการ`}
+                                        </p>
                                     </div>
                                 )}
 
@@ -590,12 +683,20 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                             <h4 className="font-medium text-purple-800">อาสาสมัคร</h4>
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <span className="text-2xl font-bold text-purple-600">{donation.goals.volunteer.current} คน</span>
-                                            <span className="text-sm text-gray-600">เป้าหมาย {donation.goals.volunteer.target} คน</span>
+                                            <span className="text-2xl font-bold text-purple-600">
+                                                {volunteerCurrent} คน
+                                                {volunteerProgressExtra.pending > 0 && (
+                                                    <span className="text-sm font-normal text-amber-600 ml-1">(รออนุมัติ {volunteerProgressExtra.pending})</span>
+                                                )}
+                                            </span>
+                                            <span className="text-sm text-gray-600">เป้าหมาย {volunteerTarget} คน</span>
                                         </div>
-                                        <Progress value={volunteerProgressPercentage} className="h-3" />
+                                        <Progress value={Math.min(100, volunteerProgressPercentage)} className="h-3" />
                                         <p className="text-sm text-gray-700">{donation.goals.volunteer.description}</p>
-                                        <div className="text-sm text-gray-600">{Math.round(volunteerProgressPercentage)}% ของเป้าหมาย</div>
+                                        <div className="text-sm text-gray-600">
+                                            {Math.round(volunteerProgressPercentage)}% ของเป้าหมาย
+                                            {volunteerTarget - volunteerCurrent > 0 && ` • เหลือ ${volunteerTarget - volunteerCurrent} คน`}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -606,9 +707,15 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                     <AvatarFallback>{donation.organizer.name.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-medium text-gray-800">{donation.organizer.name}</span>
                                         {donation.organizer.verified && <CheckCircle className="w-4 h-4 text-green-500" />}
+                                        {donation.organizer.trustLevelName && (
+                                            <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 border-amber-200">
+                                                <Shield className="w-3 h-3 mr-1" />
+                                                {donation.organizer.trustLevelName}
+                                            </Badge>
+                                        )}
                                     </div>
                                     <p className="text-sm text-gray-600">{donation.organizer.organization}</p>
                                 </div>
@@ -832,6 +939,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 ))}
                             </div>
 
+<<<<<<< HEAD
                             {mockStories.length > 3 && (
                                 <Button
                                     variant="outline"
@@ -840,6 +948,75 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 >
                                     {showAllStories ? "แสดงน้อยลง" : `ดู Stories ทั้งหมด (${mockStories.length})`}
                                 </Button>
+=======
+                            <Card>
+                                <CardContent className="p-6 text-center">
+                                    <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                    <h3 className="text-lg font-medium text-gray-900 mb-2">จัดการสลิปการรับเงิน</h3>
+                                    <p className="text-gray-600 mb-4">อัปโหลดและจัดการสลิปการรับเงินบริจาคเพื่อความโปร่งใสและการติดตาม</p>
+                                    <Button
+                                        onClick={() => setShowReceiptUploadModal(true)}
+                                        className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                                    >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        อัปโหลดสลิปใหม่
+                                    </Button>
+                                </CardContent>
+                            </Card>
+
+                            {receipts.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Receipt className="w-5 h-5 text-green-500" />
+                                            สลิปล่าสุด ({receipts.length})
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            {receipts.slice(0, 5).map((receipt) => {
+                                                const summary = receiptSystem.generateReceiptSummary(receipt)
+                                                return (
+                                                    <div
+                                                        key={receipt.id}
+                                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:shadow-sm transition-shadow cursor-pointer"
+                                                        onClick={() => handleViewReceiptDetails(receipt)}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="text-2xl">
+                                                                {receipt.type === "money" ? "💰" : receipt.type === "items" ? "📦" : "👥"}
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-medium text-gray-900">{receipt.receiptNumber}</h4>
+                                                                <p className="text-sm text-gray-600">
+                                                                    {receipt.isAnonymous ? "ผู้บริจาคไม่ประสงค์ออกนาม" : receipt.donorName || "ไม่ระบุชื่อ"}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500">
+                                                                    {new Date(receipt.createdAt).toLocaleDateString("th-TH")}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="font-bold text-lg">{summary.amount}</p>
+                                                            <Badge className={`${summary.status} border text-xs`}>{summary.status}</Badge>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                        {receipts.length > 5 && (
+                                            <div className="text-center mt-4">
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => router.push(`/organizer-dashboard?tab=receipts&request=${id}`)}
+                                                >
+                                                    ดูสลิปทั้งหมด ({receipts.length})
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+>>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                             )}
 
                             <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">

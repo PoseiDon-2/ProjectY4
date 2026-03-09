@@ -121,14 +121,10 @@ export async function verifyThaiBankSlip(
         const verificationImageUrl = URL.createObjectURL(slipFile)
         
         try {
-            // Basic verification
-            // ไม่ส่ง expectedBankName เพราะ expectedBankName คือ recipient bank
-            // ผู้บริจาคสามารถใช้ธนาคารไหนก็ได้
+            // Basic verification (VerifySlipOptions มีแค่ slipImageUrl + requiredAmount)
             const basicResult = await verifySlip({
                 slipImageUrl: verificationImageUrl,
-                requiredAmount: expectedAmount || undefined,
-                expectedAccountName: expectedAccountName || undefined,
-                expectedBankName: undefined // ไม่ตรวจสอบ sender bank
+                requiredAmount: expectedAmount || undefined
             })
 
             // Advanced verification
