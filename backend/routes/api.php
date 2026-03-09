@@ -6,10 +6,18 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\DonationRequestController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AdminRequestController;
-use App\Http\Controllers\Api\AdminTrustLevelController;
-use App\Http\Controllers\Api\AdminRewardController;
 use App\Http\Controllers\Api\StoryController;
 use App\Http\Controllers\Api\StoryStatController;
+use Illuminate\Http\Request;
+use App\Enums\UserRole;
+use App\Http\Controllers\Api\UserBehaviorController;
+use App\Http\Controllers\Api\RecommendationController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\CategoryController;
+
+// === IMPORT ของเพื่อนที่เพิ่มเข้ามา ===
+use App\Http\Controllers\Api\AdminTrustLevelController;
+use App\Http\Controllers\Api\AdminRewardController;
 use App\Http\Controllers\Api\SlipController;
 use App\Http\Controllers\Api\ItemDonationController;
 use App\Http\Controllers\Api\VolunteerApplicationController;
@@ -19,15 +27,7 @@ use App\Http\Controllers\Api\RewardController;
 use App\Http\Controllers\Api\TrustController;
 use App\Http\Controllers\Api\DonationHistoryController;
 use App\Http\Controllers\Api\FavoriteController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use App\Enums\UserRole;
-use App\Http\Controllers\Api\UserBehaviorController;
-use App\Http\Controllers\Api\RecommendationController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\CategoryController;
-
-
 
 Route::prefix('auth')->group(function () {
     Route::post('send-otp', [AuthController::class, 'sendOTP']);
@@ -36,43 +36,12 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
 
     Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/categories', [CategoryController::class, 'store']);
         Route::get('me', [AuthController::class, 'me']);
         Route::patch('me', [AuthController::class, 'updateProfile']);
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('donations', [AuthController::class, 'donations']);
     });
 });
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-// === POINTS API ===
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/points', [PointsController::class, 'index']);
-    Route::post('/points/spend', [PointsController::class, 'spend']);
-});
-
-// === DONATION HISTORY (profile) ===
-Route::middleware('auth:sanctum')->get('/me/donation-history', [DonationHistoryController::class, 'index']);
-
-// === FAVORITES (รายการที่สนใจ) ===
-Route::middleware('auth:sanctum')->get('/me/favorites', [FavoriteController::class, 'index']);
-Route::middleware('auth:sanctum')->post('/me/favorites', [FavoriteController::class, 'store']);
-Route::middleware('auth:sanctum')->delete('/me/favorites/{request_id}', [FavoriteController::class, 'destroy']);
-
-// === TRUST LEVEL API ===
-Route::middleware('auth:sanctum')->get('/me/trust', [TrustController::class, 'me']);
-Route::get('/trust-levels', [TrustController::class, 'levels']);
-Route::get('/users/{id}/trust', [TrustController::class, 'show']);
-
-// === REWARDS (catalog + redeem) ===
-Route::get('/rewards', [RewardController::class, 'index']);
-Route::middleware('auth:sanctum')->get('/me/rewards', [RewardController::class, 'myRewards']);
-Route::middleware('auth:sanctum')->post('/rewards/redeem', [RewardController::class, 'redeem']);
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 
 // === DONATION REQUESTS APIs ===
 Route::prefix('donation-requests')->group(function () {
@@ -81,20 +50,9 @@ Route::prefix('donation-requests')->group(function () {
     Route::get('/{id}', [DonationRequestController::class, 'show']);
 });
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-// === DONATION SLIPS APIs (public info) ===
-Route::get('/donations/remaining/{id}', [SlipController::class, 'remaining']);
-=======
 Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
 
 Route::post('/user-behaviors', [UserBehaviorController::class, 'store']);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
-Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
-
-Route::post('/user-behaviors', [UserBehaviorController::class, 'store']);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 
 Route::middleware(['auth:sanctum'])->prefix('donation-requests')->group(function () {
     Route::post('/categories', [CategoryController::class, 'store']);
@@ -104,17 +62,39 @@ Route::middleware(['auth:sanctum'])->prefix('donation-requests')->group(function
     Route::delete('/{id}', [DonationRequestController::class, 'destroy']);
 });
 
-// === DONATION SLIPS APIs (auth) ===
+// === API ใหม่ของเพื่อน (Points, Favorites, Trust Level, Rewards, Slips, etc.) ===
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/points', [PointsController::class, 'index']);
+    Route::post('/points/spend', [PointsController::class, 'spend']);
+    
+    Route::get('/me/donation-history', [DonationHistoryController::class, 'index']);
+    
+    Route::get('/me/favorites', [FavoriteController::class, 'index']);
+    Route::post('/me/favorites', [FavoriteController::class, 'store']);
+    Route::delete('/me/favorites/{request_id}', [FavoriteController::class, 'destroy']);
+    
+    Route::get('/me/trust', [TrustController::class, 'me']);
+    
+    Route::get('/me/rewards', [RewardController::class, 'myRewards']);
+    Route::post('/rewards/redeem', [RewardController::class, 'redeem']);
+    
+    Route::post('/item-donations', [ItemDonationController::class, 'store']);
+    Route::post('/volunteer-applications', [VolunteerApplicationController::class, 'store']);
+});
+
+Route::get('/trust-levels', [TrustController::class, 'levels']);
+Route::get('/users/{id}/trust', [TrustController::class, 'show']);
+Route::get('/rewards', [RewardController::class, 'index']);
+Route::get('/donations/remaining/{id}', [SlipController::class, 'remaining']);
+
+// ย้าย Public Route ขึ้นมาจัดกลุ่มให้ถูกต้อง
+Route::get('/users/{id}', [UserController::class, 'show']); 
+
 Route::middleware(['auth:sanctum'])->prefix('donations')->group(function () {
     Route::post('/slips', [SlipController::class, 'store']);
     Route::get('/slips/my', [SlipController::class, 'mySlips']);
 });
-
-// === ITEM DONATIONS (donor submit) ===
-Route::middleware(['auth:sanctum'])->post('/item-donations', [ItemDonationController::class, 'store']);
-
-// === VOLUNTEER APPLICATIONS (donor submit) ===
-Route::middleware(['auth:sanctum'])->post('/volunteer-applications', [VolunteerApplicationController::class, 'store']);
+// =======================================================================
 
 // === STORIES APIs ===
 Route::prefix('stories')->group(function () {
@@ -148,7 +128,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
 
-            return app(StoryController::class)->index($request);
+            return app(StoryController::class)->index();
         } catch (\Exception $e) {
             \Log::error('Organizer stories error', [
                 'error' => $e->getMessage(),
@@ -248,7 +228,7 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
                 return response()->json(['message' => 'Unauthorized. Organizer access required.'], 403);
             }
 
-            return app(StoryController::class)->destroy($request, $id);
+            return app(StoryController::class)->destroy($id);
         } catch (\Exception $e) {
             \Log::error('Delete story error', [
                 'error' => $e->getMessage(),
@@ -336,23 +316,20 @@ Route::middleware(['auth:sanctum'])->prefix('organizer')->group(function () {
         }
     });
 
-    // === ORGANIZER APPROVALS (items + volunteers) ===
+    // === ORGANIZER APPROVALS ของเพื่อน ===
     Route::get('/item-donations/pending', [OrganizerApprovalController::class, 'pendingItemDonations']);
     Route::post('/item-donations/{id}/approve', [OrganizerApprovalController::class, 'approveItemDonation']);
     Route::post('/item-donations/{id}/reject', [OrganizerApprovalController::class, 'rejectItemDonation']);
     Route::get('/volunteer-applications/pending', [OrganizerApprovalController::class, 'pendingVolunteerApplications']);
     Route::post('/volunteer-applications/{id}/approve', [OrganizerApprovalController::class, 'approveVolunteerApplication']);
     Route::post('/volunteer-applications/{id}/reject', [OrganizerApprovalController::class, 'rejectVolunteerApplication']);
-
-    // === ORGANIZER SLIPS APPROVAL ===
+    
     Route::get('/slips/pending', [SlipController::class, 'pendingForOrganizer']);
     Route::get('/slips/request/{donationRequestId}', [SlipController::class, 'getByDonationRequest']);
     Route::get('/slips/{id}/download', [SlipController::class, 'download']);
     Route::post('/slips/{id}/approve', [SlipController::class, 'approve']);
     Route::post('/slips/{id}/reject', [SlipController::class, 'reject']);
 });
-
-Route::get('/users', [AdminUserController::class, 'getUsers']);
 
 // === ADMIN APIs ===
 Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
@@ -570,95 +547,13 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         }
     });
 
-    Route::get('/trust-levels', function (Request $request) {
-        try {
-            $user = $request->user();
-            $userRole = $user->role;
-            if ($userRole instanceof \App\Enums\UserRole) {
-                $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
-            } else {
-                $isAdmin = in_array(strtoupper((string) $userRole), ['ADMIN']);
-            }
-            if (!$isAdmin) {
-                return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
-            }
-            return app(AdminTrustLevelController::class)->index();
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
-        }
-    });
-
-    Route::put('/trust-levels', function (Request $request) {
-        try {
-            $user = $request->user();
-            $userRole = $user->role;
-            if ($userRole instanceof \App\Enums\UserRole) {
-                $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
-            } else {
-                $isAdmin = in_array(strtoupper((string) $userRole), ['ADMIN']);
-            }
-            if (!$isAdmin) {
-                return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
-            }
-            return app(AdminTrustLevelController::class)->update($request);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
-        }
-    });
-
-    // === ADMIN REWARDS (reward catalog) ===
-    Route::get('/rewards', function (Request $request) {
-        $user = $request->user();
-        $userRole = $user->role;
-        if ($userRole instanceof \App\Enums\UserRole) {
-            $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
-        } else {
-            $isAdmin = in_array(strtoupper((string) $userRole), ['ADMIN']);
-        }
-        if (!$isAdmin) {
-            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
-        }
-        return app(AdminRewardController::class)->index();
-    });
-    Route::post('/rewards', function (Request $request) {
-        $user = $request->user();
-        $userRole = $user->role;
-        if ($userRole instanceof \App\Enums\UserRole) {
-            $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
-        } else {
-            $isAdmin = in_array(strtoupper((string) $userRole), ['ADMIN']);
-        }
-        if (!$isAdmin) {
-            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
-        }
-        return app(AdminRewardController::class)->store($request);
-    });
-    Route::put('/rewards/{id}', function (Request $request, $id) {
-        $user = $request->user();
-        $userRole = $user->role;
-        if ($userRole instanceof \App\Enums\UserRole) {
-            $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
-        } else {
-            $isAdmin = in_array(strtoupper((string) $userRole), ['ADMIN']);
-        }
-        if (!$isAdmin) {
-            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
-        }
-        return app(AdminRewardController::class)->update($request, $id);
-    });
-    Route::delete('/rewards/{id}', function (Request $request, $id) {
-        $user = $request->user();
-        $userRole = $user->role;
-        if ($userRole instanceof \App\Enums\UserRole) {
-            $isAdmin = $userRole === \App\Enums\UserRole::ADMIN;
-        } else {
-            $isAdmin = in_array(strtoupper((string) $userRole), ['ADMIN']);
-        }
-        if (!$isAdmin) {
-            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
-        }
-        return app(AdminRewardController::class)->destroy($id);
-    });
+    // === ADMIN TRUST LEVELS & REWARDS ของเพื่อน ===
+    Route::get('/trust-levels', [AdminTrustLevelController::class, 'index']);
+    Route::put('/trust-levels', [AdminTrustLevelController::class, 'update']);
+    Route::get('/rewards', [AdminRewardController::class, 'index']);
+    Route::post('/rewards', [AdminRewardController::class, 'store']);
+    Route::put('/rewards/{id}', [AdminRewardController::class, 'update']);
+    Route::delete('/rewards/{id}', [AdminRewardController::class, 'destroy']);
 });
 
 // === FILE UPLOAD APIs ===
@@ -706,6 +601,7 @@ Route::middleware(['auth:sanctum'])->prefix('upload')->group(function () {
         }
     });
 
+    // === REWARD IMAGE UPLOAD ของเพื่อน ===
     Route::post('/reward-image', function (Request $request) {
         try {
             $user = $request->user();
@@ -718,32 +614,18 @@ Route::middleware(['auth:sanctum'])->prefix('upload')->group(function () {
             if (!$isAdmin) {
                 return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
             }
-            $request->validate([
-                'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5120',
-            ]);
+            $request->validate(['image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5120']);
             if ($request->hasFile('image')) {
                 $imagePath = $request->file('image')->store('rewards', 'public');
-                $relativeUrl = Storage::url($imagePath);
-                $imageUrl = config('app.url') . $relativeUrl;
-                return response()->json([
-                    'success' => true,
-                    'url' => $imageUrl,
-                    'message' => 'Image uploaded successfully',
-                ]);
+                return response()->json(['success' => true, 'url' => config('app.url') . \Illuminate\Support\Facades\Storage::url($imagePath), 'message' => 'Image uploaded successfully']);
             }
             return response()->json(['success' => false, 'message' => 'No image file provided'], 400);
         } catch (\Exception $e) {
-            \Log::error('Reward image upload error', ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Server error: ' . $e->getMessage()], 500);
         }
     });
 });
 
-Route::post('/donation-requests/{id}/approve', [DonationRequestController::class, 'approveRequest']);
-Route::post('/donation-requests/{id}/reject', [DonationRequestController::class, 'rejectRequest']);
-Route::post('/donation-requests/{id}/approve-edit', [DonationRequestController::class, 'approveEditRequest']);
-
-Route::get('/users/{id}', [UserController::class, 'show']);
 // === HEALTH CHECK ===
 Route::get('/health', function () {
     return response()->json([

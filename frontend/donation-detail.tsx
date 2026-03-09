@@ -752,7 +752,7 @@ export default function DonationDetail({ id }: DonationDetailProps) {
                 isOpen={showDonationModal}
                 onClose={() => setShowDonationModal(false)}
                 donation={{
-                    id: donation.id,
+                    id: String(donation.id),
                     title: donation.title,
                     paymentMethods: donation.paymentMethods,
                 }}

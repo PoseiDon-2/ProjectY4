@@ -26,39 +26,16 @@ class DonationRequestController extends Controller
      */
     public function index(Request $request)
     {
-<<<<<<< HEAD
-<<<<<<< HEAD
         try {
+            // 1. เริ่มต้น Query พื้นฐาน
             $query = DonationRequest::with(['category', 'organization', 'organizer'])
-                ->where('status', DonationRequestStatus::APPROVED->value);
+                ->where('status', DonationRequestStatus::APPROVED->value ?? 'APPROVED');
 
-            // Filter by category
+            // --- ส่วน Filter ---
             if ($request->has('category_id')) {
                 $query->where('category_id', $request->category_id);
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-        // 1. เริ่มต้น Query พื้นฐาน
-        $query = DonationRequest::with(['category', 'organization', 'organizer'])
-            ->where('status', DonationRequestStatus::APPROVED);
-
-        // --- ส่วน Filter (Code เดิม) ---
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-        if ($request->has('donation_type')) {
-            $type = strtolower($request->donation_type);
-            if ($type === 'money') {
-                $query->where('accepts_money', true);
-            } elseif ($type === 'items') {
-                $query->where('accepts_items', true);
-            } elseif ($type === 'volunteer') {
-                $query->where('accepts_volunteer', true);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
             }
-<<<<<<< HEAD
 
-            // Filter by donation type
             if ($request->has('donation_type')) {
                 $type = strtolower($request->donation_type);
                 if ($type === 'money') {
@@ -70,17 +47,14 @@ class DonationRequestController extends Controller
                 }
             }
 
-            // Filter by location
             if ($request->has('location')) {
                 $query->where('location', 'like', '%' . $request->location . '%');
             }
 
-            // Filter by urgency
             if ($request->has('urgency')) {
                 $query->where('urgency', strtoupper($request->urgency));
             }
 
-            // Search by title or description
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
@@ -89,15 +63,81 @@ class DonationRequestController extends Controller
                 });
             }
 
-            // Sorting
-            $sortBy = $request->get('sort_by', 'created_at');
-            $sortOrder = $request->get('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
+            // =========================================================
+            // [ส่วนที่เพิ่มใหม่] Logic กรองโครงการที่เคยปัดทิ้ง (Exclusion)
+            // =========================================================
+            $user = $request->user('sanctum'); // ดึง User ถ้า Login
+            $sessionId = $request->query('session_id'); // ดึง Session ID จากหน้าบ้าน
 
+            if ($user || $sessionId) {
+                // เรียกใช้ Model UserBehavior
+                $swipedIds = \App\Models\UserBehavior::query()
+                    ->where(function ($q) use ($sessionId, $user) {
+                        if ($sessionId) {
+                            $q->where('session_id', $sessionId);
+                        }
+                        if ($user) {
+                            $q->orWhere('user_id', $user->id);
+                        }
+                    })
+                    // กรองเอาเฉพาะ Action ที่เป็นการปัด (รองรับทั้งแบบ string และ int)
+                    ->whereIn('action_type', ['swipe_like', 'swipe_pass', 1, 2])
+                    ->pluck('donation_request_id')
+                    ->toArray();
+
+                // สั่งให้ Query หลัก "ไม่เอา" ID เหล่านี้
+                if (!empty($swipedIds)) {
+                    $query->whereNotIn('donation_requests.id', $swipedIds);
+                }
+            }
+
+            // =========================================================
+            // --- ส่วนระบบแนะนำ (Recommendation Logic) ---
+            // =========================================================
+            $usedRecommendation = false;
+
+            if (($user || $sessionId) && !$request->has('sort_by')) {
+                $query->leftJoin('user_recommendations', function ($join) use ($user, $sessionId) {
+                    $join->on('donation_requests.id', '=', 'user_recommendations.donation_request_id')
+                        ->where(function ($q) use ($user, $sessionId) {
+                            if ($user) {
+                                $q->where('user_recommendations.user_id', '=', $user->id);
+                            }
+                            if ($sessionId) {
+                                $q->orWhere('user_recommendations.session_id', '=', $sessionId);
+                            }
+                        });
+                });
+
+                $query->select(
+                    'donation_requests.*',
+                    DB::raw('COALESCE(user_recommendations.score, donation_requests.recommendation_score, 0) as final_score')
+                );
+
+                $query->orderBy('final_score', 'DESC')
+                      ->orderBy('urgency', 'desc')
+                      ->orderBy('created_at', 'desc');
+
+                $usedRecommendation = true;
+            }
+
+            // --- Fallback Sorting (ถ้าไม่ได้ใช้ระบบแนะนำ หรือ User กด Sort เอง) ---
+            if (!$usedRecommendation) {
+                $sortBy = $request->get('sort_by', 'created_at');
+                $sortOrder = $request->get('sort_order', 'desc');
+                $query->orderBy($sortBy, $sortOrder);
+
+                if (!$query->getQuery()->columns) {
+                    $query->select('donation_requests.*');
+                }
+            }
+
+            // Pagination
             $perPage = $request->get('per_page', 15);
             $requests = $query->paginate($perPage);
 
             return response()->json($requests);
+
         } catch (\Exception $e) {
             \Log::error('Error in DonationRequestController::index: ' . $e->getMessage());
             \Log::error('Stack trace: ' . $e->getTraceAsString());
@@ -106,113 +146,6 @@ class DonationRequestController extends Controller
                 'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
-<<<<<<< HEAD
-=======
-=======
-        }
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-        if ($request->has('location')) {
-            $query->where('location', 'like', '%' . $request->location . '%');
-        }
-        if ($request->has('urgency')) {
-            $query->where('urgency', strtoupper($request->urgency));
-        }
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', '%' . $search . '%')
-                    ->orWhere('description', 'like', '%' . $search . '%');
-            });
-        }
-
-        // =========================================================
-        // [ส่วนที่เพิ่มใหม่] Logic กรองโครงการที่เคยปัดทิ้ง (Exclusion)
-        // =========================================================
-        $user = $request->user('sanctum'); // ดึง User ถ้า Login
-        $sessionId = $request->query('session_id'); // ดึง Session ID จากหน้าบ้าน
-
-        // ถ้ามีข้อมูลระบุตัวตน (User หรือ Session)
-        if ($user || $sessionId) {
-            // เรียกใช้ Model UserBehavior (ใส่ \ นำหน้าเพื่อเรียกจาก Root namespace)
-            $swipedIds = \App\Models\UserBehavior::query()
-                ->where(function ($q) use ($sessionId, $user) {
-                    // 1. เช็คจาก Session ID (สำหรับทุกคน)
-                    if ($sessionId) {
-                        $q->where('session_id', $sessionId);
-                    }
-                    // 2. ถ้า Login อยู่ ให้เช็คจาก User ID ด้วย (เผื่อเปลี่ยนเครื่อง)
-                    if ($user) {
-                        $q->orWhere('user_id', $user->id);
-                    }
-                })
-                // กรองเอาเฉพาะ Action ที่เป็นการปัด (Like/Pass)
-                ->whereIn('action_type', ['swipe_like', 'swipe_pass'])
-                ->pluck('donation_request_id')
-                ->toArray();
-
-            // สั่งให้ Query หลัก "ไม่เอา" ID เหล่านี้
-            if (!empty($swipedIds)) {
-                $query->whereNotIn('donation_requests.id', $swipedIds);
-            }
-        }
-        // =========================================================
-
-        // --- ส่วนระบบแนะนำ (Recommendation Logic) ---
-        $usedRecommendation = false;
-
-        // ทำงานเมื่อ: มี User Login และ User ไม่ได้กด Sort เอง
-        if (($user || $sessionId) && !$request->has('sort_by')) {
-
-            // Select ข้อมูลโครงการ + คะแนน recommendation
-            $query->leftJoin('user_recommendations', function ($join) use ($user, $sessionId) {
-                $join->on('donation_requests.id', '=', 'user_recommendations.donation_request_id')
-                    ->where(function ($q) use ($user, $sessionId) {
-                        if ($user) {
-                            $q->where('user_recommendations.user_id', '=', $user->id);
-                        }
-                        if ($sessionId) {
-                            $q->orWhere('user_recommendations.session_id', '=', $sessionId);
-                        }
-                    });
-            });
-
-            // Select ด้วย COALESCE
-            $query->select(
-                'donation_requests.*',
-                DB::raw('COALESCE(user_recommendations.score, donation_requests.recommendation_score, 0) as final_score')
-            );
-
-            // Order by final_score
-            $query->orderBy('final_score', 'DESC');
-
-            // เรียงลำดับ: คะแนนมาก -> น้อย (ถ้าไม่มีคะแนนให้เป็น 0)
-            $query->orderByRaw('COALESCE(user_recommendations.score, 0) DESC');
-
-            // Fallback: ถ้าคะแนนเท่ากัน ให้เรียงตามความด่วน -> วันที่ล่าสุด
-            $query->orderBy('urgency', 'desc')
-                ->orderBy('created_at', 'desc');
-
-            $usedRecommendation = true;
-        }
-
-        // --- Fallback Sorting (ถ้าไม่ได้ใช้ระบบแนะนำ หรือ User กด Sort เอง) ---
-        if (!$usedRecommendation) {
-            $sortBy = $request->get('sort_by', 'created_at');
-            $sortOrder = $request->get('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
-
-            // ถ้า query ยังไม่มีการ select columns (แปลว่าไม่ได้เข้า if ข้างบน) ให้ select *
-            if (!$query->getQuery()->columns) {
-                $query->select('donation_requests.*');
-            }
-        }
-
-        // Pagination
-        $perPage = $request->get('per_page', 15);
-        $requests = $query->paginate($perPage);
-
-        return response()->json($requests);
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
     }
 
     /**
@@ -589,18 +522,13 @@ class DonationRequestController extends Controller
             // Urgency
             'urgency' => 'nullable|in:LOW,MEDIUM,HIGH',
 
-            // Images - สำคัญ! ตรวจสอบไฟล์จริง
+            // Images
             'images' => 'required|array|min:1|max:10',
-            'images.*' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // 5MB
+            'images.*' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
-        // รับค่า duration_days จาก Frontend (ถ้าไม่ส่งมาให้ default 30 วัน)
         $duration = (int) $request->input('duration_days', 30);
-
-        // 🔥 คำแนะนำ: คำนวณวันหมดอายุทันที (วันนี้ + 30 วัน)
         $expiresAt = now()->addDays($duration);
-
-        // ❌❌❌ ผมลบ DonationRequest::create(...) ตัวเก่าที่ error ทิ้งไปแล้วตรงนี้ ❌❌❌
 
         if ($validator->fails()) {
             return response()->json([
@@ -612,7 +540,6 @@ class DonationRequestController extends Controller
         $data = $request->all();
         $donationTypes = $data['donation_types'];
 
-        // Custom validation สำหรับ donation type
         if (in_array('money', $donationTypes)) {
             if (!$request->filled('goal_amount') || $request->goal_amount < 1000) {
                 return response()->json(['error' => 'เป้าหมายเงินต้องไม่น้อยกว่า 1,000 บาท'], 422);
@@ -635,7 +562,6 @@ class DonationRequestController extends Controller
             }
         }
 
-        // สร้างหรือดึง Organization (เหมือนเดิม)
         $organization = Organization::find($user->organization_id);
 
         if (!$organization) {
@@ -653,67 +579,47 @@ class DonationRequestController extends Controller
             $user->save();
         }
 
-        // อัปโหลดและบันทึก path รูปภาพ
         $imagePaths = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
                 $filename = Str::random(10) . '_' . time() . '.' . $image->getClientOriginalExtension();
                 $path = $image->storeAs('donation-images', $filename, 'public');
-                $imagePaths[] = $path; // เช่น donation-images/abc123.jpg
+                $imagePaths[] = $path;
             }
         }
 
-        // สร้าง slug
         $slug = Str::slug($data['title']) . '-' . Str::random(6);
 
-        // สร้าง DonationRequest
         try {
             $donationRequest = DonationRequest::create([
                 'id' => Str::uuid(),
                 'title' => $data['title'],
                 'slug' => $slug,
-                'description' => $data['description'], // ✅ ใส่ description แล้ว
+                'description' => $data['description'],
                 'category_id' => $data['category_id'],
                 'organizer_id' => $user->id,
                 'organization_id' => $organization->id,
-
-                // Donation types
                 'accepts_money' => in_array('money', $donationTypes),
                 'accepts_items' => in_array('items', $donationTypes),
                 'accepts_volunteer' => in_array('volunteer', $donationTypes),
-
-                // Money
                 'goal_amount' => in_array('money', $donationTypes) ? $data['goal_amount'] : null,
                 'target_amount' => in_array('money', $donationTypes) ? ($data['goal_amount'] ?? 0) : 0,
                 'current_amount' => 0,
                 'payment_methods' => in_array('money', $donationTypes) ? $this->buildPaymentMethods($data) : null,
-
-                // Items
                 'items_needed' => $data['items_needed'] ?? null,
                 'item_details' => $data['items_needed'] ?? null,
-
-                // Volunteer
                 'volunteers_needed' => $data['volunteers_needed'] ?? 0,
                 'volunteers_received' => 0,
                 'volunteer_details' => $data['volunteer_details'] ?? null,
-
-                // Location
                 'location' => $data['location'],
                 'detailed_address' => $data['detailed_address'] ?? null,
                 'contact_phone' => $data['contact_phone'],
-
-                // Status & urgency
                 'status' => DonationRequestStatus::PENDING,
                 'urgency' => $data['urgency'] ?? UrgencyLevel::MEDIUM->value,
-
-                // Images - เก็บเป็น JSON array ของ path
                 'images' => !empty($imagePaths) ? json_encode($imagePaths) : null,
-
                 'supporters' => 0,
                 'view_count' => 0,
                 'recommendation_score' => 0,
-
-                // ✅ เพิ่ม expires_at ที่นี่ครับ
                 'expires_at' => $expiresAt,
             ]);
 
@@ -736,28 +642,26 @@ class DonationRequestController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $user = $request->user(); // ใช้ $request->user() ปลอดภัยกว่า Auth::user() ใน API
+        $user = $request->user();
         $donationRequest = DonationRequest::findOrFail($id);
 
-        // 1. เช็คความเป็นเจ้าของ
         if ($donationRequest->organizer_id !== $user->id) {
             return response()->json([
                 'error' => 'You are not authorized to update this request'
             ], 403);
         }
 
-        // 2. Validation (ตรวจสอบข้อมูลที่ส่งมา)
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
-            'category_id' => 'sometimes|exists:categories,id', // ตัด uuid ออกถ้าไม่ได้ใช้ uuid trait
+            'category_id' => 'sometimes|exists:categories,id',
             'goal_amount' => 'sometimes|numeric|min:1000',
             'items_needed' => 'sometimes|nullable|string',
             'volunteers_needed' => 'sometimes|nullable|integer|min:0',
             'volunteer_details' => 'sometimes|nullable|string',
             'location' => 'sometimes|string',
             'urgency' => 'sometimes|in:LOW,MEDIUM,HIGH',
-            'images' => 'sometimes|array', // เผื่อมีการแก้รูป
+            'images' => 'sometimes|array',
         ]);
 
         if ($validator->fails()) {
@@ -769,17 +673,10 @@ class DonationRequestController extends Controller
 
         $validatedData = $validator->validated();
 
-        // ---------------------------------------------------------
-        // 🔥 LOGIC ใหม่: แยกกรณี "แก้ไขสด" กับ "แก้ไขแบบรออนุมัติ"
-        // ---------------------------------------------------------
-
-        // กรณีที่ 1: โครงการอนุมัติไปแล้ว (Live อยู่) -> ต้องรอตรวจสอบ (Revision Flow)
         if ($donationRequest->status === 'APPROVED' || $donationRequest->status === 'EDIT_APPROVED') {
-
-            // บันทึกข้อมูลใหม่ลงในช่อง pending_updates (JSON) แทนการทับข้อมูลจริง
             $donationRequest->update([
-                'status' => 'EDIT_REQUESTED', // เปลี่ยนสถานะเป็น "รออนุมัติการแก้ไข"
-                'pending_updates' => $validatedData // เก็บข้อมูลใหม่ไว้ใน JSON
+                'status' => 'EDIT_REQUESTED',
+                'pending_updates' => $validatedData
             ]);
 
             return response()->json([
@@ -787,24 +684,16 @@ class DonationRequestController extends Controller
                 'data' => $donationRequest,
                 'is_pending_review' => true
             ]);
-        }
-
-        // กรณีที่ 2: โครงการยังไม่ผ่าน (Draft, Rejected, Pending, Edit Requested) -> แก้ไขได้เลย
-        else {
-
-            // ถ้าเคยถูกปฏิเสธมา หรือเป็น Draft ให้เปลี่ยนสถานะกลับเป็น PENDING เพื่อให้แอดมินตรวจใหม่
-            // หรือถ้าคุณอยากให้แก้แล้วสถานะเดิม ก็ลบบรรทัด $validatedData['status'] ออกครับ
+        } else {
             if (in_array($donationRequest->status, ['DRAFT', 'REJECTED'])) {
                 $validatedData['status'] = 'PENDING';
             }
 
-            // ถ้าสถานะเป็น EDIT_REQUESTED อยู่แล้ว ก็แค่อัปเดต pending_updates ซ้ำ (ยังไม่แก้ตัวจริง)
             if ($donationRequest->status === 'EDIT_REQUESTED') {
                 $donationRequest->update([
                     'pending_updates' => $validatedData
                 ]);
             } else {
-                // สถานะอื่นๆ (Draft, Pending, Rejected) อัปเดตข้อมูลจริงทันที
                 $donationRequest->update($validatedData);
             }
 
@@ -824,14 +713,12 @@ class DonationRequestController extends Controller
         $user = Auth::user();
         $donationRequest = DonationRequest::findOrFail($id);
 
-        // Check ownership
         if ($donationRequest->organizer_id !== $user->id) {
             return response()->json([
                 'error' => 'You are not authorized to delete this request'
             ], 403);
         }
 
-        // Can only delete if status is DRAFT
         if ($donationRequest->status !== DonationRequestStatus::DRAFT) {
             return response()->json([
                 'error' => 'Can only delete draft requests'
@@ -906,25 +793,22 @@ class DonationRequestController extends Controller
         $methods = [
             'promptpay'     => null,
             'bankAccount'   => null,
-            'truewallet'    => null, // เผื่ออนาคต
+            'truewallet'    => null, 
         ];
 
-        // PromptPay - ทำความสะอาดและตรวจสอบคร่าว ๆ
         if (!empty($data['promptpay_number'])) {
             $pp = trim($data['promptpay_number']);
-            $pp = preg_replace('/[^0-9@.-]/', '', $pp); // อนุญาต @ . - เฉพาะ email
+            $pp = preg_replace('/[^0-9@.-]/', '', $pp); 
 
-            // ตรวจสอบรูปแบบที่ PromptPay ไทยยอมรับ
             if (
-                preg_match('/^0\d{9}$/', $pp) ||          // เบอร์โทร 10 หลัก
-                preg_match('/^\d{13}$/', $pp) ||          // บัตรประชาชน 13 หลัก
+                preg_match('/^0\d{9}$/', $pp) ||          
+                preg_match('/^\d{13}$/', $pp) ||          
                 filter_var($pp, FILTER_VALIDATE_EMAIL)
-            ) { // อีเมล
+            ) { 
                 $methods['promptpay'] = $pp;
             }
         }
 
-        // Bank Account
         $bankInput = $data['bank_account'] ?? [];
         if (is_array($bankInput) && !empty($bankInput)) {
             $bank = [
@@ -933,13 +817,11 @@ class DonationRequestController extends Controller
                 'accountName'  => trim($bankInput['account_name'] ?? $bankInput['accountName'] ?? ''),
             ];
 
-            // ถ้ามีข้อมูลครบ 3 อย่างค่อยเก็บ
             if ($bank['bank'] && $bank['accountNumber'] && $bank['accountName']) {
                 $methods['bankAccount'] = $bank;
             }
         }
 
-        // ถ้าไม่มีข้อมูล payment เลย → return null
         if (!$methods['promptpay'] && !$methods['bankAccount']) {
             return null;
         }

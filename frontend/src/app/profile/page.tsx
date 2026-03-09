@@ -41,13 +41,8 @@ import {
     XCircle,
     Clock,
     Palette,
-<<<<<<< HEAD
-<<<<<<< HEAD
     HandHelping,
     Search,
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
     BookOpen,
     Plus,
     Globe,
@@ -65,12 +60,7 @@ import {
     Accessibility,
     Home,
     Megaphone,
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
 } from "lucide-react"
-
 
 const getCategoryIcon = (id: string) => {
     switch (id.toLowerCase()) {
@@ -86,7 +76,7 @@ const getCategoryIcon = (id: string) => {
         case "religious-spiritual": return "🙏";
         case "arts-culture": return "🎨";
         case "sports-recreation": return "⚽";
-        default: return <Heart className="w-4 h-4" />;
+        default: return "❤️";
     }
 };
 
@@ -146,7 +136,6 @@ const MOCK_MY_STORIES: MyStory[] = [
 
 export default function ProfilePage() {
     const router = useRouter()
-    // เรียกใช้ token และ fetchUser จาก useAuth
     const { user, token, logout, fetchUser } = useAuth()
 
     // State หลัก
@@ -167,7 +156,7 @@ export default function ProfilePage() {
         phone: "",
         avatar: ""
     })
-    const [selectedImage, setSelectedImage] = useState<File | null>(null) // สำหรับอัปโหลดรูป
+    const [selectedImage, setSelectedImage] = useState<File | null>(null)
 
     // State สำหรับสิ่งที่สนใจ (Interests)
     const [myInterests, setMyInterests] = useState<string[]>([])
@@ -193,7 +182,6 @@ export default function ProfilePage() {
         organizerIsMaxLevel: boolean
     } | null>(null)
 
-<<<<<<< HEAD
     // ประวัติบริจาค (แท็บ donations)
     const [donationHistory, setDonationHistory] = useState<DonationHistoryEntry[]>([])
     const [donationHistoryLoading, setDonationHistoryLoading] = useState(false)
@@ -208,8 +196,6 @@ export default function ProfilePage() {
     const [favoriteList, setFavoriteList] = useState<FavoriteRequestItem[]>([])
     const [favoriteLoading, setFavoriteLoading] = useState(false)
 
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
     // Stories Logic
     const [myStories, setMyStories] = useState<MyStory[]>([])
     const [newStory, setNewStory] = useState({
@@ -236,56 +222,100 @@ export default function ProfilePage() {
 
     // Load Data
     useEffect(() => {
-<<<<<<< HEAD
         if (!user) return
-        pointsSystem.loadFromStorage()
-        setUserPoints(pointsSystem.getUserPoints(user.id))
 
-        const saved = localStorage.getItem(`profile_customization_${user.id}`)
-        if (saved) {
-            setProfileCustomization(JSON.parse(saved))
+        const loadUserData = async () => {
+            pointsSystem.loadFromStorage()
+            setUserPoints(pointsSystem.getUserPoints(user.id))
+
+            const saved = localStorage.getItem(`profile_customization_${user.id}`)
+            if (saved) {
+                setProfileCustomization(JSON.parse(saved))
+            }
+
+            const points = await pointsSystem.getUserPointsWithSync(user.id)
+            if (points) setUserPoints(points)
+
+            if (localStorage.getItem("auth_token")) {
+                try {
+                    const res = await trustAPI.getMyTrust()
+                    const d = res.data as any
+                    if (d) setTrust({
+                        donorTrustLevel: d.donorTrustLevel ?? 1,
+                        donorTrustLevelName: d.donorTrustLevelName ?? "เริ่มต้น",
+                        donorTrustScore: d.donorTrustScore ?? 0,
+                        donorNextLevelPoints: d.donorNextLevelPoints ?? 0,
+                        donorNextLevelName: d.donorNextLevelName ?? null,
+                        donorProgress: d.donorProgress ?? 100,
+                        donorIsMaxLevel: d.donorIsMaxLevel ?? false,
+                        organizerTrustLevel: d.organizerTrustLevel ?? 1,
+                        organizerTrustLevelName: d.organizerTrustLevelName ?? "เริ่มต้น",
+                        organizerTrustScore: d.organizerTrustScore ?? 0,
+                        organizerNextLevelPoints: d.organizerNextLevelPoints ?? 0,
+                        organizerNextLevelName: d.organizerNextLevelName ?? null,
+                        organizerProgress: d.organizerProgress ?? 100,
+                        organizerIsMaxLevel: d.organizerIsMaxLevel ?? false,
+                    })
+                } catch (error) {
+                    console.error("Failed to fetch trust data:", error)
+                }
+            }
+
+            // Stories
+            const savedStories = localStorage.getItem(`my_stories_${user.id}`)
+            if (savedStories) {
+                setMyStories(JSON.parse(savedStories))
+            } else {
+                setMyStories(MOCK_MY_STORIES)
+            }
+
+            // Socials & About Me
+            const savedSocials = localStorage.getItem(`user_socials_${user.id}`)
+            if (savedSocials) setSocialLinks(JSON.parse(savedSocials))
+
+            const savedAboutMe = localStorage.getItem(`user_aboutme_${user.id}`)
+            if (savedAboutMe) setAboutMe(savedAboutMe)
+
+            // Interests
+            if (user.interests && Array.isArray(user.interests) && user.interests.length > 0) {
+                const normalizedInterests = user.interests.map((i: string) => i.toLowerCase())
+                setMyInterests(normalizedInterests)
+            } else {
+                setMyInterests([])
+            }
         }
 
-        pointsSystem.getUserPointsWithSync(user.id).then((up) => {
-            if (up) setUserPoints(up)
-        })
-        if (localStorage.getItem("auth_token")) {
-            trustAPI.getMyTrust().then((res) => {
-                const d = res.data as any
-                if (d) setTrust({
-                    donorTrustLevel: d.donorTrustLevel ?? 1,
-                    donorTrustLevelName: d.donorTrustLevelName ?? "เริ่มต้น",
-                    donorTrustScore: d.donorTrustScore ?? 0,
-                    donorNextLevelPoints: d.donorNextLevelPoints ?? 0,
-                    donorNextLevelName: d.donorNextLevelName ?? null,
-                    donorProgress: d.donorProgress ?? 100,
-                    donorIsMaxLevel: d.donorIsMaxLevel ?? false,
-                    organizerTrustLevel: d.organizerTrustLevel ?? 1,
-                    organizerTrustLevelName: d.organizerTrustLevelName ?? "เริ่มต้น",
-                    organizerTrustScore: d.organizerTrustScore ?? 0,
-                    organizerNextLevelPoints: d.organizerNextLevelPoints ?? 0,
-                    organizerNextLevelName: d.organizerNextLevelName ?? null,
-                    organizerProgress: d.organizerProgress ?? 100,
-                    organizerIsMaxLevel: d.organizerIsMaxLevel ?? false,
-                })
-            }).catch(() => {})
-        }
+        loadUserData()
     }, [user])
 
     // โหลดประวัติบริจาคเมื่อเปิดแท็บ donations หรือเปลี่ยนฟีเตอร์/หน้า
+    // แก้ไขตรงส่วน useEffect ที่โหลดประวัติบริจาค
     useEffect(() => {
         if (activeTab !== "donations" || !user) return
+
         let cancelled = false
         setDonationHistoryLoading(true)
-        const params: { type?: string; date_from?: string; date_to?: string; page: number; per_page: number } = {
+
+        const params: {
+            type?: "money" | "item" | "volunteer";
+            date_from?: string;
+            date_to?: string;
+            page: number;
+            per_page: number;
+        } = {
             page: historyPage,
             per_page: 15,
         }
-        if (historyFilterType) params.type = historyFilterType
+
+        // แก้ไขตรงนี้: ตรวจสอบและ cast type ให้ถูกต้อง
+        if (historyFilterType) {
+            params.type = historyFilterType as "money" | "item" | "volunteer";
+        }
+
         if (historyDateFrom) params.date_from = historyDateFrom
         if (historyDateTo) params.date_to = historyDateTo
-        donationHistoryAPI
-            .getHistory(params)
+
+        donationHistoryAPI.getHistory(params)
             .then((res) => {
                 if (cancelled) return
                 const d = res.data
@@ -299,14 +329,17 @@ export default function ProfilePage() {
             .finally(() => {
                 if (!cancelled) setDonationHistoryLoading(false)
             })
+
         return () => { cancelled = true }
     }, [activeTab, user, historyPage, historyFilterType, historyDateFrom, historyDateTo])
 
-    // โหลดรายการที่สนใจเมื่อเปิดแท็บ
+    // โหลดรายการที่สนใจเมื่อเปิดแท็บ favorites
     useEffect(() => {
         if (activeTab !== "favorites" || !user) return
+
         let cancelled = false
         setFavoriteLoading(true)
+
         favoritesAPI.getList()
             .then((res) => {
                 if (cancelled) return
@@ -319,48 +352,9 @@ export default function ProfilePage() {
             .finally(() => {
                 if (!cancelled) setFavoriteLoading(false)
             })
+
         return () => { cancelled = true }
     }, [activeTab, user])
-
-=======
-        if (user) {
-            // Points
-            pointsSystem.loadFromStorage()
-            setUserPoints(pointsSystem.getUserPoints(user.id))
-
-            // Customization
-            const savedCustomization = localStorage.getItem(`profile_customization_${user.id}`)
-            if (savedCustomization) {
-                setProfileCustomization(JSON.parse(savedCustomization))
-            }
-
-            // Stories
-            const savedStories = localStorage.getItem(`my_stories_${user.id}`)
-            if (savedStories) {
-                setMyStories(JSON.parse(savedStories))
-            } else {
-                // หากคุณมี MOCK_MY_STORIES อย่าลืมเช็คว่าได้ import มาแล้ว
-                setMyStories(MOCK_MY_STORIES)
-            }
-
-            // Socials & About Me
-            const savedSocials = localStorage.getItem(`user_socials_${user.id}`)
-            if (savedSocials) setSocialLinks(JSON.parse(savedSocials))
-
-            const savedAboutMe = localStorage.getItem(`user_aboutme_${user.id}`)
-            if (savedAboutMe) setAboutMe(savedAboutMe)
-
-            // --- Load Interests Logic (เชื่อม DB จริง) ---
-            // ดึงจากข้อมูล user ใน Context เป็นหลัก (ไม่ต้องเช็ค LocalStorage แล้ว)
-            if (user.interests && Array.isArray(user.interests) && user.interests.length > 0) {
-                // แปลงเป็นตัวพิมพ์เล็กทั้งหมดเพื่อป้องกันปัญหาตัวพิมพ์เล็ก-ใหญ่ ไม่ตรงกับ ID ของ UI
-                const normalizedInterests = user.interests.map((i: string) => i.toLowerCase())
-                setMyInterests(normalizedInterests)
-            } else {
-                setMyInterests([])
-            }
-        }
-    }, [user])
 
     // --- Fetch Categories จาก API ---
     useEffect(() => {
@@ -395,7 +389,7 @@ export default function ProfilePage() {
         }
     }, [showEditProfile, user])
 
-    // Save Stories & Socials Helpers
+    // Save Stories
     useEffect(() => {
         if (user) {
             localStorage.setItem(`my_stories_${user.id}`, JSON.stringify(myStories))
@@ -421,15 +415,14 @@ export default function ProfilePage() {
             setMyInterests([...myInterests, id])
         }
     }
+
     const handleCreateCategory = async () => {
         if (!newCategoryName.trim() || !user || !token) return;
         setIsCreatingCategory(true);
 
-        // สร้าง ID ชั่วคราว (เนื่องจากฐานข้อมูลคุณรับ ID เป็น String)
         const newId = `cat_${Date.now()}`;
 
         try {
-            // ยิง API ไปยัง Backend เพื่อบันทึกหมวดหมู่ใหม่
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/donation-requests/categories`, {
                 method: 'POST',
                 headers: {
@@ -443,18 +436,12 @@ export default function ProfilePage() {
             });
 
             if (res.ok) {
-                // สมมติว่า Backend ตอบกลับมาพร้อมข้อมูลที่เซฟแล้ว
                 const createdCategory = await res.json();
                 const finalId = createdCategory.id || newId;
                 const finalName = createdCategory.name || newCategoryName.trim();
 
-                // 1. เพิ่มเข้า List เพื่อให้แสดงผลใน UI ทันที
                 setAvailableInterests(prev => [...prev, { id: finalId, label: finalName }]);
-
-                // 2. ติ๊กเลือกหมวดหมู่นี้ให้ User อัตโนมัติ
                 setMyInterests(prev => [...prev, finalId]);
-
-                // ล้างค่าและปิดช่องพิมพ์
                 setNewCategoryName("");
                 setShowNewCategoryInput(false);
                 toast({ title: "เพิ่มหมวดหมู่ใหม่สำเร็จ ✅" });
@@ -478,7 +465,6 @@ export default function ProfilePage() {
         setIsSaving(true);
 
         try {
-            // ยิง API PATCH ไปที่ backend
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
                 method: 'PATCH',
                 headers: {
@@ -491,9 +477,7 @@ export default function ProfilePage() {
             });
 
             if (res.ok) {
-                // ถ้าในจุดที่ 1 คุณเพิ่ม fetchUser มาแล้ว บรรทัดนี้จะทำงานเพื่อดึงข้อมูลใหม่
                 if (fetchUser) await fetchUser();
-
                 setIsEditingInterests(false);
                 toast({
                     title: "บันทึกความสนใจเรียบร้อย ✅",
@@ -522,12 +506,10 @@ export default function ProfilePage() {
         try {
             let finalAvatarUrl = editForm.avatar;
 
-            // 1. ถ้ามีการเลือกไฟล์รูปใหม่ ให้ทำการอัปโหลดก่อน
             if (selectedImage) {
                 const formData = new FormData();
                 formData.append("file", selectedImage);
 
-                // เรียก API Upload (ต้องสร้างไฟล์ route.ts รองรับ)
                 const uploadRes = await fetch("/api/upload", {
                     method: "POST",
                     body: formData,
@@ -539,7 +521,6 @@ export default function ProfilePage() {
                 finalAvatarUrl = data.url;
             }
 
-            // 2. บันทึกข้อมูล User
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
                 method: 'PATCH',
                 headers: {
@@ -579,8 +560,6 @@ export default function ProfilePage() {
     }
 
     // --- Helper Functions ---
-
-    // ฟังก์ชันคัดลอกลิงก์ (Safe Check)
     const handleCopyLink = () => {
         if (!user) return
 
@@ -605,10 +584,8 @@ export default function ProfilePage() {
             })
     }
 
-    // ฟังก์ชันแสดงลิงก์โซเชียลแบบคลิกได้
     const renderExternalLink = (url: string) => {
         if (!url) return "-"
-        // เติม https:// ถ้าไม่มี
         const href = url.startsWith('http') ? url : `https://${url}`
         return (
             <a
@@ -622,11 +599,6 @@ export default function ProfilePage() {
         )
     }
 
-    // Guard Clause: ถ้าไม่มี User ให้เด้งไป Login
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
     if (!user) {
         router.push("/login")
         return null
@@ -652,8 +624,8 @@ export default function ProfilePage() {
         return { level: "เริ่มต้น", color: "bg-blue-500", icon: "⭐" }
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+    const userLevel = getUserLevel(user.totalDonated)
+
     const renderCustomizedAvatar = () => {
         const theme = profileCustomization?.theme || "default"
         const frame = profileCustomization?.frame || "none"
@@ -663,24 +635,18 @@ export default function ProfilePage() {
         const isPlatinum = theme === "platinum" || theme === "theme_platinum"
         const isDiamond = theme === "diamond" || theme === "theme_diamond"
         const themeGradient =
-            isGold
-                ? "from-yellow-400 to-orange-500"
-                : isPlatinum
-                    ? "from-gray-300 to-gray-500"
-                    : isDiamond
-                        ? "from-blue-400 to-cyan-300"
+            isGold ? "from-yellow-400 to-orange-500"
+                : isPlatinum ? "from-gray-300 to-gray-500"
+                    : isDiamond ? "from-blue-400 to-cyan-300"
                         : "from-pink-500 to-purple-500"
 
         const isRainbow = frame === "rainbow" || frame === "frame_rainbow"
         const isFire = frame === "fire" || frame === "frame_fire"
         const isIce = frame === "ice" || frame === "frame_ice"
         const frameClass =
-            isRainbow
-                ? "border-4 border-gradient-to-r from-red-500 via-yellow-500 to-blue-500"
-                : isFire
-                    ? "border-4 border-orange-500 shadow-lg shadow-orange-200"
-                    : isIce
-                        ? "border-4 border-cyan-400 shadow-lg shadow-cyan-200"
+            isRainbow ? "border-4 border-gradient-to-r from-red-500 via-yellow-500 to-blue-500"
+                : isFire ? "border-4 border-orange-500 shadow-lg shadow-orange-200"
+                    : isIce ? "border-4 border-cyan-400 shadow-lg shadow-cyan-200"
                         : "border-2 border-gray-200"
 
         const isHeart = badge === "heart" || badge === "badge_heart"
@@ -711,10 +677,6 @@ export default function ProfilePage() {
         )
     }
 
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
     const getDonationStatusBadge = (status: string) => {
         switch (status) {
             case "completed":
@@ -732,8 +694,6 @@ export default function ProfilePage() {
         }
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     const getSlipStatusBadge = (status: string) => {
         switch (status) {
             case "verified":
@@ -771,9 +731,8 @@ export default function ProfilePage() {
 
     const applyHistoryFilters = () => {
         setHistoryPage(1)
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
+    }
+
     const handleCreateStory = () => {
         if (!user || !newStory.title || !newStory.content) return
 
@@ -808,54 +767,6 @@ export default function ProfilePage() {
         toast({ title: "ลบเรื่องราวแล้ว" })
     }
 
-    const renderCustomizedAvatar = () => {
-        if (!user) return null
-
-        const theme = profileCustomization?.theme || "default"
-        const frame = profileCustomization?.frame || "none"
-        const badge = profileCustomization?.badge || ""
-
-        const themeGradient =
-            theme === "gold" ? "from-yellow-400 to-orange-500" :
-                theme === "platinum" ? "from-gray-300 to-gray-500" :
-                    theme === "diamond" ? "from-blue-400 to-cyan-300" :
-                        "from-pink-500 to-purple-500"
-
-        const frameClass =
-            frame === "rainbow" ? "border-4 border-gradient-to-r from-red-500 via-yellow-500 to-blue-500" :
-                frame === "fire" ? "border-4 border-orange-500 shadow-lg shadow-orange-200" :
-                    frame === "ice" ? "border-4 border-cyan-400 shadow-lg shadow-cyan-200" :
-                        "border-2 border-gray-200"
-
-        return (
-            <div className="relative inline-block">
-                <div className={`p-1 rounded-full ${frameClass}`}>
-                    <Avatar className="w-24 h-24 mx-auto">
-                        <AvatarImage src={user.avatar || "/placeholder.svg"} alt={`${user.firstName} ${user.lastName}`} />
-                        <AvatarFallback className={`text-2xl bg-gradient-to-r ${themeGradient} text-white`}>
-                            {getInitials(user.firstName, user.lastName)}
-                        </AvatarFallback>
-                    </Avatar>
-                </div>
-                {badge && (
-                    <div className="absolute -top-2 -right-2 text-2xl">
-                        {badge === "heart" ? "💛" : badge === "crown" ? "👑" : badge === "star" ? "⭐" : badge === "diamond" ? "💎" : ""}
-                    </div>
-                )}
-                <Badge className={`absolute -bottom-2 -right-2 ${userLevel.color} text-white`}>
-                    {userLevel.icon} {userLevel.level}
-                </Badge>
-            </div>
-        )
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-    }
-
-    const userLevel = getUserLevel(user.totalDonated)
-
-    // ดึงวันที่อย่างปลอดภัย (รองรับหลายชื่อ field)
     const getJoinDate = () => {
         if (!user) return "-"
         const rawDate = user.joinDate || (user as any).createdAt || (user as any).created_at;
@@ -899,7 +810,6 @@ export default function ProfilePage() {
                                     แดชบอร์ดผู้จัดการ
                                 </Button>
                             )}
-                            {/* --- เพิ่มปุ่ม ADMIN ตรงนี้ --- */}
                             {user.role === "admin" && (
                                 <Button variant="outline" onClick={() => router.push("/admin-dashboard")} className="text-purple-600 border-purple-200 hover:bg-purple-50 bg-transparent">
                                     <Shield className="w-4 h-4 mr-2" />
@@ -917,8 +827,7 @@ export default function ProfilePage() {
 
             <div className="max-w-4xl mx-auto p-4">
                 <div className="grid gap-6 lg:grid-cols-3">
-
-                    {/* Left Column: Profile Card & About Me */}
+                    {/* Left Column: Profile Card */}
                     <div className="lg:col-span-1 space-y-6">
                         <Card className="text-center">
                             <CardContent className="p-6">
@@ -928,7 +837,6 @@ export default function ProfilePage() {
                                     <div>
                                         <h2 className="text-xl font-bold text-gray-800">{user.firstName} {user.lastName}</h2>
                                         <p className="text-gray-600">{user.email}</p>
-<<<<<<< HEAD
                                         {profileCustomization?.title && profileCustomization.title !== "none" && (() => {
                                             const t = profileCustomization.title
                                             const isHelper = t === "helper" || t === "title_helper"
@@ -937,15 +845,6 @@ export default function ProfilePage() {
                                             const label = isHelper ? "ผู้ช่วยเหลือ" : isGuardian ? "ผู้พิทักษ์" : isLegend ? "ตำนาน" : ""
                                             return label ? <Badge variant="outline" className="mt-1">{label}</Badge> : null
                                         })()}
-=======
-                                        {profileCustomization?.title && profileCustomization.title !== "none" && (
-                                            <Badge variant="outline" className="mt-1">
-                                                {profileCustomization.title === "helper" ? "ผู้ช่วยเหลือ" :
-                                                    profileCustomization.title === "guardian" ? "ผู้พิทักษ์" :
-                                                        profileCustomization.title === "legend" ? "ตำนาน" : ""}
-                                            </Badge>
-                                        )}
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4 pt-4">
@@ -960,7 +859,6 @@ export default function ProfilePage() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        {/* ปุ่มแก้ไขโปรไฟล์ */}
                                         <Button variant="outline" className="w-full bg-transparent" onClick={() => setShowEditProfile(true)}>
                                             <Edit3 className="w-4 h-4 mr-2" />
                                             แก้ไขโปรไฟล์
@@ -969,7 +867,6 @@ export default function ProfilePage() {
                                             <Palette className="w-4 h-4 mr-2" />
                                             ตกแต่งโปรไฟล์
                                         </Button>
-                                        {/* ปุ่มคัดลอกลิงก์โปรไฟล์ */}
                                         <Button
                                             variant="outline"
                                             className="w-full text-blue-600 border-blue-200 hover:bg-blue-50 bg-transparent"
@@ -983,14 +880,14 @@ export default function ProfilePage() {
                             </CardContent>
                         </Card>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
+                        {/* Points Display */}
                         {userPoints && (
                             <div className="mt-6">
                                 <PointsDisplay userPoints={userPoints} />
                             </div>
                         )}
 
+                        {/* Trust Level */}
                         {trust && (
                             <Card className="mt-6">
                                 <CardHeader>
@@ -1045,16 +942,8 @@ export default function ProfilePage() {
                             </Card>
                         )}
 
-                        {/* Quick Stats */}
-                        <Card className="mt-6">
-=======
-                        {/* About Me & Social Links Section */}
+                        {/* About Me & Social Links */}
                         <Card>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
-                        {/* About Me & Social Links Section */}
-                        <Card>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="flex items-center gap-2 text-lg">
@@ -1112,7 +1001,7 @@ export default function ProfilePage() {
                         </Card>
                     </div>
 
-                    {/* Right Column: Tabs (Stories, Profile, Donations) */}
+                    {/* Right Column: Tabs */}
                     <div className="lg:col-span-2">
                         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                             <TabsList className="grid w-full grid-cols-4 p-1 bg-white border rounded-xl mb-6">
@@ -1121,7 +1010,6 @@ export default function ProfilePage() {
                                 <TabsTrigger value="donations" className="rounded-lg">ประวัติการบริจาค</TabsTrigger>
                                 <TabsTrigger value="favorites" className="rounded-lg">รายการโปรด</TabsTrigger>
                             </TabsList>
-<<<<<<< HEAD
 
                             {/* Tab: Stories */}
                             <TabsContent value="stories" className="space-y-6">
@@ -1132,139 +1020,6 @@ export default function ProfilePage() {
                                     </Button>
                                 </div>
 
-<<<<<<< HEAD
-                        {/* Tab Content */}
-                        {activeTab === "profile" && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <User className="w-5 h-5 text-pink-500" />
-                                        ข้อมูลส่วนตัว
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-700">ชื่อ</label>
-                                            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                                                <User className="w-4 h-4 text-gray-400" />
-                                                <span className="text-gray-800">{user.firstName}</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium text-gray-700">นามสกุล</label>
-                                            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                                                <User className="w-4 h-4 text-gray-400" />
-                                                <span className="text-gray-800">{user.lastName}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">อีเมล</label>
-                                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                                            <Mail className="w-4 h-4 text-gray-400" />
-                                            <span className="text-gray-800">{user.email}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">เบอร์โทรศัพท์</label>
-                                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                                            <Phone className="w-4 h-4 text-gray-400" />
-                                            <span className="text-gray-800">{user.phone}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700">วันที่สมัครสมาชิก</label>
-                                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                                            <Calendar className="w-4 h-4 text-gray-400" />
-                                            <span className="text-gray-800">
-                                                {new Date(user.joinDate).toLocaleDateString("th-TH", {
-                                                    year: "numeric",
-                                                    month: "long",
-                                                    day: "numeric",
-                                                })}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {activeTab === "donations" && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Gift className="w-5 h-5 text-pink-500" />
-                                        ประวัติการบริจาค
-                                    </CardTitle>
-                                    <p className="text-sm text-gray-600">รายการบริจาคเงิน บริจาคของ และบริจาคแรงทั้งหมดของคุณ</p>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    {/* ฟีเตอร์ */}
-                                    <div className="flex flex-wrap items-end gap-3 p-3 bg-gray-50 rounded-lg">
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-xs font-medium text-gray-600">ประเภท</label>
-                                            <select
-                                                value={historyFilterType}
-                                                onChange={(e) => setHistoryFilterType((e.target.value || "") as "" | "money" | "item" | "volunteer")}
-                                                className="rounded-md border border-gray-300 px-3 py-2 text-sm min-w-[120px]"
-                                            >
-                                                <option value="">ทั้งหมด</option>
-                                                <option value="money">บริจาคเงิน</option>
-                                                <option value="item">บริจาคของ</option>
-                                                <option value="volunteer">บริจาคแรง</option>
-                                            </select>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-xs font-medium text-gray-600">จากวันที่</label>
-                                            <input
-                                                type="date"
-                                                value={historyDateFrom}
-                                                onChange={(e) => setHistoryDateFrom(e.target.value)}
-                                                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-xs font-medium text-gray-600">ถึงวันที่</label>
-                                            <input
-                                                type="date"
-                                                value={historyDateTo}
-                                                onChange={(e) => setHistoryDateTo(e.target.value)}
-                                                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-                                            />
-                                        </div>
-                                        <Button size="sm" onClick={applyHistoryFilters} className="bg-pink-500 hover:bg-pink-600">
-                                            <Search className="w-4 h-4 mr-1" />
-                                            ค้นหา
-                                        </Button>
-                                    </div>
-
-                                    {donationHistoryLoading ? (
-                                        <div className="py-8 text-center text-gray-500">กำลังโหลด...</div>
-                                    ) : donationHistory.length === 0 ? (
-                                        <div className="text-center py-8 text-gray-500">
-                                            <Gift className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                                            <p>{historyFilterType || historyDateFrom || historyDateTo ? "ไม่พบรายการตามเงื่อนไข" : "ยังไม่มีประวัติการบริจาค"}</p>
-                                            <p className="text-sm mt-1">เริ่มบริจาคเพื่อช่วยเหลือผู้อื่น</p>
-                                            <Button onClick={() => router.push("/")} className="mt-4 bg-pink-500 hover:bg-pink-600">
-                                                เริ่มบริจาค
-                                            </Button>
-=======
-=======
-
-                            {/* Tab: Stories */}
-                            <TabsContent value="stories" className="space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold text-gray-800">เรื่องราวของฉัน</h3>
-                                    <Button onClick={() => setShowCreateStory(true)} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white border-none">
-                                        <Plus className="w-4 h-4 mr-2" /> เขียนเรื่องราว
-                                    </Button>
-                                </div>
-
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                 <div className="space-y-4">
                                     {myStories.length > 0 ? (
                                         myStories.map((story) => (
@@ -1303,214 +1058,11 @@ export default function ProfilePage() {
                                         <div className="text-center py-10 bg-white rounded-xl border border-dashed">
                                             <BookOpen className="w-10 h-10 mx-auto text-gray-300 mb-2" />
                                             <p className="text-gray-500">ยังไม่มีเรื่องราว แบ่งปันประสบการณ์ของคุณเลย!</p>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                                         </div>
-                                    ) : (
-                                        <>
-                                            <div className="space-y-4">
-                                                {donationHistory.map((entry) => {
-                                                    const projectId = entry.project?.id
-                                                    const projectTitle = entry.project?.title || "ไม่ระบุโครงการ"
-                                                    const dateStr = new Date(entry.date).toLocaleDateString("th-TH", {
-                                                        year: "numeric",
-                                                        month: "short",
-                                                        day: "numeric",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    })
-                                                    if (entry.history_type === "money") {
-                                                        const slipStatus = getSlipStatusBadge(entry.status)
-                                                        return (
-                                                            <Card key={entry.id} className="p-4 hover:shadow-md transition-shadow">
-                                                                <div className="flex items-start justify-between gap-2 mb-2">
-                                                                    <Link
-                                                                        href={projectId ? `/donation/${projectId}` : "#"}
-                                                                        className="text-lg font-semibold text-gray-800 hover:text-pink-600 transition-colors"
-                                                                    >
-                                                                        {projectTitle}
-                                                                    </Link>
-                                                                    <Badge className={`${slipStatus.class} text-xs px-2 py-1 shrink-0`}>
-                                                                        {slipStatus.icon}
-                                                                        {slipStatus.text}
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-sm text-gray-500 mb-2">{dateStr}</p>
-                                                                <div className="flex items-center gap-2 text-gray-700 text-sm">
-                                                                    <DollarSign className="w-4 h-4 text-green-600" />
-                                                                    <span>บริจาคเงิน <span className="font-bold text-green-700">฿{formatAmount(entry.amount)}</span></span>
-                                                                    {entry.payment_method && <span className="text-gray-500">({entry.payment_method})</span>}
-                                                                </div>
-                                                                {entry.slip_url && (
-                                                                    <a href={entry.slip_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                                                                        <img src={entry.slip_url} alt="สลิป" className="w-full max-w-xs h-32 object-contain bg-gray-100 rounded border" />
-                                                                    </a>
-                                                                )}
-                                                            </Card>
-                                                        )
-                                                    }
-                                                    if (entry.history_type === "item") {
-                                                        const itemStatus = getItemStatusBadge(entry.status)
-                                                        return (
-                                                            <Card key={entry.id} className="p-4 hover:shadow-md transition-shadow">
-                                                                <div className="flex items-start justify-between gap-2 mb-2">
-                                                                    <Link
-                                                                        href={projectId ? `/donation/${projectId}` : "#"}
-                                                                        className="text-lg font-semibold text-gray-800 hover:text-pink-600 transition-colors"
-                                                                    >
-                                                                        {projectTitle}
-                                                                    </Link>
-                                                                    <Badge className={`${itemStatus.class} text-xs px-2 py-1 shrink-0`}>
-                                                                        {itemStatus.icon}
-                                                                        {itemStatus.text}
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-sm text-gray-500 mb-2">{dateStr}</p>
-                                                                <div className="flex items-center gap-2 text-gray-700 text-sm mb-2">
-                                                                    <Package className="w-4 h-4" />
-                                                                    <span>บริจาคสิ่งของ</span>
-                                                                    {entry.estimated_value != null && (
-                                                                        <span className="text-gray-500">(มูลค่าโดยประมาณ ฿{formatAmount(entry.estimated_value)})</span>
-                                                                    )}
-                                                                </div>
-                                                                {entry.items_needed && <p className="text-sm text-gray-600 mb-2">{entry.items_needed}</p>}
-                                                                {entry.evidence_images && entry.evidence_images.length > 0 && (
-                                                                    <div className="flex flex-wrap gap-2 mt-2">
-                                                                        {entry.evidence_images.slice(0, 4).map((url, i) => (
-                                                                            <img key={i} src={url} alt="" className="w-16 h-16 object-cover rounded border" />
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-                                                            </Card>
-                                                        )
-                                                    }
-                                                    if (entry.history_type === "volunteer") {
-                                                        const volStatus = getVolunteerStatusBadge(entry.status)
-                                                        return (
-                                                            <Card key={entry.id} className="p-4 hover:shadow-md transition-shadow">
-                                                                <div className="flex items-start justify-between gap-2 mb-2">
-                                                                    <Link
-                                                                        href={projectId ? `/donation/${projectId}` : "#"}
-                                                                        className="text-lg font-semibold text-gray-800 hover:text-pink-600 transition-colors"
-                                                                    >
-                                                                        {projectTitle}
-                                                                    </Link>
-                                                                    <Badge className={`${volStatus.class} text-xs px-2 py-1 shrink-0`}>
-                                                                        {volStatus.icon}
-                                                                        {volStatus.text}
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-sm text-gray-500 mb-2">{dateStr}</p>
-                                                                <div className="flex items-center gap-2 text-gray-700 text-sm">
-                                                                    <HandHelping className="w-4 h-4 text-blue-600" />
-                                                                    <span>บริจาคแรง</span>
-                                                                    {entry.estimated_hours != null && (
-                                                                        <span className="text-gray-600">ประมาณ {entry.estimated_hours} ชม.</span>
-                                                                    )}
-                                                                </div>
-                                                                {entry.approved_at && (
-                                                                    <p className="text-xs text-gray-500 mt-1">อนุมัติเมื่อ {new Date(entry.approved_at).toLocaleDateString("th-TH")}</p>
-                                                                )}
-                                                                {entry.completed_at && (
-                                                                    <p className="text-xs text-gray-500">เสร็จสิ้นเมื่อ {new Date(entry.completed_at).toLocaleDateString("th-TH")}</p>
-                                                                )}
-                                                            </Card>
-                                                        )
-                                                    }
-                                                    return null
-                                                })}
-                                            </div>
-                                            {historyLastPage > 1 && (
-                                                <div className="flex items-center justify-between pt-4 border-t">
-                                                    <p className="text-sm text-gray-500">
-                                                        แสดง {donationHistory.length} จาก {historyTotal} รายการ
-                                                    </p>
-                                                    <div className="flex gap-2">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            disabled={historyPage <= 1}
-                                                            onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-                                                        >
-                                                            ก่อนหน้า
-                                                        </Button>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            disabled={historyPage >= historyLastPage}
-                                                            onClick={() => setHistoryPage((p) => p + 1)}
-                                                        >
-                                                            ถัดไป
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </>
                                     )}
                                 </div>
                             </TabsContent>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-                        {activeTab === "favorites" && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Heart className="w-5 h-5 text-pink-500" />
-                                        รายการที่สนใจ
-                                    </CardTitle>
-                                    <p className="text-sm text-gray-600">คำขอบริจาคที่คุณสนใจ</p>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    {favoriteLoading ? (
-                                        <p className="text-gray-500 text-sm">กำลังโหลด...</p>
-                                    ) : favoriteList.length === 0 ? (
-                                        <div className="text-center py-6 text-gray-500">
-                                            <Heart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                                            <p>ยังไม่มีรายการที่สนใจ</p>
-                                            <p className="text-sm mt-1">กดปุ่มถูกใจที่หน้ารายละเอียดโครงการเพื่อเก็บไว้ดูภายหลัง</p>
-                                            <Button onClick={() => router.push("/")} variant="outline" className="mt-3">
-                                                ดูคำขอบริจาค
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-gray-600">คุณมีรายการที่สนใจ {favoriteList.length} รายการ</p>
-                                                <Button variant="outline" onClick={() => router.push("/favorites")} className="bg-transparent">
-                                                    ดูทั้งหมด
-                                                </Button>
-                                            </div>
-                                            <ul className="space-y-2">
-                                                {favoriteList.slice(0, 5).map((req) => (
-                                                    <li key={req.id}>
-                                                        <Link
-                                                            href={`/enhanced-donation/${req.id}`}
-                                                            className="block p-3 rounded-lg border border-gray-200 hover:bg-pink-50 hover:border-pink-200 transition-colors"
-                                                        >
-                                                            <span className="font-medium text-gray-800">{req.title}</span>
-                                                            {req.category && (
-                                                                <Badge variant="secondary" className="ml-2 text-xs">{req.category}</Badge>
-                                                            )}
-                                                        </Link>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                            {favoriteList.length > 5 && (
-                                                <Button variant="outline" className="w-full" onClick={() => router.push("/favorites")}>
-                                                    ดูทั้งหมด {favoriteList.length} รายการ
-                                                </Button>
-                                            )}
-                                        </>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        )}
-=======
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                             {/* Tab: Profile Info */}
                             <TabsContent value="profile" className="space-y-6">
                                 <Card>
@@ -1544,7 +1096,7 @@ export default function ProfilePage() {
                                     </CardContent>
                                 </Card>
 
-                                {/* --- ส่วนสิ่งที่สนใจ--- */}
+                                {/* Interests Section */}
                                 <Card>
                                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                         <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -1577,12 +1129,10 @@ export default function ProfilePage() {
                                                         <div
                                                             key={cat.id}
                                                             onClick={() => handleToggleInterest(cat.id)}
-                                                            className={`
-                            cursor-pointer px-3 py-2 rounded-xl border text-sm flex items-center gap-2 transition-all select-none
-                            ${isSelected
+                                                            className={`cursor-pointer px-3 py-2 rounded-xl border text-sm flex items-center gap-2 transition-all select-none ${isSelected
                                                                     ? "bg-pink-100 border-pink-500 text-pink-700 shadow-sm font-medium"
-                                                                    : "bg-white border-gray-200 text-gray-600 hover:border-pink-300 hover:bg-pink-50"}
-                        `}
+                                                                    : "bg-white border-gray-200 text-gray-600 hover:border-pink-300 hover:bg-pink-50"
+                                                                }`}
                                                         >
                                                             <span className="text-lg">{cat.icon}</span>
                                                             {cat.label}
@@ -1594,139 +1144,248 @@ export default function ProfilePage() {
                                         ) : (
                                             /* View Mode */
                                             <div className="flex flex-wrap gap-2">
-                                                {isEditingInterests ? (
-                                                    /* ========================================= */
-                                                    /* 1. ส่วนกำลังแก้ไข (Edit Mode) และเพิ่มหมวดหมู่ใหม่ */
-                                                    /* ========================================= */
-                                                    <div className="flex flex-wrap gap-2 items-center w-full">
-                                                        {availableInterests.map((cat) => {
-                                                            const isSelected = myInterests.includes(cat.id);
-                                                            return (
-                                                                <div
-                                                                    key={cat.id}
-                                                                    onClick={() => handleToggleInterest(cat.id)}
-                                                                    className={`cursor-pointer px-3 py-2 rounded-xl border text-sm flex items-center gap-2 transition-all select-none
-                            ${isSelected ? "bg-pink-100 border-pink-500 text-pink-700 shadow-sm font-medium" : "bg-white border-gray-200 text-gray-600 hover:border-pink-300 hover:bg-pink-50"}
-                        `}
-                                                                >
-                                                                    <span className="text-lg">{getCategoryIcon(cat.id)}</span>
-                                                                    {cat.label}
-                                                                    {isSelected && <CheckCircle className="w-4 h-4 ml-1 text-pink-600" />}
-                                                                </div>
-                                                            );
-                                                        })}
+                                                {myInterests.length > 0 ? (
+                                                    myInterests.map((id) => {
+                                                        const localCat = INTEREST_CATEGORIES.find((c) => c.id === id);
+                                                        const apiCat = availableInterests.find((c) => c.id === id);
+                                                        const displayLabel = localCat ? localCat.label : (apiCat ? apiCat.label : id);
+                                                        const icon = localCat ? localCat.icon : getCategoryIcon(id);
 
-                                                        {/* ส่วนปุ่ม "อื่นๆ (เพิ่มใหม่)" */}
-                                                        {!showNewCategoryInput ? (
-                                                            <div
-                                                                onClick={() => setShowNewCategoryInput(true)}
-                                                                className="cursor-pointer px-3 py-2 rounded-xl border border-dashed border-gray-300 text-sm flex items-center gap-2 text-gray-500 hover:border-pink-300 hover:text-pink-600 transition-all"
+                                                        return (
+                                                            <Badge
+                                                                key={id}
+                                                                variant="secondary"
+                                                                className="px-3 py-1.5 text-sm bg-pink-50 text-pink-700 hover:bg-pink-100 gap-2 border border-pink-100"
                                                             >
-                                                                <Plus className="w-4 h-4" />
-                                                                อื่นๆ (เพิ่มใหม่)
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-pink-200">
-                                                                <Input
-                                                                    value={newCategoryName}
-                                                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                                                    placeholder="ระบุหมวดหมู่..."
-                                                                    className="h-8 w-32 text-sm border-none bg-transparent focus-visible:ring-0 px-2"
-                                                                    autoFocus
-                                                                    onKeyDown={(e) => e.key === 'Enter' && handleCreateCategory()}
-                                                                />
-                                                                <Button size="sm" onClick={handleCreateCategory} disabled={isCreatingCategory} className="h-8 bg-pink-600 hover:bg-pink-700">
-                                                                    {isCreatingCategory ? "..." : "เพิ่ม"}
-                                                                </Button>
-                                                                <Button size="sm" variant="ghost" onClick={() => setShowNewCategoryInput(false)} className="h-8 px-2 text-gray-500">
-                                                                    <XCircle className="w-4 h-4" />
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                                <span>{icon}</span>
+                                                                {displayLabel}
+                                                            </Badge>
+                                                        );
+                                                    })
                                                 ) : (
-                                                    /* ========================================= */
-                                                    /* 2. ส่วนแสดงผลปกติ (View Mode) - โค้ดที่คุณเพิ่งส่งมา */
-                                                    /* ========================================= */
-                                                    <>
-                                                        {myInterests.length > 0 ? (
-                                                            myInterests.map((id) => {
-                                                                const localCat = INTEREST_CATEGORIES.find((c) => c.id === id);
-                                                                const apiCat = availableInterests.find((c) => c.id === id);
-                                                                const displayLabel = localCat ? localCat.label : (apiCat ? apiCat.label : id);
-
-                                                                return (
-                                                                    <Badge
-                                                                        key={id}
-                                                                        variant="secondary"
-                                                                        className="px-3 py-1.5 text-sm bg-pink-50 text-pink-700 hover:bg-pink-100 gap-2 border border-pink-100"
-                                                                    >
-                                                                        <span>{getCategoryIcon(id)}</span>
-                                                                        {displayLabel}
-                                                                    </Badge>
-                                                                );
-                                                            })
-                                                        ) : (
-                                                            <div className="flex flex-col items-center justify-center w-full py-6 text-gray-400 border-2 border-dashed rounded-xl bg-gray-50">
-                                                                <Heart className="w-8 h-8 mb-2 opacity-20" />
-                                                                <p className="text-sm">ยังไม่ได้ระบุสิ่งที่สนใจ</p>
-                                                                <Button
-                                                                    variant="link"
-                                                                    onClick={() => setIsEditingInterests(true)}
-                                                                    className="text-pink-600 h-auto p-0 mt-1"
-                                                                >
-                                                                    เลือกสิ่งที่คุณสนใจตอนนี้
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </>
+                                                    <div className="flex flex-col items-center justify-center w-full py-6 text-gray-400 border-2 border-dashed rounded-xl bg-gray-50">
+                                                        <Heart className="w-8 h-8 mb-2 opacity-20" />
+                                                        <p className="text-sm">ยังไม่ได้ระบุสิ่งที่สนใจ</p>
+                                                        <Button
+                                                            variant="link"
+                                                            onClick={() => setIsEditingInterests(true)}
+                                                            className="text-pink-600 h-auto p-0 mt-1"
+                                                        >
+                                                            เลือกสิ่งที่คุณสนใจตอนนี้
+                                                        </Button>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}
                                     </CardContent>
                                 </Card>
-
                             </TabsContent>
 
-                            {/* Tab: Donations (Real Data) */}
+                            {/* Tab: Donations */}
                             <TabsContent value="donations" className="space-y-6">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>ประวัติการบริจาค</CardTitle>
-                                        <CardDescription>รายการบริจาคทั้งหมดของคุณ</CardDescription>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Gift className="w-5 h-5 text-pink-500" />
+                                            ประวัติการบริจาค
+                                        </CardTitle>
+                                        <p className="text-sm text-gray-600">รายการบริจาคเงิน บริจาคของ และบริจาคแรงทั้งหมดของคุณ</p>
                                     </CardHeader>
-                                    <CardContent>
-                                        {user.donations && user.donations.length > 0 ? (
-                                            <div className="space-y-4">
-                                                {user.donations.map((donation) => {
-                                                    const statusBadge = getDonationStatusBadge(donation.status)
-                                                    return (
-                                                        <div key={donation.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                                                            <div>
-                                                                <h4 className="font-semibold text-gray-800">{donation.requestTitle}</h4>
-                                                                <p className="text-sm text-gray-500">
-                                                                    {new Date(donation.date || new Date().toISOString()).toLocaleDateString("th-TH")}
-                                                                </p>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <p className="font-bold text-gray-800">฿{formatAmount(donation.amount || 0)}</p>
-                                                                <Badge className={`${statusBadge.class} flex items-center mt-1`}>
-                                                                    {statusBadge.icon}
-                                                                    {statusBadge.text}
-                                                                </Badge>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                })}
+                                    <CardContent className="space-y-4">
+                                        {/* Filters */}
+                                        <div className="flex flex-wrap items-end gap-3 p-3 bg-gray-50 rounded-lg">
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-xs font-medium text-gray-600">ประเภท</label>
+                                                <select
+                                                    value={historyFilterType}
+                                                    onChange={(e) => setHistoryFilterType((e.target.value || "") as "" | "money" | "item" | "volunteer")}
+                                                    className="rounded-md border border-gray-300 px-3 py-2 text-sm min-w-[120px]"
+                                                >
+                                                    <option value="">ทั้งหมด</option>
+                                                    <option value="money">บริจาคเงิน</option>
+                                                    <option value="item">บริจาคของ</option>
+                                                    <option value="volunteer">บริจาคแรง</option>
+                                                </select>
                                             </div>
-                                        ) : (
-                                            <div className="text-center py-12 text-gray-500">
-                                                <Heart className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                                                <p>ยังไม่มีประวัติการบริจาค</p>
-                                                <Button variant="link" className="text-pink-600" onClick={() => router.push("/donate")}>
-                                                    เริ่มบริจาคเลย
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-xs font-medium text-gray-600">จากวันที่</label>
+                                                <input
+                                                    type="date"
+                                                    value={historyDateFrom}
+                                                    onChange={(e) => setHistoryDateFrom(e.target.value)}
+                                                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-xs font-medium text-gray-600">ถึงวันที่</label>
+                                                <input
+                                                    type="date"
+                                                    value={historyDateTo}
+                                                    onChange={(e) => setHistoryDateTo(e.target.value)}
+                                                    className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                                                />
+                                            </div>
+                                            <Button size="sm" onClick={applyHistoryFilters} className="bg-pink-500 hover:bg-pink-600">
+                                                <Search className="w-4 h-4 mr-1" />
+                                                ค้นหา
+                                            </Button>
+                                        </div>
+
+                                        {donationHistoryLoading ? (
+                                            <div className="py-8 text-center text-gray-500">กำลังโหลด...</div>
+                                        ) : donationHistory.length === 0 ? (
+                                            <div className="text-center py-8 text-gray-500">
+                                                <Gift className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                                <p>{historyFilterType || historyDateFrom || historyDateTo ? "ไม่พบรายการตามเงื่อนไข" : "ยังไม่มีประวัติการบริจาค"}</p>
+                                                <p className="text-sm mt-1">เริ่มบริจาคเพื่อช่วยเหลือผู้อื่น</p>
+                                                <Button onClick={() => router.push("/")} className="mt-4 bg-pink-500 hover:bg-pink-600">
+                                                    เริ่มบริจาค
                                                 </Button>
                                             </div>
+                                        ) : (
+                                            <>
+                                                <div className="space-y-4">
+                                                    {donationHistory.map((entry) => {
+                                                        const projectId = entry.project?.id
+                                                        const projectTitle = entry.project?.title || "ไม่ระบุโครงการ"
+                                                        const dateStr = new Date(entry.date).toLocaleDateString("th-TH", {
+                                                            year: "numeric",
+                                                            month: "short",
+                                                            day: "numeric",
+                                                            hour: "2-digit",
+                                                            minute: "2-digit",
+                                                        })
+
+                                                        if (entry.history_type === "money") {
+                                                            const slipStatus = getSlipStatusBadge(entry.status)
+                                                            return (
+                                                                <Card key={entry.id} className="p-4 hover:shadow-md transition-shadow">
+                                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                                        <Link
+                                                                            href={projectId ? `/donation/${projectId}` : "#"}
+                                                                            className="text-lg font-semibold text-gray-800 hover:text-pink-600 transition-colors"
+                                                                        >
+                                                                            {projectTitle}
+                                                                        </Link>
+                                                                        <Badge className={`${slipStatus.class} text-xs px-2 py-1 shrink-0`}>
+                                                                            {slipStatus.icon}
+                                                                            {slipStatus.text}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="text-sm text-gray-500 mb-2">{dateStr}</p>
+                                                                    <div className="flex items-center gap-2 text-gray-700 text-sm">
+                                                                        <DollarSign className="w-4 h-4 text-green-600" />
+                                                                        <span>บริจาคเงิน <span className="font-bold text-green-700">฿{formatAmount(entry.amount)}</span></span>
+                                                                        {entry.payment_method && <span className="text-gray-500">({entry.payment_method})</span>}
+                                                                    </div>
+                                                                    {entry.slip_url && (
+                                                                        <a href={entry.slip_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+                                                                            <img src={entry.slip_url} alt="สลิป" className="w-full max-w-xs h-32 object-contain bg-gray-100 rounded border" />
+                                                                        </a>
+                                                                    )}
+                                                                </Card>
+                                                            )
+                                                        }
+
+                                                        if (entry.history_type === "item") {
+                                                            const itemStatus = getItemStatusBadge(entry.status)
+                                                            return (
+                                                                <Card key={entry.id} className="p-4 hover:shadow-md transition-shadow">
+                                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                                        <Link
+                                                                            href={projectId ? `/donation/${projectId}` : "#"}
+                                                                            className="text-lg font-semibold text-gray-800 hover:text-pink-600 transition-colors"
+                                                                        >
+                                                                            {projectTitle}
+                                                                        </Link>
+                                                                        <Badge className={`${itemStatus.class} text-xs px-2 py-1 shrink-0`}>
+                                                                            {itemStatus.icon}
+                                                                            {itemStatus.text}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="text-sm text-gray-500 mb-2">{dateStr}</p>
+                                                                    <div className="flex items-center gap-2 text-gray-700 text-sm mb-2">
+                                                                        <Package className="w-4 h-4" />
+                                                                        <span>บริจาคสิ่งของ</span>
+                                                                        {entry.estimated_value != null && (
+                                                                            <span className="text-gray-500">(มูลค่าโดยประมาณ ฿{formatAmount(entry.estimated_value)})</span>
+                                                                        )}
+                                                                    </div>
+                                                                    {entry.items_needed && <p className="text-sm text-gray-600 mb-2">{entry.items_needed}</p>}
+                                                                    {entry.evidence_images && entry.evidence_images.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                                            {entry.evidence_images.slice(0, 4).map((url, i) => (
+                                                                                <img key={i} src={url} alt="" className="w-16 h-16 object-cover rounded border" />
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </Card>
+                                                            )
+                                                        }
+
+                                                        if (entry.history_type === "volunteer") {
+                                                            const volStatus = getVolunteerStatusBadge(entry.status)
+                                                            return (
+                                                                <Card key={entry.id} className="p-4 hover:shadow-md transition-shadow">
+                                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                                        <Link
+                                                                            href={projectId ? `/donation/${projectId}` : "#"}
+                                                                            className="text-lg font-semibold text-gray-800 hover:text-pink-600 transition-colors"
+                                                                        >
+                                                                            {projectTitle}
+                                                                        </Link>
+                                                                        <Badge className={`${volStatus.class} text-xs px-2 py-1 shrink-0`}>
+                                                                            {volStatus.icon}
+                                                                            {volStatus.text}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="text-sm text-gray-500 mb-2">{dateStr}</p>
+                                                                    <div className="flex items-center gap-2 text-gray-700 text-sm">
+                                                                        <HandHelping className="w-4 h-4 text-blue-600" />
+                                                                        <span>บริจาคแรง</span>
+                                                                        {entry.estimated_hours != null && (
+                                                                            <span className="text-gray-600">ประมาณ {entry.estimated_hours} ชม.</span>
+                                                                        )}
+                                                                    </div>
+                                                                    {entry.approved_at && (
+                                                                        <p className="text-xs text-gray-500 mt-1">อนุมัติเมื่อ {new Date(entry.approved_at).toLocaleDateString("th-TH")}</p>
+                                                                    )}
+                                                                    {entry.completed_at && (
+                                                                        <p className="text-xs text-gray-500">เสร็จสิ้นเมื่อ {new Date(entry.completed_at).toLocaleDateString("th-TH")}</p>
+                                                                    )}
+                                                                </Card>
+                                                            )
+                                                        }
+                                                        return null
+                                                    })}
+                                                </div>
+
+                                                {historyLastPage > 1 && (
+                                                    <div className="flex items-center justify-between pt-4 border-t">
+                                                        <p className="text-sm text-gray-500">
+                                                            แสดง {donationHistory.length} จาก {historyTotal} รายการ
+                                                        </p>
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={historyPage <= 1}
+                                                                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                                                            >
+                                                                ก่อนหน้า
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={historyPage >= historyLastPage}
+                                                                onClick={() => setHistoryPage((p) => p + 1)}
+                                                            >
+                                                                ถัดไป
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </CardContent>
                                 </Card>
@@ -1736,21 +1395,58 @@ export default function ProfilePage() {
                             <TabsContent value="favorites">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>โครงการที่สนใจ</CardTitle>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Heart className="w-5 h-5 text-pink-500" />
+                                            รายการที่สนใจ
+                                        </CardTitle>
+                                        <p className="text-sm text-gray-600">คำขอบริจาคที่คุณสนใจ</p>
                                     </CardHeader>
-                                    <CardContent>
-                                        <div className="text-center py-8 text-gray-500">
-                                            <p>คุณยังไม่มีรายการที่สนใจ</p>
-                                        </div>
+                                    <CardContent className="space-y-4">
+                                        {favoriteLoading ? (
+                                            <p className="text-gray-500 text-sm">กำลังโหลด...</p>
+                                        ) : favoriteList.length === 0 ? (
+                                            <div className="text-center py-6 text-gray-500">
+                                                <Heart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                                                <p>ยังไม่มีรายการที่สนใจ</p>
+                                                <p className="text-sm mt-1">กดปุ่มถูกใจที่หน้ารายละเอียดโครงการเพื่อเก็บไว้ดูภายหลัง</p>
+                                                <Button onClick={() => router.push("/")} variant="outline" className="mt-3">
+                                                    ดูคำขอบริจาค
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-gray-600">คุณมีรายการที่สนใจ {favoriteList.length} รายการ</p>
+                                                    <Button variant="outline" onClick={() => router.push("/favorites")} className="bg-transparent">
+                                                        ดูทั้งหมด
+                                                    </Button>
+                                                </div>
+                                                <ul className="space-y-2">
+                                                    {favoriteList.slice(0, 5).map((req) => (
+                                                        <li key={req.id}>
+                                                            <Link
+                                                                href={`/enhanced-donation/${req.id}`}
+                                                                className="block p-3 rounded-lg border border-gray-200 hover:bg-pink-50 hover:border-pink-200 transition-colors"
+                                                            >
+                                                                <span className="font-medium text-gray-800">{req.title}</span>
+                                                                {req.category && (
+                                                                    <Badge variant="secondary" className="ml-2 text-xs">{req.category}</Badge>
+                                                                )}
+                                                            </Link>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                                {favoriteList.length > 5 && (
+                                                    <Button variant="outline" className="w-full" onClick={() => router.push("/favorites")}>
+                                                        ดูทั้งหมด {favoriteList.length} รายการ
+                                                    </Button>
+                                                )}
+                                            </>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </TabsContent>
-
                         </Tabs>
-<<<<<<< HEAD
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                     </div>
                 </div>
             </div>
@@ -1758,11 +1454,6 @@ export default function ProfilePage() {
             {/* Dialog: Create Story */}
             <Dialog open={showCreateStory} onOpenChange={setShowCreateStory}>
                 <DialogContent className="max-w-2xl">
-<<<<<<< HEAD
-                    <DialogHeader>
-                        <DialogTitle>เขียนเรื่องราวความประทับใจ</DialogTitle>
-                        <DialogDescription>แบ่งปันความรู้สึกดีๆ จากการให้</DialogDescription>
-=======
                     <DialogHeader>
                         <DialogTitle>เขียนเรื่องราวความประทับใจ</DialogTitle>
                         <DialogDescription>แบ่งปันความรู้สึกดีๆ จากการให้</DialogDescription>
@@ -1802,7 +1493,7 @@ export default function ProfilePage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Dialog: Edit Profile (อัปโหลดรูปได้) */}
+            {/* Dialog: Edit Profile */}
             <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
@@ -1840,128 +1531,7 @@ export default function ProfilePage() {
                             />
                         </div>
 
-                        {/* ส่วนอัปโหลดรูปโปรไฟล์ */}
-                        <div className="space-y-2">
-                            <Label htmlFor="avatar">รูปโปรไฟล์</Label>
-                            <div className="flex gap-4 items-center">
-                                <Avatar className="w-16 h-16 border">
-                                    <AvatarImage
-                                        src={selectedImage ? URL.createObjectURL(selectedImage) : (editForm.avatar || "/placeholder.svg")}
-                                        className="object-cover"
-                                    />
-                                    <AvatarFallback>รูป</AvatarFallback>
-                                </Avatar>
-
-                                <div className="flex-1">
-                                    <Input
-                                        id="avatar-upload"
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => {
-                                            if (e.target.files && e.target.files[0]) {
-                                                setSelectedImage(e.target.files[0]);
-                                            }
-                                        }}
-                                        className="cursor-pointer"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">รองรับไฟล์ JPG, PNG (ขนาดแนะนำไม่เกิน 2MB)</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowEditProfile(false)} disabled={isSaving}>ยกเลิก</Button>
-                        <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
-                            {isSaving ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Dialog: Customization */}
-            <Dialog open={showCustomization} onOpenChange={setShowCustomization}>
-                <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>ตกแต่งโปรไฟล์</DialogTitle>
-                        <DialogDescription>แลกคะแนนเพื่อปลดล็อคกรอบรูปและธีม</DialogDescription>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label>หัวข้อ</Label>
-                            <Input value={newStory.title} onChange={(e) => setNewStory({ ...newStory, title: e.target.value })} placeholder="เช่น ความสุขจากการให้..." />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>เนื้อหา</Label>
-                            <Textarea value={newStory.content} onChange={(e) => setNewStory({ ...newStory, content: e.target.value })} placeholder="เล่าเรื่องราวของคุณ..." className="min-h-[150px]" />
-                        </div>
-                        {/* Tag Donations */}
-                        <div className="space-y-2">
-                            <Label>อ้างอิงการบริจาค (ถ้ามี)</Label>
-                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded">
-                                {user.donations?.map((don) => (
-                                    <div key={don.id} className="flex items-center gap-2">
-                                        <Switch
-                                            checked={newStory.taggedDonationIds.includes(don.id)}
-                                            onCheckedChange={(c) => {
-                                                if (c) setNewStory(p => ({ ...p, taggedDonationIds: [...p.taggedDonationIds, don.id] }))
-                                                else setNewStory(p => ({ ...p, taggedDonationIds: p.taggedDonationIds.filter(id => id !== don.id) }))
-                                            }}
-                                        />
-                                        <span className="text-sm">{don.requestTitle}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowCreateStory(false)}>ยกเลิก</Button>
-                        <Button onClick={handleCreateStory} className="bg-pink-600 hover:bg-pink-700">โพสต์</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-<<<<<<< HEAD
-            {/* Dialog: Edit Profile (อัปโหลดรูปได้) */}
-            <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>แก้ไขข้อมูลส่วนตัว</DialogTitle>
-                        <DialogDescription>เปลี่ยนแปลงข้อมูลพื้นฐานของคุณ</DialogDescription>
-                    </DialogHeader>
-
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="firstName">ชื่อจริง</Label>
-                                <Input
-                                    id="firstName"
-                                    value={editForm.firstName}
-                                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="lastName">นามสกุล</Label>
-                                <Input
-                                    id="lastName"
-                                    value={editForm.lastName}
-                                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="phone">เบอร์โทรศัพท์</Label>
-                            <Input
-                                id="phone"
-                                value={editForm.phone}
-                                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                                placeholder="08x-xxx-xxxx"
-                            />
-                        </div>
-
-                        {/* ส่วนอัปโหลดรูปโปรไฟล์ */}
+                        {/* Avatar Upload */}
                         <div className="space-y-2">
                             <Label htmlFor="avatar">รูปโปรไฟล์</Label>
                             <div className="flex gap-4 items-center">
@@ -2016,9 +1586,6 @@ export default function ProfilePage() {
                     />
                 </DialogContent>
             </Dialog>
-
-=======
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
         </div>
     )
 }
