@@ -11,15 +11,19 @@ import { ArrowLeft, MapPin, Calendar, Heart, Share2, Globe, Facebook } from "luc
 
 // Map สำหรับ Interest
 const INTEREST_MAP: Record<string, string> = {
-    education: "การศึกษา & เด็ก",
-    environment: "สิ่งแวดล้อม",
-    animals: "ช่วยเหลือสัตว์",
-    medical: "การแพทย์",
-    elderly: "ผู้สูงอายุ",
-    disaster: "ภัยพิบัติ",
-    disabled: "ผู้พิการ",
+    "education-learning": "การศึกษาและการเรียนรู้",
+    "environment": "สิ่งแวดล้อม",
+    "animal-welfare": "สวัสดิภาพสัตว์",
+    "medical-health": "การแพทย์และสุขภาพ",
+    "elderly-care": "ดูแลผู้สูงอายุ",
+    "disaster-relief": "ช่วยเหลือภัยพิบัติ",
+    "disability-support": "ผู้พิการ",
+    "children-youth": "เด็กและเยาวชน",
+    "community-development": "พัฒนาชุมชน",
+    "religious-spiritual": "ศาสนาและจิตวิญญาณ",
+    "arts-culture": "ศิลปะและวัฒนธรรม",
+    "sports-recreation": "กีฬาและนันทนาการ",
 }
-
 export default function PublicProfilePage() {
     const params = useParams() // รับ ID จาก URL
     const router = useRouter()

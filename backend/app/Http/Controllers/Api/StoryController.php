@@ -4,330 +4,239 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Story;
-use App\Models\DonationRequest;
-use App\Enums\StoryStatus;
+use App\Enums\UserRole;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class StoryController extends Controller
 {
-    public function store(Request $request)
+    // ─── GET /organizer/stories ───────────────────────────────────
+    public function index(): JsonResponse
     {
         $user = Auth::user();
 
-        $validated = $request->validate([
-            'donation_request_id' => 'required|exists:donation_requests,id',
-            'title' => 'required|string|max:255',
-            'content' => 'required|string|max:500',
-            'type' => 'required|in:progress,milestone,thank_you,completion',
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // 5MB
-            'duration' => 'required|integer|min:1|max:60',
+        $stories = Story::with(['donationRequest:id,title'])
+            ->forOrganizer($user->id)
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $stories,
+        ]);
+    }
+
+    // ─── POST /organizer/stories ──────────────────────────────────
+    public function store(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $request->merge([
+            'is_scheduled' => filter_var($request->input('is_scheduled'), FILTER_VALIDATE_BOOLEAN)
         ]);
 
-        $donationRequest = DonationRequest::where('id', $validated['donation_request_id'])
-            ->where('organizer_id', $user->id)
-            ->first();
+        $isScheduled = filter_var($request->input('is_scheduled'), FILTER_VALIDATE_BOOLEAN);
+        $mediaType   = $request->input('media_type', 'image');
 
-        if (!$donationRequest) {
-            return response()->json(['error' => 'Donation request not found or access denied'], 404);
-        }
+        // แยก Rule ของ media ออกมาให้ชัดเจน
+        $mediaRule = $mediaType === 'video'
+            ? 'required|file|mimetypes:video/mp4,video/webm,video/quicktime|max:102400' // ปรับเป็น 102400 (100MB)
+            : 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120';
+
+        // Validation
+        $request->validate([
+            'title'               => 'required|string|max:255',
+            'content'             => 'required|string|min:10|max:500',
+            'type'                => ['required', Rule::in(['progress', 'milestone', 'thank_you', 'completion'])],
+            'media_type'          => ['required', Rule::in(['image', 'video'])],
+            'media'               => $mediaRule,
+            'duration'            => 'required|integer|min:1|max:60',
+            'donation_request_id' => [
+                'required',
+                Rule::exists('donation_requests', 'id')->where('organizer_id', $user->id),
+            ],
+            'show_time'           => ['required', Rule::in(['immediately', '24_hours', '3_days', '1_week'])],
+            'is_scheduled'        => 'required|boolean',
+            'scheduled_time'      => 'required_if:is_scheduled,true|nullable|date|after:now',
+        ], [
+            'title.required'               => 'กรุณากรอกหัวข้อ Story',
+            'content.required'             => 'กรุณากรอกเนื้อหา Story',
+            'content.min'                  => 'เนื้อหาต้องมีอย่างน้อย 10 ตัวอักษร',
+            'content.max'                  => 'เนื้อหาต้องไม่เกิน 500 ตัวอักษร',
+            'media.required'               => 'กรุณาเลือกรูปภาพหรือวิดีโอ',
+            'media.image'                  => 'ไฟล์ต้องเป็นรูปภาพเท่านั้น (jpeg, png, jpg, webp)',
+            'media.mimes'                  => 'ไฟล์ต้องเป็นรูปภาพเท่านั้น (jpeg, png, jpg, webp)',
+            'media.mimetypes'              => 'ไฟล์วิดีโอต้องเป็น MP4, WebM หรือ MOV',
+            'media.max'                    => 'ขนาดไฟล์เกินที่กำหนด',
+            'donation_request_id.required' => 'กรุณาเลือกคำขอบริจาค',
+            'donation_request_id.exists'   => 'คำขอบริจาคไม่ถูกต้อง หรือไม่ใช่ของคุณ',
+            'scheduled_time.required_if'   => 'กรุณากำหนดเวลาที่ต้องการเผยแพร่',
+            'scheduled_time.after'         => 'เวลาที่กำหนดต้องเป็นเวลาในอนาคต',
+        ]);
 
         DB::beginTransaction();
-
         try {
-            $imagePath = null;
-            $imageUrl = null;
+            // ── Upload media ──────────────────────────────────────
+            $mediaPath = $request->file('media')->store(
+                'stories/' . $user->id,
+                'public'
+            );
 
-            if ($request->hasFile('image')) {
-                $imageFile = $request->file('image');
-                $folderPath = 'stories/' . date('Y/m');
-                $fileName = Str::random(20) . '.' . $imageFile->getClientOriginalExtension();
+            // ── กำหนดสถานะ ────────────────────────────────────────
+            $isPublished = !$isScheduled;
+            $publishedAt = $isPublished ? now() : null;
 
-                $imagePath = $imageFile->storeAs($folderPath, $fileName, 'public');
-
-                if ($imagePath) {
-                    $imageUrl = Storage::disk('public')->url($imagePath);
-                    Log::info('Image uploaded successfully', ['path' => $imagePath, 'url' => $imageUrl]);
-                } else {
-                    throw new \Exception('Failed to save image to local storage');
-                }
-            }
-
-            $story = Story::create([
-                'id' => Str::uuid(),
-                'title' => $validated['title'],
-                'content' => $validated['content'],
-                'slug' => Str::slug($validated['title']) . '-' . Str::random(6),
-                'images' => [$imageUrl], // array ของ URL
-                'videos' => null,
-                'type' => $validated['type'],
-                'duration' => $validated['duration'],
-                'status' => StoryStatus::PUBLISHED,
-                'author_id' => $user->id,
-                'donation_request_id' => $validated['donation_request_id'],
-                'published_at' => now(),
-                'views' => 0,
-                'image_path' => $imagePath, // path เช่น stories/2025/10/abc123.jpg
+            $story = new Story([
+                'organizer_id'        => $user->id,
+                'donation_request_id' => $request->input('donation_request_id'),
+                'title'               => $request->input('title'),
+                'content'             => $request->input('content'),
+                'type'                => $request->input('type'),
+                'media_type'          => $mediaType,
+                'media_path'          => $mediaPath,
+                'duration'            => $request->input('duration'),
+                'show_time'           => $request->input('show_time'),
+                'is_scheduled'        => $isScheduled,
+                'scheduled_time'      => $isScheduled ? $request->input('scheduled_time') : null,
+                'is_published'        => $isPublished,
+                'published_at'        => $publishedAt,
+                'views'               => 0,
+                'likes'               => 0,
             ]);
+
+            // คำนวณ expires_at หลัง fill show_time และ published_at
+            $story->expires_at = $publishedAt ? $story->computeExpiresAt($publishedAt) : null;
+            $story->save();
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $story->load('donationRequest'),
-                'message' => 'Story created successfully'
+                'message' => $isScheduled
+                    ? 'กำหนดเวลาเผยแพร่ Story สำเร็จ'
+                    : 'เผยแพร่ Story สำเร็จ',
+                'data'    => $story->load('donationRequest:id,title'),
             ], 201);
-
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Error creating story: ' . $e->getMessage());
+            if (isset($mediaPath)) {
+                Storage::disk('public')->delete($mediaPath);
+            }
+            \Log::error('Error creating story: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create story',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'message' => 'เกิดข้อผิดพลาดในการสร้าง Story',
+                'error'   => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
 
-    public function update(Request $request, $id)
+    // ─── GET /organizer/stories/{id} ─────────────────────────────
+    public function show(\Illuminate\Http\Request $request, $id): JsonResponse
     {
-        $user = Auth::user();
+        $story = Story::with('donationRequest:id,title')
+            ->forOrganizer(Auth::id())
+            ->findOrFail($id);
 
-        DB::beginTransaction();
+        return response()->json(['success' => true, 'data' => $story]);
+    }
 
+    // ─── DELETE /organizer/stories/{id} ──────────────────────────
+    public function destroy(int $id): JsonResponse
+    {
+        $story = Story::forOrganizer(Auth::id())->findOrFail($id);
+
+        if ($story->media_path) {
+            Storage::disk('public')->delete($story->media_path);
+        }
+
+        $story->delete();
+
+        return response()->json(['success' => true, 'message' => 'ลบ Story สำเร็จ']);
+    }
+
+    // ─── GET /stories (Public) ───────────────────────────────────
+    public function publicIndex()
+    {
         try {
-            $story = Story::with('donationRequest')->find($id);
-
-            if (!$story) {
-                return response()->json(['error' => 'Story not found'], 404);
-            }
-
-            if ($story->author_id !== $user->id) {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-
-            $validated = $request->validate([
-                'title' => 'sometimes|string|max:255',
-                'content' => 'sometimes|string|max:500',
-                'status' => 'sometimes|in:' . implode(',', array_column(StoryStatus::cases(), 'value')),
-                'type' => 'sometimes|in:progress,milestone,thank_you,completion',
-                'duration' => 'sometimes|integer|min:1|max:60',
-                'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
-            ]);
-
-            $updateData = $validated;
-
-            // อัพเดท slug ถ้ามี title ใหม่
-            if (isset($validated['title'])) {
-                $updateData['slug'] = Str::slug($validated['title']) . '-' . Str::random(6);
-            }
-
-            // อัพเดท published_at ถ้าเปลี่ยนเป็น PUBLISHED ครั้งแรก
-            if (isset($validated['status']) && $validated['status'] === StoryStatus::PUBLISHED->value && $story->status !== StoryStatus::PUBLISHED) {
-                $updateData['published_at'] = now();
-            }
-
-            // จัดการรูปภาพใหม่
-            if ($request->hasFile('image')) {
-                // ลบรูปเก่า
-                if ($story->image_path && Storage::disk('public')->exists($story->image_path)) {
-                    Storage::disk('public')->delete($story->image_path);
-                    Log::info('Old image deleted', ['path' => $story->image_path]);
-                }
-
-                $imageFile = $request->file('image');
-                $folderPath = 'stories/' . date('Y/m');
-                $fileName = Str::random(20) . '.' . $imageFile->getClientOriginalExtension();
-                $newImagePath = $imageFile->storeAs($folderPath, $fileName, 'public');
-
-                if ($newImagePath) {
-                    $newImageUrl = Storage::disk('public')->url($newImagePath);
-                    $updateData['images'] = [$newImageUrl];
-                    $updateData['image_path'] = $newImagePath;
-                } else {
-                    throw new \Exception('Failed to save new image');
-                }
-            }
-
-            $story->update($updateData);
-
-            DB::commit();
+            // ดึงข้อมูล Story ที่ถูก publish แล้ว พร้อมข้อมูลผู้จัดและโปรเจกต์
+            $stories = \App\Models\Story::with(['organizer', 'donationRequest'])
+                ->where('is_published', true) // ดึงเฉพาะอันที่เผยแพร่แล้ว
+                ->latest() // เรียงจากใหม่ไปเก่า
+                ->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $story->fresh(),
-                'message' => 'Story updated successfully'
-            ]);
-
+                'data' => $stories
+            ], 200);
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error updating story: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update story',
+                'message' => 'เกิดข้อผิดพลาดในการดึงข้อมูล Story',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ─── GET /stories/{id} (Public Show) ─────────────────────────
+    // ✅ เพิ่มฟังก์ชันนี้เพื่อใช้ดู Story รายตัวสำหรับฝั่งหน้าบ้าน (ไม่ต้องล็อกอิน)
+    // ─── GET /stories/{id} (Public Show) ─────────────────────────
+    public function publicShow($id): JsonResponse
+    {
+        try {
+            $story = Story::with(['organizer', 'donationRequest'])->findOrFail($id);
+
+            // 🌟 ค้นหา Story ถัดไปของ "โครงการเดียวกัน" โดยใช้เวลาสร้าง (created_at) แทน ID
+            $nextStory = Story::where('donation_request_id', $story->donation_request_id)
+                ->where('is_published', true)
+                ->where('created_at', '>', $story->created_at) // ดึงอันที่ถูกสร้างทีหลังตัวปัจจุบัน
+                ->orderBy('created_at', 'asc')                 // เรียงจากเก่าไปใหม่
+                ->first();
+
+            $story->next_id = $nextStory ? $nextStory->id : null;
+
+            return response()->json($story, 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'ไม่พบ Story ที่ต้องการ',
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'เกิดข้อผิดพลาดในการโหลดข้อมูล Story',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
 
-    public function destroy($id)
+    // ─── POST /stories/{id}/view ─────────────────────────────────
+    // ฟังก์ชันสำหรับบวกยอดวิว (+1) เมื่อมีคนกดดู Story
+    public function recordView($id): JsonResponse
     {
-        $user = Auth::user();
-
-        DB::beginTransaction();
-
         try {
-            $story = Story::find($id);
+            // หา Story จาก ID (ไม่ต้องใช้ Auth เพราะใครๆ ก็กดดูและเพิ่มวิวได้)
+            $story = Story::findOrFail($id);
 
-            if (!$story) {
-                return response()->json(['error' => 'Story not found'], 404);
-            }
-
-            if ($story->author_id !== $user->id) {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-
-            // ลบรูปจากเครื่อง
-            if ($story->image_path && Storage::disk('public')->exists($story->image_path)) {
-                Storage::disk('public')->delete($story->image_path);
-                Log::info('Image deleted from storage', ['path' => $story->image_path]);
-            }
-
-            $story->delete();
-
-            DB::commit();
+            // สั่งบวกยอดวิวขึ้น 1
+            $story->increment('views');
 
             return response()->json([
                 'success' => true,
-                'message' => 'Story deleted successfully'
+                'message' => 'บวกยอดวิวสำเร็จ',
+                'views' => $story->views
             ]);
-
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error deleting story: ' . $e->getMessage());
+            \Log::error('Error recording view: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete story',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'message' => 'เกิดข้อผิดพลาดในการบันทึกยอดวิว',
+                'error' => $e->getMessage()
             ], 500);
         }
-    }
-
-    // อัพเดท methods อื่นๆ ให้ตรงกับโครงสร้างตาราง
-    public function index(Request $request)
-    {
-        $user = Auth::user();
-
-        $query = DonationRequest::with(['stories' => function ($query) {
-            $query->orderBy('created_at', 'desc');
-        }])->where('organizer_id', $user->id);
-
-        if ($request->has('donation_request_id')) {
-            $query->where('id', $request->donation_request_id);
-        }
-
-        $donationRequests = $query->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $donationRequests,
-            'message' => 'Stories retrieved successfully'
-        ]);
-    }
-
-    public function show(Request $request, $id)
-    {
-        $user = Auth::user();
-        $story = Story::with('donationRequest')->find($id);
-
-        if (!$story) {
-            return response()->json(['error' => 'Story not found'], 404);
-        }
-
-        // ตรวจสอบว่าเป็น owner หรือไม่ (ใช้ author_id)
-        if ($story->author_id !== $user->id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $story,
-            'message' => 'Story retrieved successfully'
-        ]);
-    }
-
-    // Public methods
-    public function publicIndex(Request $request)
-    {
-        $stories = Story::with('donationRequest')
-            ->where('status', StoryStatus::PUBLISHED)
-            ->orderBy('published_at', 'desc')
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $stories
-        ]);
-    }
-
-    public function publicShow($id)
-    {
-        $story = Story::with('donationRequest')
-            ->where('status', StoryStatus::PUBLISHED)
-            ->find($id);
-
-        if (!$story) {
-            return response()->json(['error' => 'Story not found'], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $story
-        ]);
-    }
-
-    public function getStoriesByDonationRequest($donationRequestId)
-    {
-        $stories = Story::with('donationRequest')
-            ->where('donation_request_id', $donationRequestId)
-            ->where('status', StoryStatus::PUBLISHED)
-            ->orderBy('published_at', 'desc')
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $stories
-        ]);
-    }
-
-    public function recordView($id)
-    {
-        $story = Story::find($id);
-
-        if (!$story) {
-            return response()->json(['error' => 'Story not found'], 404);
-        }
-
-        $story->increment('views');
-
-        return response()->json([
-            'success' => true,
-            'message' => 'View recorded successfully'
-        ]);
-    }
-
-    public function toggleLike($id)
-    {
-        // เนื่องจากตารางไม่มี field likes แล้ว อาจต้องสร้างตารางใหม่สำหรับ like
-        // สำหรับตอนนี้ให้ข้ามไปก่อน
-        return response()->json([
-            'success' => true,
-            'message' => 'Like feature not implemented yet'
-        ]);
     }
 }

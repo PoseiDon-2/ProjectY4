@@ -45,7 +45,7 @@ interface DonationRequest {
 
 // API Service
 class StoryApiService {
-    private baseUrl = process.env.NEXT_PUBLIC_API_URL
+    private baseUrl = 'http://localhost:8000/api'
 
     private async request(endpoint: string, options: RequestInit = {}) {
         const token = localStorage.getItem('auth_token')
@@ -216,21 +216,34 @@ export default function CreateStory() {
             }
             reader.readAsDataURL(file)
         } else {
-            if (file.size > 50 * 1024 * 1024) {
-                setError("ไฟล์วิดีโอต้องมีขนาดไม่เกิน 50MB")
+            // วิดีโอ (video)
+            if (file.size > 100 * 1024 * 1024) { // 100MB
+                setError("ไฟล์วิดีโอต้องมีขนาดไม่เกิน 100MB")
                 return
             }
-            if (!file.type.startsWith('video/')) {
-                setError("กรุณาเลือกไฟล์วิดีโอเท่านั้น")
+            const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime']
+            if (!allowedVideoTypes.includes(file.type)) {
+                setError("กรุณาเลือกไฟล์วิดีโอ MP4, WebM หรือ MOV เท่านั้น")
                 return
             }
 
-            setFormData(prev => ({ ...prev, video: file, media_type: 'video' }))
+            setFormData((prev) => ({ ...prev, video: file, media_type: "video" }))
             setPreviewImage(null)
 
             const reader = new FileReader()
             reader.onload = (e) => {
-                setPreviewVideo(e.target?.result as string)
+                const result = e.target?.result as string
+                setPreviewVideo(result)
+
+                // 🌟 เพิ่มโค้ดส่วนนี้: เพื่อดึงความยาววิดีโออัตโนมัติ
+                const videoNode = document.createElement("video")
+                videoNode.src = result
+                videoNode.onloadedmetadata = () => {
+                    let duration = Math.ceil(videoNode.duration)
+                    if (duration > 60) duration = 60 // จำกัดไว้ที่ 60 วิ (ตาม Backend)
+                    if (duration < 1) duration = 1
+                    setFormData(prev => ({ ...prev, duration: duration }))
+                }
             }
             reader.readAsDataURL(file)
         }
@@ -500,24 +513,29 @@ export default function CreateStory() {
                                             </Select>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="duration">ระยะเวลาแสดง (วินาที)</Label>
-                                            <Select
-                                                value={formData.duration.toString()}
-                                                onValueChange={(value) => handleInputChange("duration", Number.parseInt(value))}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="เลือกระยะเวลา" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="3">3 วินาที</SelectItem>
-                                                    <SelectItem value="5">5 วินาที</SelectItem>
-                                                    <SelectItem value="7">7 วินาที</SelectItem>
-                                                    <SelectItem value="10">10 วินาที</SelectItem>
-                                                    <SelectItem value="15">15 วินาที</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                        {formData.media_type === 'image' && (
+                                            <div className="space-y-2">
+                                                <Label className="flex items-center gap-2">
+                                                    <Clock className="w-4 h-4 text-emerald-600" />
+                                                    ระยะเวลาแสดงผล (วินาที)
+                                                </Label>
+                                                <Select
+                                                    value={formData.duration.toString()}
+                                                    onValueChange={(value) => handleInputChange("duration", Number.parseInt(value))}
+                                                >
+                                                    <SelectTrigger className="bg-white/50 border-emerald-100 focus:ring-emerald-500">
+                                                        <SelectValue placeholder="เลือกระยะเวลา" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="3">3 วินาที</SelectItem>
+                                                        <SelectItem value="5">5 วินาที</SelectItem>
+                                                        <SelectItem value="15">15 วินาที</SelectItem>
+                                                        <SelectItem value="30">30 วินาที</SelectItem>
+                                                        <SelectItem value="60">60 วินาที</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Display Time Settings */}

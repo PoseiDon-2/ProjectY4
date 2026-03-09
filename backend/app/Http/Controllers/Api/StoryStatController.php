@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DonationRequest;
 use App\Models\Story;
-use App\Enums\StoryStatus;
-use App\Enums\StoryType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -44,27 +42,26 @@ class StoryStatController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'ไม่สามารถโหลดสถิติได้'
+                'message' => 'ไม่สามารถโหลดสถิติได้',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
 
     private function getBasicStats($userId, $timeRange)
     {
-        $query = Story::where('author_id', $userId);
+        // ✅ เปลี่ยนจาก author_id เป็น organizer_id
+        $query = Story::where('organizer_id', $userId);
         $query = $this->applyTimeFilter($query, $timeRange, 'created_at');
 
+        // ✅ เปลี่ยนจาก status เป็น is_published
         $stats = $query->selectRaw('
             COUNT(*) as total_stories,
             SUM(views) as total_views,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as published_stories,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as draft_stories,
-            SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as archived_stories
-        ', [
-            StoryStatus::PUBLISHED->value,
-            StoryStatus::DRAFT->value,
-            StoryStatus::ARCHIVED->value
-        ])->first();
+            SUM(CASE WHEN is_published = 1 THEN 1 ELSE 0 END) as published_stories,
+            SUM(CASE WHEN is_published = 0 THEN 1 ELSE 0 END) as draft_stories,
+            0 as archived_stories
+        ')->first();
 
         $storiesPerRequest = DonationRequest::where('organizer_id', $userId)
             ->withCount(['stories' => function ($q) use ($timeRange) {
@@ -84,7 +81,7 @@ class StoryStatController extends Controller
             'draftStories' => (int) ($stats->draft_stories ?? 0),
             'archivedStories' => (int) ($stats->archived_stories ?? 0),
             'averageViews' => $avgViews,
-            'maxViews' => (int) Story::where('author_id', $userId)
+            'maxViews' => (int) Story::where('organizer_id', $userId)
                 ->when($timeRange !== 'all', fn($q) => $this->applyTimeFilter($q, $timeRange, 'created_at'))
                 ->max('views'),
             'storiesPerRequest' => $storiesPerRequest
@@ -93,8 +90,9 @@ class StoryStatController extends Controller
 
     private function getEngagementStats($userId, $timeRange)
     {
-        $query = Story::where('author_id', $userId)
-            ->where('status', StoryStatus::PUBLISHED);
+        // ✅ ใช้ organizer_id และ is_published
+        $query = Story::where('organizer_id', $userId)
+            ->where('is_published', true);
         $query = $this->applyTimeFilter($query, $timeRange, 'published_at');
 
         $engagement = $query->selectRaw('
@@ -122,7 +120,7 @@ class StoryStatController extends Controller
 
     private function getTypeDistribution($userId, $timeRange)
     {
-        $query = Story::where('author_id', $userId);
+        $query = Story::where('organizer_id', $userId);
         $query = $this->applyTimeFilter($query, $timeRange, 'created_at');
 
         $distribution = $query->selectRaw('type, COUNT(*) as count')
@@ -154,8 +152,8 @@ class StoryStatController extends Controller
     private function getTopStories($userId, $timeRange, $limit = 5)
     {
         $query = Story::with(['donationRequest:id,title'])
-            ->where('author_id', $userId)
-            ->where('status', StoryStatus::PUBLISHED)
+            ->where('organizer_id', $userId)
+            ->where('is_published', true)
             ->orderBy('views', 'desc')
             ->limit($limit);
 
@@ -171,7 +169,7 @@ class StoryStatController extends Controller
                 'duration' => $story->duration,
                 'publishedAt' => $story->published_at?->format('d/m/Y H:i'),
                 'donationRequest' => $story->donationRequest?->only(['id', 'title']),
-                'imageUrl' => $story->images[0] ?? null
+                'media_path' => $story->media_path // ✅ เปลี่ยนจาก images
             ];
         })->toArray();
     }
@@ -179,7 +177,7 @@ class StoryStatController extends Controller
     private function getRecentActivity($userId, $limit = 10)
     {
         return Story::with(['donationRequest:id,title'])
-            ->where('author_id', $userId)
+            ->where('organizer_id', $userId)
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get()
@@ -187,28 +185,24 @@ class StoryStatController extends Controller
                 return [
                     'id' => $story->id,
                     'title' => $story->title,
-                    'status' => $story->status,
-                    'statusText' => $this->getStatusLabel($story->status),
+                    'is_published' => $story->is_published,
+                    'statusText' => $story->is_published ? 'เผยแพร่แล้ว' : 'ฉบับร่าง',
                     'type' => $story->type,
                     'typeText' => $this->getTypeLabel($story->type),
                     'views' => $story->views,
                     'createdAt' => $story->created_at->format('d/m/Y H:i'),
                     'donationRequest' => $story->donationRequest?->only(['id', 'title']),
-                    'imageUrl' => $story->images[0] ?? null
+                    'media_path' => $story->media_path // ✅ เปลี่ยนจาก images
                 ];
             })->toArray();
     }
 
-    /**
-     * ปรับปรุง: ใช้ views จริงจาก recordView() + จำลองตาม published_at
-     */
     private function getViewTrends($userId, $days = 7)
     {
         $startDate = Carbon::now()->subDays($days - 1)->startOfDay();
 
-        // ดึง views ตามวันที่เผยแพร่
-        $trends = Story::where('author_id', $userId)
-            ->where('status', StoryStatus::PUBLISHED)
+        $trends = Story::where('organizer_id', $userId)
+            ->where('is_published', true)
             ->where('published_at', '>=', $startDate)
             ->selectRaw('DATE(published_at) as date, SUM(views) as total_views')
             ->groupBy('date')
@@ -230,9 +224,6 @@ class StoryStatController extends Controller
         return $result;
     }
 
-    /**
-     * ปรับปรุง: รองรับ `today` และเลือก field ที่จะกรอง
-     */
     private function applyTimeFilter($query, $timeRange, $column = 'created_at')
     {
         $now = Carbon::now();
@@ -242,7 +233,7 @@ class StoryStatController extends Controller
             'week'  => $query->where($column, '>=', $now->copy()->startOfWeek()),
             'month' => $query->where($column, '>=', $now->copy()->startOfMonth()),
             'year'  => $query->where($column, '>=', $now->copy()->startOfYear()),
-            default => $query // 'all'
+            default => $query 
         };
     }
 
@@ -257,16 +248,6 @@ class StoryStatController extends Controller
         };
     }
 
-    private function getStatusLabel($status)
-    {
-        return match ($status) {
-            StoryStatus::DRAFT->value => 'ฉบับร่าง',
-            StoryStatus::PUBLISHED->value => 'เผยแพร่แล้ว',
-            StoryStatus::ARCHIVED->value => 'เก็บถาวร',
-            default => $status
-        };
-    }
-
     public function show($id)
     {
         $user = Auth::user();
@@ -274,7 +255,7 @@ class StoryStatController extends Controller
         try {
             $story = Story::with(['donationRequest'])
                 ->where('id', $id)
-                ->where('author_id', $user->id)
+                ->where('organizer_id', $user->id)
                 ->first();
 
             if (!$story) {
@@ -295,13 +276,13 @@ class StoryStatController extends Controller
                         'content' => $story->content,
                         'type' => $story->type,
                         'typeText' => $this->getTypeLabel($story->type),
-                        'status' => $story->status,
-                        'statusText' => $this->getStatusLabel($story->status),
+                        'is_published' => $story->is_published,
+                        'statusText' => $story->is_published ? 'เผยแพร่แล้ว' : 'ฉบับร่าง',
                         'views' => $story->views,
                         'duration' => $story->duration,
                         'publishedAt' => $story->published_at?->format('d/m/Y H:i'),
                         'createdAt' => $story->created_at->format('d/m/Y H:i'),
-                        'imageUrl' => $story->images[0] ?? null,
+                        'media_path' => $story->media_path,
                         'donationRequest' => $story->donationRequest?->only(['id', 'title'])
                     ],
                     'performance' => $comparison
@@ -319,8 +300,8 @@ class StoryStatController extends Controller
 
     private function getPerformanceComparison($story, $userId)
     {
-        $avgViews = Story::where('author_id', $userId)
-            ->where('status', StoryStatus::PUBLISHED)
+        $avgViews = Story::where('organizer_id', $userId)
+            ->where('is_published', true)
             ->where('type', $story->type)
             ->avg('views') ?: 1;
 

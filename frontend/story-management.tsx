@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Eye, Edit, Trash2, Calendar, Users, BarChart3, ArrowLeft } from "lucide-react"
+// นำเข้าไอคอน Video, Image และ SearchX เพิ่มเติม
+import { Plus, Eye, Edit, Trash2, Calendar, Users, BarChart3, ArrowLeft, Video, ImageIcon, SearchX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -12,15 +13,18 @@ interface Story {
     id: string
     title: string
     content: string
-    images: string[] | null
+    media_path: string | null
+    media_type: string
+    is_published: boolean
+    organizer_id: string
     status: string
     author_id: string
     donation_request_id: string
     published_at: string | null
     views: number
     created_at: string
-    type: string // เพิ่ม field type ตามโครงสร้างใหม่
-    duration: number // เพิ่ม field duration
+    type: string
+    duration: number
     donationRequest?: {
         id: string
         title: string
@@ -58,7 +62,7 @@ class StoryApiService {
     private API_URL = process.env.NEXT_PUBLIC_API_URL
 
     private async request(endpoint: string, options: RequestInit = {}) {
-        const token = localStorage.getItem('auth_token')
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
 
         const config: RequestInit = {
             headers: {
@@ -112,19 +116,23 @@ export default function StoryManagement() {
     const router = useRouter()
     const { user } = useAuth()
     const [selectedRequest, setSelectedRequest] = useState<string | null>(null)
-    const [stories, setStories] = useState<Story[]>([]) // เปลี่ยนโครงสร้างข้อมูล
+    const [statusFilter, setStatusFilter] = useState<string | null>(null)
+    const [typeFilter, setTypeFilter] = useState<string | null>(null)
+    
+    // 🌟 เพิ่ม State สำหรับเรียงลำดับเวลา (เริ่มต้นที่ ใหม่สุดไปเก่าสุด)
+    const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
+
+    const [stories, setStories] = useState<Story[]>([])
     const [stats, setStats] = useState<StoryStats>({})
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    // Redirect if not organizer - ใช้ useEffect แทน
     useEffect(() => {
         if (!user || user.role !== "organizer") {
             router.push("/")
         }
     }, [user, router])
 
-    // Fetch data on component mount
     useEffect(() => {
         fetchStories()
         fetchStats()
@@ -136,7 +144,6 @@ export default function StoryManagement() {
             setError(null)
             const response = await storyApiService.getOrganizerStories()
             if (response.success) {
-                // ปรับโครงสร้างข้อมูลให้ตรงกับ API response
                 setStories(response.data || [])
             }
         } catch (err: any) {
@@ -165,9 +172,8 @@ export default function StoryManagement() {
 
         try {
             await storyApiService.deleteStory(storyId)
-            // Refresh the stories list after deletion
             fetchStories()
-            fetchStats() // Refresh stats as well
+            fetchStats()
         } catch (err: any) {
             console.error('Error deleting story:', err)
             alert(err.message || 'ไม่สามารถลบ Story ได้')
@@ -176,13 +182,10 @@ export default function StoryManagement() {
 
     const handleViewStory = async (storyId: string) => {
         try {
-            // Record view first
             await storyApiService.recordView(storyId)
-            // Then navigate to story view page
             router.push(`/stories/${storyId}`)
         } catch (err) {
             console.error('Error recording view:', err)
-            // Still navigate even if recording view fails
             router.push(`/stories/${storyId}`)
         }
     }
@@ -191,47 +194,12 @@ export default function StoryManagement() {
         router.push(`/edit-story/${storyId}`)
     }
 
-    const handleLikeStory = async (storyId: string, e: React.MouseEvent) => {
-        e.stopPropagation() // Prevent triggering parent click events
-        try {
-            await storyApiService.toggleLike(storyId)
-            // Refresh stories to get updated like count
-            fetchStories()
-        } catch (err) {
-            console.error('Error toggling like:', err)
+    const getFirstImage = (story: Story) => {
+        if (story.media_path) {
+            return `http://localhost:8000/storage/${story.media_path}`;
         }
-    }
-
-    // ฟังก์ชันสำหรับดึงรูปภาพแรกจาก array
-    const getFirstImage = (images: string[] | null): string => {
-        if (!images || images.length === 0) {
-            return "https://via.placeholder.com/400x300?text=No+Image"
-        }
-
-        // ถ้า images เป็น array ของ string URLs
-        if (Array.isArray(images)) {
-            return images[0]
-        }
-
-        // ถ้า images เป็น JSON string
-        try {
-            if (typeof images === 'string') {
-                const parsedImages = JSON.parse(images)
-                if (Array.isArray(parsedImages) && parsedImages.length > 0) {
-                    return parsedImages[0]
-                }
-            }
-        } catch (e) {
-            console.error('Error parsing images:', e)
-        }
-
-        return "https://via.placeholder.com/400x300?text=No+Image"
-    }
-
-    // ใช้ type จาก field โดยตรง (มีแล้วในโครงสร้างใหม่)
-    const getStoryType = (story: Story): string => {
-        return story.type || 'progress'
-    }
+        return "https://placehold.co/400x300?text=No+Image";
+    };
 
     const getTypeColor = (type: string) => {
         const colors = {
@@ -271,16 +239,6 @@ export default function StoryManagement() {
         return texts[status as keyof typeof texts] || status
     }
 
-    const formatTimeAgo = (timestamp: string) => {
-        const now = new Date()
-        const time = new Date(timestamp)
-        const diffInHours = Math.floor((now.getTime() - time.getTime()) / (1000 * 60 * 60))
-
-        if (diffInHours < 1) return "เมื่อสักครู่"
-        if (diffInHours < 24) return `${diffInHours} ชั่วโมงที่แล้ว`
-        return `${Math.floor(diffInHours / 24)} วันที่แล้ว`
-    }
-
     const formatDate = (timestamp: string) => {
         return new Date(timestamp).toLocaleDateString('th-TH', {
             year: 'numeric',
@@ -289,7 +247,6 @@ export default function StoryManagement() {
         })
     }
 
-    // คำนวณค่าสถิติจากข้อมูล stories
     const calculatedStats = {
         totalStories: stories.length,
         totalViews: stories.reduce((sum, story) => sum + story.views, 0),
@@ -298,21 +255,21 @@ export default function StoryManagement() {
         archivedStories: stories.filter(story => story.status === 'ARCHIVED').length,
     }
 
-    // ใช้ค่าจาก API หรือคำนวณเอง
     const displayStats = {
         totalStories: stats.overview?.totalStories || stats.totalStories || calculatedStats.totalStories,
         totalViews: stats.overview?.totalViews || stats.totalViews || calculatedStats.totalViews,
         engagementRate: stats.engagement?.engagementRate || stats.engagementRate || 0,
-        totalLikes: stats.totalLikes || 0, // ยังไม่มีระบบ like
+        totalLikes: stats.totalLikes || 0,
     }
 
-    // Group stories by donation request
+    // จัดกลุ่มโปรเจกต์สำหรับปุ่มกดด้านบน (แค่เพื่อนับจำนวนเอาไปโชว์ที่ปุ่ม)
     const storiesByRequest = stories.reduce((acc, story) => {
         const requestId = story.donation_request_id
         if (!acc[requestId]) {
+            const requestTitle = story.donationRequest?.title || (story as any).donation_request?.title || 'ไม่ระบุคำขอ';
             acc[requestId] = {
                 id: requestId,
-                title: story.donationRequest?.title || 'ไม่ระบุคำขอ',
+                title: requestTitle,
                 stories: []
             }
         }
@@ -320,11 +277,51 @@ export default function StoryManagement() {
         return acc
     }, {} as Record<string, { id: string; title: string; stories: Story[] }>)
 
-    const donationRequests = Object.values(storiesByRequest)
+    // 🌟 ฟังก์ชันจัดการฟิลเตอร์และจัดเรียงแบบใหม่
+    const getFilteredStories = () => {
+        let filtered = stories
+        
+        // 1. กรองสถานะและประเภท
+        if (statusFilter) {
+            filtered = filtered.filter(story => story.status === statusFilter)
+        }
+        if (typeFilter) {
+            filtered = filtered.filter(story => story.type === typeFilter)
+        }
+        
+        // 2. จัดกลุ่มตามโครงการ
+        const grouped = filtered.reduce((acc, story) => {
+            const requestId = story.donation_request_id
+            if (!acc[requestId]) {
+                const requestTitle = story.donationRequest?.title || (story as any).donation_request?.title || 'ไม่ระบุคำขอ'
+                acc[requestId] = { id: requestId, title: requestTitle, stories: [] }
+            }
+            acc[requestId].stories.push(story)
+            return acc
+        }, {} as Record<string, { id: string; title: string; stories: Story[] }>)
+        
+        let result = Object.values(grouped)
 
-    const filteredStories = selectedRequest
-        ? donationRequests.filter((req) => req.id === selectedRequest)
-        : donationRequests
+        // 🌟 3. เข้าไปจัดเรียงเวลา "เฉพาะในแต่ละโครงการ" 
+        result.forEach(requestGroup => {
+            requestGroup.stories.sort((a, b) => {
+                const timeA = new Date(a.created_at).getTime()
+                const timeB = new Date(b.created_at).getTime()
+                // ถ้าย้อนหลัง (desc) เอาเวลามาก(ใหม่) ลบ เวลาน้อย(เก่า)
+                return sortOrder === "desc" ? timeB - timeA : timeA - timeB
+            })
+        })
+
+        // 4. กรองด้วยปุ่มโปรเจกต์ที่เลือก
+        if (selectedRequest) {
+            result = result.filter((req) => req.id === selectedRequest)
+        }
+
+        return result
+    }
+
+    const filteredStories = getFilteredStories()
+    const donationRequests = Object.values(storiesByRequest)
 
     if (loading) {
         return (
@@ -352,7 +349,6 @@ export default function StoryManagement() {
         )
     }
 
-    // Redirect if not organizer
     if (!user || user.role !== "organizer") {
         return null
     }
@@ -457,7 +453,7 @@ export default function StoryManagement() {
 
                 {/* Filter */}
                 {donationRequests.length > 0 && (
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col gap-4 mb-6">
                         <div className="flex gap-2 flex-wrap">
                             <Button
                                 variant={selectedRequest === null ? "default" : "outline"}
@@ -465,7 +461,7 @@ export default function StoryManagement() {
                                 onClick={() => setSelectedRequest(null)}
                                 className={selectedRequest === null ? "bg-pink-500 hover:bg-pink-600 text-white" : ""}
                             >
-                                ทั้งหมด
+                                ทุกโครงการ
                             </Button>
                             {donationRequests.map((request) => (
                                 <Button
@@ -481,6 +477,41 @@ export default function StoryManagement() {
                                     </Badge>
                                 </Button>
                             ))}
+                        </div>
+
+                        <div className="flex gap-3">
+                            {/* 🌟 เพิ่ม Dropdown เลือกการเรียงลำดับเวลา */}
+                            <select
+                                className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700 outline-none focus:ring-2 focus:ring-pink-500/20 font-medium"
+                                value={sortOrder}
+                                onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
+                            >
+                                <option value="desc">ใหม่สุด ไป เก่าสุด</option>
+                                <option value="asc">เก่าสุด ไป ใหม่สุด</option>
+                            </select>
+
+                            <select
+                                className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700 outline-none focus:ring-2 focus:ring-pink-500/20"
+                                value={statusFilter || ""}
+                                onChange={(e) => setStatusFilter(e.target.value || null)}
+                            >
+                                <option value="">ทุกสถานะ</option>
+                                <option value="PUBLISHED">เผยแพร่แล้ว</option>
+                                <option value="DRAFT">ฉบับร่าง</option>
+                                <option value="ARCHIVED">เก็บถาวร</option>
+                            </select>
+
+                            <select
+                                className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-700 outline-none focus:ring-2 focus:ring-pink-500/20"
+                                value={typeFilter || ""}
+                                onChange={(e) => setTypeFilter(e.target.value || null)}
+                            >
+                                <option value="">ทุกประเภท</option>
+                                <option value="progress">ความคืบหน้า</option>
+                                <option value="milestone">เหตุการณ์สำคัญ</option>
+                                <option value="thank_you">ขอบคุณ</option>
+                                <option value="completion">เสร็จสิ้น</option>
+                            </select>
                         </div>
                     </div>
                 )}
@@ -508,26 +539,50 @@ export default function StoryManagement() {
                                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                         {request.stories.map((story) => (
                                             <Card key={story.id} className="overflow-hidden hover:shadow-lg transition-shadow border">
-                                                <div className="relative">
-                                                    <img
-                                                        src={getFirstImage(story.images)}
-                                                        alt={story.title}
-                                                        className="w-full h-32 object-cover"
-                                                        onError={(e) => {
-                                                            const target = e.target as HTMLImageElement
-                                                            target.src = "https://via.placeholder.com/400x300?text=No+Image"
-                                                        }}
-                                                    />
-                                                    <div className="absolute top-2 left-2 flex gap-1">
-                                                        <Badge className={`text-xs ${getTypeColor(story.type)}`}>
+                                                <div className="relative group">
+                                                    {/* เช็คประเภทสื่อ */}
+                                                    {story.media_type === 'video' ? (
+                                                        <video
+                                                            src={story.media_path ? `http://localhost:8000/storage/${story.media_path}` : ''}
+                                                            className="w-full h-32 object-cover"
+                                                            preload="metadata"
+                                                            muted
+                                                            playsInline
+                                                        />
+                                                    ) : (
+                                                        <img
+                                                            src={getFirstImage(story)}
+                                                            alt={story.title}
+                                                            className="w-full h-32 object-cover"
+                                                            onError={(e) => {
+                                                                const target = e.target as HTMLImageElement
+                                                                target.src = "https://placehold.co/400x300?text=No+Image"
+                                                            }}
+                                                        />
+                                                    )}
+
+                                                    {/* ไอคอนบอกสถานะ รูปภาพ / วิดีโอ */}
+                                                    <div className="absolute top-2 right-2 bg-black/60 text-white p-1.5 rounded-md backdrop-blur-sm shadow-sm flex items-center justify-center">
+                                                        {story.media_type === 'video' ? (
+                                                            <Video className="w-4 h-4" />
+                                                        ) : (
+                                                            <ImageIcon className="w-4 h-4" />
+                                                        )}
+                                                    </div>
+
+                                                    {/* Badge ด้านซ้ายบน เรียงลงมา */}
+                                                    <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                                                        <Badge className={`text-[10px] px-2 py-0.5 ${getTypeColor(story.type)}`}>
                                                             {getTypeText(story.type)}
                                                         </Badge>
-                                                        <Badge className={`text-xs ${getStatusColor(story.status)}`}>
+                                                        <Badge className={`text-[10px] px-2 py-0.5 ${getStatusColor(story.status)}`}>
                                                             {getStatusText(story.status)}
                                                         </Badge>
                                                     </div>
+
+                                                    {/* กล่องแสดงสถานะ Draft */}
                                                     {story.status === 'DRAFT' && (
-                                                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                                             <Badge variant="secondary" className="bg-yellow-500 text-white">
                                                                 ฉบับร่าง
                                                             </Badge>
@@ -604,6 +659,26 @@ export default function StoryManagement() {
                     ))}
                 </div>
 
+                {/* แสดงข้อความเมื่อมี Story แต่กรองแล้วไม่พบ */}
+                {stories.length > 0 && filteredStories.length === 0 && (
+                    <div className="text-center py-12 bg-white rounded-lg border border-dashed mt-6">
+                        <SearchX className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 font-medium">ไม่พบ Story ที่ตรงกับตัวกรองของคุณ</p>
+                        <Button 
+                            variant="link" 
+                            onClick={() => {
+                                setStatusFilter(null)
+                                setTypeFilter(null)
+                                setSelectedRequest(null)
+                            }}
+                            className="text-pink-500 mt-2"
+                        >
+                            ล้างตัวกรองทั้งหมด
+                        </Button>
+                    </div>
+                )}
+
+                {/* กรณีที่ยังไม่เคยสร้าง Story เลย */}
                 {stories.length === 0 && (
                     <div className="text-center py-16">
                         <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />

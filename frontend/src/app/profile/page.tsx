@@ -58,18 +58,39 @@ import {
     Megaphone,
 } from "lucide-react"
 
+
+const getCategoryIcon = (id: string) => {
+    switch (id.toLowerCase()) {
+        case "disaster-relief": return "🌊";
+        case "medical-health": return "🏥";
+        case "education-learning": return "📚";
+        case "animal-welfare": return "🐕";
+        case "environment": return "🌱";
+        case "elderly-care": return "👴";
+        case "children-youth": return "👶";
+        case "disability-support": return "♿";
+        case "community-development": return "🏘️";
+        case "religious-spiritual": return "🙏";
+        case "arts-culture": return "🎨";
+        case "sports-recreation": return "⚽";
+        default: return <Heart className="w-4 h-4" />;
+    }
+};
+
 // --- รายการหมวดหมู่สิ่งที่สนใจ (ต้องมี ID ตรงกับค่าภาษาอังกฤษใน DB) ---
 const INTEREST_CATEGORIES = [
-    { id: "education", label: "การศึกษา & เด็ก", icon: <BookOpen className="w-4 h-4" /> },
-    { id: "environment", label: "สิ่งแวดล้อม", icon: <Leaf className="w-4 h-4" /> },
-    { id: "animals", label: "ช่วยเหลือสัตว์", icon: "🐾" },
-    { id: "medical", label: "การแพทย์ & พยาบาล", icon: <Stethoscope className="w-4 h-4" /> },
-    { id: "elderly", label: "ผู้สูงอายุ", icon: "👵" },
-    { id: "disaster", label: "ภัยพิบัติ", icon: <Megaphone className="w-4 h-4" /> },
-    { id: "disabled", label: "ผู้พิการ", icon: <Accessibility className="w-4 h-4" /> },
-    { id: "religion", label: "ศาสนา/วัด", icon: "🙏" },
-    { id: "community", label: "พัฒนาชุมชน", icon: <Home className="w-4 h-4" /> },
-    { id: "technology", label: "บริจาคอุปกรณ์ไอที", icon: "💻" },
+    { id: "disaster-relief", label: "ช่วยเหลือภัยพิบัติ", icon: "🌊" },
+    { id: "medical-health", label: "การแพทย์และสุขภาพ", icon: "🏥" },
+    { id: "education-learning", label: "การศึกษาและการเรียนรู้", icon: "📚" },
+    { id: "animal-welfare", label: "สวัสดิภาพสัตว์", icon: "🐕" },
+    { id: "environment", label: "สิ่งแวดล้อม", icon: "🌱" },
+    { id: "elderly-care", label: "ดูแลผู้สูงอายุ", icon: "👴" },
+    { id: "children-youth", label: "เด็กและเยาวชน", icon: "👶" },
+    { id: "disability-support", label: "ผู้พิการ", icon: "♿" },
+    { id: "community-development", label: "พัฒนาชุมชน", icon: "🏘️" },
+    { id: "religious-spiritual", label: "ศาสนาและจิตวิญญาณ", icon: "🙏" },
+    { id: "arts-culture", label: "ศิลปะและวัฒนธรรม", icon: "🎨" },
+    { id: "sports-recreation", label: "กีฬาและนันทนาการ", icon: "⚽" },
 ]
 
 // --- Types ---
@@ -113,12 +134,16 @@ const MOCK_MY_STORIES: MyStory[] = [
 export default function ProfilePage() {
     const router = useRouter()
     // เรียกใช้ token และ fetchUser จาก useAuth
-    const { user, logout, token, fetchUser } = useAuth()
+    const { user, token, logout, fetchUser } = useAuth()
 
     // State หลัก
     const [activeTab, setActiveTab] = useState<"stories" | "profile" | "donations" | "favorites">("stories")
     const [showCustomization, setShowCustomization] = useState(false)
     const [showCreateStory, setShowCreateStory] = useState(false)
+    const [availableInterests, setAvailableInterests] = useState<{ id: string, label: string }[]>([])
+    const [showNewCategoryInput, setShowNewCategoryInput] = useState(false)
+    const [newCategoryName, setNewCategoryName] = useState("")
+    const [isCreatingCategory, setIsCreatingCategory] = useState(false)
 
     // State สำหรับแก้ไขโปรไฟล์
     const [showEditProfile, setShowEditProfile] = useState(false)
@@ -181,6 +206,7 @@ export default function ProfilePage() {
             if (savedStories) {
                 setMyStories(JSON.parse(savedStories))
             } else {
+                // หากคุณมี MOCK_MY_STORIES อย่าลืมเช็คว่าได้ import มาแล้ว
                 setMyStories(MOCK_MY_STORIES)
             }
 
@@ -191,18 +217,38 @@ export default function ProfilePage() {
             const savedAboutMe = localStorage.getItem(`user_aboutme_${user.id}`)
             if (savedAboutMe) setAboutMe(savedAboutMe)
 
-            // --- Load Interests Logic ---
-            const savedInterests = localStorage.getItem(`user_interests_${user.id}`)
-            if (savedInterests) {
-                // 1. ถ้ามีใน LocalStorage (ผู้ใช้เคยแก้แล้ว) ให้ใช้ค่านี้
-                setMyInterests(JSON.parse(savedInterests))
-            } else if (user.interests && Array.isArray(user.interests)) {
-                // 2. ถ้าไม่มี ให้ดึงจาก DB (ภาษาอังกฤษ) มาแปลงเป็นตัวเล็กเพื่อเทียบกับ ID
+            // --- Load Interests Logic (เชื่อม DB จริง) ---
+            // ดึงจากข้อมูล user ใน Context เป็นหลัก (ไม่ต้องเช็ค LocalStorage แล้ว)
+            if (user.interests && Array.isArray(user.interests) && user.interests.length > 0) {
+                // แปลงเป็นตัวพิมพ์เล็กทั้งหมดเพื่อป้องกันปัญหาตัวพิมพ์เล็ก-ใหญ่ ไม่ตรงกับ ID ของ UI
                 const normalizedInterests = user.interests.map((i: string) => i.toLowerCase())
                 setMyInterests(normalizedInterests)
+            } else {
+                setMyInterests([])
             }
         }
     }, [user])
+
+    // --- Fetch Categories จาก API ---
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/donation-requests/categories`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const formattedCategories = data.map((cat: any) => ({
+                        id: cat.id,
+                        label: cat.name
+                    }));
+                    setAvailableInterests(formattedCategories);
+                }
+            } catch (error) {
+                console.error("Failed to fetch categories:", error);
+            }
+        };
+
+        fetchCategories();
+    }, []);
 
     // Effect สำหรับเตรียมข้อมูลลงฟอร์มแก้ไขโปรไฟล์
     useEffect(() => {
@@ -242,21 +288,97 @@ export default function ProfilePage() {
             setMyInterests([...myInterests, id])
         }
     }
+    const handleCreateCategory = async () => {
+        if (!newCategoryName.trim() || !user || !token) return;
+        setIsCreatingCategory(true);
+
+        // สร้าง ID ชั่วคราว (เนื่องจากฐานข้อมูลคุณรับ ID เป็น String)
+        const newId = `cat_${Date.now()}`;
+
+        try {
+            // ยิง API ไปยัง Backend เพื่อบันทึกหมวดหมู่ใหม่
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/donation-requests/categories`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    id: newId,
+                    name: newCategoryName.trim()
+                })
+            });
+
+            if (res.ok) {
+                // สมมติว่า Backend ตอบกลับมาพร้อมข้อมูลที่เซฟแล้ว
+                const createdCategory = await res.json();
+                const finalId = createdCategory.id || newId;
+                const finalName = createdCategory.name || newCategoryName.trim();
+
+                // 1. เพิ่มเข้า List เพื่อให้แสดงผลใน UI ทันที
+                setAvailableInterests(prev => [...prev, { id: finalId, label: finalName }]);
+
+                // 2. ติ๊กเลือกหมวดหมู่นี้ให้ User อัตโนมัติ
+                setMyInterests(prev => [...prev, finalId]);
+
+                // ล้างค่าและปิดช่องพิมพ์
+                setNewCategoryName("");
+                setShowNewCategoryInput(false);
+                toast({ title: "เพิ่มหมวดหมู่ใหม่สำเร็จ ✅" });
+            } else {
+                throw new Error("Failed to create category");
+            }
+        } catch (error) {
+            console.error("Create category error:", error);
+            toast({
+                title: "เกิดข้อผิดพลาด",
+                description: "ไม่สามารถเพิ่มหมวดหมู่ได้ โปรดตรวจสอบ Backend",
+                variant: "destructive",
+            });
+        } finally {
+            setIsCreatingCategory(false);
+        }
+    };
 
     const handleSaveInterests = async () => {
-        if (!user) return
+        if (!user || !token) return;
+        setIsSaving(true);
 
-        // 1. บันทึกลง LocalStorage
-        localStorage.setItem(`user_interests_${user.id}`, JSON.stringify(myInterests))
+        try {
+            // ยิง API PATCH ไปที่ backend
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    preferred_categories: myInterests
+                })
+            });
 
-        // 2. ถ้าต้องการบันทึกลง DB ด้วย (ถ้ามี API รองรับ)
-        // await fetch('/api/users/interests', { method: 'POST', ... })
+            if (res.ok) {
+                // ถ้าในจุดที่ 1 คุณเพิ่ม fetchUser มาแล้ว บรรทัดนี้จะทำงานเพื่อดึงข้อมูลใหม่
+                if (fetchUser) await fetchUser();
 
-        setIsEditingInterests(false)
-        toast({
-            title: "บันทึกความสนใจเรียบร้อย",
-            description: "ข้อมูลความสนใจของคุณถูกอัปเดตแล้ว"
-        })
+                setIsEditingInterests(false);
+                toast({
+                    title: "บันทึกความสนใจเรียบร้อย ✅",
+                    description: "ข้อมูลถูกอัปเดตลงฐานข้อมูลแล้ว"
+                });
+            } else {
+                throw new Error("Failed to update interests");
+            }
+        } catch (error) {
+            console.error("Update interests failed:", error);
+            toast({
+                title: "เกิดข้อผิดพลาด",
+                description: "ไม่สามารถบันทึกได้ กรุณาลองใหม่อีกครั้ง",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     // --- ฟังก์ชันบันทึกการแก้ไขโปรไฟล์ (รวมอัปโหลดรูป) ---
@@ -758,7 +880,7 @@ export default function ProfilePage() {
                                     </CardContent>
                                 </Card>
 
-                                {/* --- ส่วนสิ่งที่สนใจ (เพิ่มใหม่) --- */}
+                                {/* --- ส่วนสิ่งที่สนใจ--- */}
                                 <Card>
                                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                         <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -792,11 +914,11 @@ export default function ProfilePage() {
                                                             key={cat.id}
                                                             onClick={() => handleToggleInterest(cat.id)}
                                                             className={`
-                                                    cursor-pointer px-3 py-2 rounded-xl border text-sm flex items-center gap-2 transition-all select-none
-                                                    ${isSelected
+                            cursor-pointer px-3 py-2 rounded-xl border text-sm flex items-center gap-2 transition-all select-none
+                            ${isSelected
                                                                     ? "bg-pink-100 border-pink-500 text-pink-700 shadow-sm font-medium"
                                                                     : "bg-white border-gray-200 text-gray-600 hover:border-pink-300 hover:bg-pink-50"}
-                                                `}
+                        `}
                                                         >
                                                             <span className="text-lg">{cat.icon}</span>
                                                             {cat.label}
@@ -808,25 +930,92 @@ export default function ProfilePage() {
                                         ) : (
                                             /* View Mode */
                                             <div className="flex flex-wrap gap-2">
-                                                {myInterests.length > 0 ? (
-                                                    myInterests.map((id) => {
-                                                        const cat = INTEREST_CATEGORIES.find(c => c.id === id)
-                                                        if (!cat) return null
-                                                        return (
-                                                            <Badge key={id} variant="secondary" className="px-3 py-1.5 text-sm bg-pink-50 text-pink-700 hover:bg-pink-100 gap-2 border border-pink-100">
-                                                                <span>{cat.icon}</span>
-                                                                {cat.label}
-                                                            </Badge>
-                                                        )
-                                                    })
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center w-full py-6 text-gray-400 border-2 border-dashed rounded-xl bg-gray-50">
-                                                        <Heart className="w-8 h-8 mb-2 opacity-20" />
-                                                        <p className="text-sm">ยังไม่ได้ระบุสิ่งที่สนใจ</p>
-                                                        <Button variant="link" onClick={() => setIsEditingInterests(true)} className="text-pink-600 h-auto p-0 mt-1">
-                                                            เลือกสิ่งที่คุณสนใจตอนนี้
-                                                        </Button>
+                                                {isEditingInterests ? (
+                                                    /* ========================================= */
+                                                    /* 1. ส่วนกำลังแก้ไข (Edit Mode) และเพิ่มหมวดหมู่ใหม่ */
+                                                    /* ========================================= */
+                                                    <div className="flex flex-wrap gap-2 items-center w-full">
+                                                        {availableInterests.map((cat) => {
+                                                            const isSelected = myInterests.includes(cat.id);
+                                                            return (
+                                                                <div
+                                                                    key={cat.id}
+                                                                    onClick={() => handleToggleInterest(cat.id)}
+                                                                    className={`cursor-pointer px-3 py-2 rounded-xl border text-sm flex items-center gap-2 transition-all select-none
+                            ${isSelected ? "bg-pink-100 border-pink-500 text-pink-700 shadow-sm font-medium" : "bg-white border-gray-200 text-gray-600 hover:border-pink-300 hover:bg-pink-50"}
+                        `}
+                                                                >
+                                                                    <span className="text-lg">{getCategoryIcon(cat.id)}</span>
+                                                                    {cat.label}
+                                                                    {isSelected && <CheckCircle className="w-4 h-4 ml-1 text-pink-600" />}
+                                                                </div>
+                                                            );
+                                                        })}
+
+                                                        {/* ส่วนปุ่ม "อื่นๆ (เพิ่มใหม่)" */}
+                                                        {!showNewCategoryInput ? (
+                                                            <div
+                                                                onClick={() => setShowNewCategoryInput(true)}
+                                                                className="cursor-pointer px-3 py-2 rounded-xl border border-dashed border-gray-300 text-sm flex items-center gap-2 text-gray-500 hover:border-pink-300 hover:text-pink-600 transition-all"
+                                                            >
+                                                                <Plus className="w-4 h-4" />
+                                                                อื่นๆ (เพิ่มใหม่)
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-pink-200">
+                                                                <Input
+                                                                    value={newCategoryName}
+                                                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                                                    placeholder="ระบุหมวดหมู่..."
+                                                                    className="h-8 w-32 text-sm border-none bg-transparent focus-visible:ring-0 px-2"
+                                                                    autoFocus
+                                                                    onKeyDown={(e) => e.key === 'Enter' && handleCreateCategory()}
+                                                                />
+                                                                <Button size="sm" onClick={handleCreateCategory} disabled={isCreatingCategory} className="h-8 bg-pink-600 hover:bg-pink-700">
+                                                                    {isCreatingCategory ? "..." : "เพิ่ม"}
+                                                                </Button>
+                                                                <Button size="sm" variant="ghost" onClick={() => setShowNewCategoryInput(false)} className="h-8 px-2 text-gray-500">
+                                                                    <XCircle className="w-4 h-4" />
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </div>
+                                                ) : (
+                                                    /* ========================================= */
+                                                    /* 2. ส่วนแสดงผลปกติ (View Mode) - โค้ดที่คุณเพิ่งส่งมา */
+                                                    /* ========================================= */
+                                                    <>
+                                                        {myInterests.length > 0 ? (
+                                                            myInterests.map((id) => {
+                                                                const localCat = INTEREST_CATEGORIES.find((c) => c.id === id);
+                                                                const apiCat = availableInterests.find((c) => c.id === id);
+                                                                const displayLabel = localCat ? localCat.label : (apiCat ? apiCat.label : id);
+
+                                                                return (
+                                                                    <Badge
+                                                                        key={id}
+                                                                        variant="secondary"
+                                                                        className="px-3 py-1.5 text-sm bg-pink-50 text-pink-700 hover:bg-pink-100 gap-2 border border-pink-100"
+                                                                    >
+                                                                        <span>{getCategoryIcon(id)}</span>
+                                                                        {displayLabel}
+                                                                    </Badge>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center w-full py-6 text-gray-400 border-2 border-dashed rounded-xl bg-gray-50">
+                                                                <Heart className="w-8 h-8 mb-2 opacity-20" />
+                                                                <p className="text-sm">ยังไม่ได้ระบุสิ่งที่สนใจ</p>
+                                                                <Button
+                                                                    variant="link"
+                                                                    onClick={() => setIsEditingInterests(true)}
+                                                                    className="text-pink-600 h-auto p-0 mt-1"
+                                                                >
+                                                                    เลือกสิ่งที่คุณสนใจตอนนี้
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
                                         )}

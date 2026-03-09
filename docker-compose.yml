@@ -17,7 +17,8 @@ services:
     networks:
       - app_network
     environment:
-      - WATCHPACK_POLLING=true
+      # - WATCHPACK_POLLING=true
+      - NODE_OPTIONS=--max_old_space_size=4096
 
   # --- Backend (Laravel) ---
   backend:
@@ -28,6 +29,8 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/var/www          # แมพโฟลเดอร์
+      - ./backend/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - /var/www/vendor
     working_dir: /var/www           # กำหนด Folder ทำงานให้ชัดเจน
     environment:
       DB_HOST: database
@@ -50,6 +53,7 @@ services:
     command: php artisan schedule:work
     volumes:
       - ./backend:/var/www          # [แก้] ต้องตรงกับ backend
+      - /var/www/vendor
     env_file:
       - ./backend/.env
     depends_on:

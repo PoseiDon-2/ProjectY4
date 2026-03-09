@@ -27,5 +27,28 @@ Schedule::call(function () {
     );
 
 })
-->hourly() // hourly() รันทุกชั่วโมง (เปลี่ยนเป็น everyMinute() ได้ถ้าจะเทส)
+->everyMinute() // hourly() รันทุกชั่วโมง (เปลี่ยนเป็น everyMinute() ได้ถ้าจะเทส)
 ->name('trigger_recommendation_engine'); // ตั้งชื่อ Task
+
+Schedule::call(function () {
+    $now = now();
+    
+    // ดึง Story ที่ถึงเวลาเผยแพร่ แต่ยังไม่ได้ publish
+    $stories = \App\Models\Story::where('is_published', false)
+        ->where('is_scheduled', true)
+        ->where('scheduled_time', '<=', $now)
+        ->get();
+
+    foreach ($stories as $story) {
+        $story->update([
+            'is_published' => true,
+            'published_at' => $now,
+            'expires_at'   => $story->computeExpiresAt($now),
+        ]);
+        
+        Log::info("Story ID {$story->id} has been published automatically.");
+    }
+
+})
+->everyMinute() // รันทุก 1 นาที เพื่อให้โพสต์ได้ตรงเวลาที่สุด
+->name('publish_scheduled_stories');

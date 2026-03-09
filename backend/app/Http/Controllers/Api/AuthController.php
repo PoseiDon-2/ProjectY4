@@ -73,16 +73,11 @@ class AuthController extends Controller
                 'org_cert' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             ]);
 
-            // เอา OTP check ออก! เพราะ verifyOTP() ลบแล้ว
-            // $cachedOtp = Cache::get('otp_' . $request->email);
-            // if (!$cachedOtp) {
-            //     return response()->json(['message' => 'กรุณาขอ OTP ใหม่'], 400);
-            // }
-
             $interests = $request->input('interests', []);
             $role = $request->role === 'organization' ? UserRole::ORGANIZER : UserRole::DONOR;
 
-            $user = User::create([
+            // 1. เตรียมข้อมูลพื้นฐานของ User (ระวัง! ห้ามเอา organization_id จาก Request มาใส่ตรงนี้)
+            $userData = [
                 'id' => (string) Str::uuid(),
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
@@ -92,20 +87,46 @@ class AuthController extends Controller
                 'role' => $role->value,
                 'preferred_categories' => !empty($interests) ? json_encode($interests) : null,
                 'is_email_verified' => true,
-            ]);
+            ];
 
+            // 2. ถ้ามีข้อมูลองค์กรแทรกมาด้วย ให้รับเฉพาะชื่อและประเภท (ถ้า Database คุณสร้างคอลัมน์นี้ไว้)
+            if ($request->role === 'organization') {
+                if ($request->has('organization_name')) {
+                    $userData['organization_name'] = $request->organization_name;
+                }
+                if ($request->has('organization_type')) {
+                    $userData['organization_type'] = $request->organization_type;
+                }
+                // ❌ ห้ามเอา $request->organization_id มาใส่ใน $userData เด็ดขาด
+            }
+
+            // 3. สร้าง User 
+            $user = User::create($userData);
+
+            // 4. จัดการผูก UUID ขององค์กร และอัปโหลดไฟล์
             if ($request->role === 'organization') {
                 if (!$request->hasFile('id_card') || !$request->hasFile('org_cert')) {
+                    $user->delete(); // ลบ User ทิ้งถ้าเอกสารไม่ครบ
                     return response()->json(['message' => 'องค์กรต้องอัปโหลดเอกสารทั้ง 2 ไฟล์'], 400);
                 }
+
+                // 🌟 สร้างข้อมูลลงตาราง organizations เพื่อเอา UUID 🌟
+                $org = \App\Models\Organization::create([
+                    'id' => (string) Str::uuid(),
+                    'name' => $request->organization_name ?? 'ไม่มีชื่อองค์กร',
+                    'type' => $request->organization_type ?? 'other',
+                    // ถ้าตาราง organizations ของคุณมีฟิลด์เก็บเลขทะเบียน ให้เก็บค่า $request->organization_id ไว้ที่นี่แทนครับ
+                ]);
+
+                // นำ UUID ขององค์กรที่เพิ่งสร้าง มาผูกเป็น Foreign Key ให้ User
+                $user->organization_id = $org->id;
+                
+                // อัปโหลดไฟล์
                 $user->id_card_url = $request->file('id_card')->store('documents', 'public');
                 $user->organization_cert_url = $request->file('org_cert')->store('documents', 'public');
                 $user->documents_verified = false;
                 $user->save();
             }
-
-            // ไม่ต้องลบ OTP → เพราะ verifyOTP ลบแล้ว
-            // Cache::forget('otp_' . $request->email);
 
             $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -113,16 +134,10 @@ class AuthController extends Controller
                 'message' => 'สมัครสมาชิกสำเร็จ',
                 'access_token' => $token,
                 'user' => $user->only([
-                    'id',
-                    'email',
-                    'first_name',
-                    'last_name',
-                    'phone',
-                    'role',
-                    'is_email_verified',
-                    'documents_verified'
+                    'id', 'email', 'first_name', 'last_name', 'phone', 'role', 'is_email_verified', 'documents_verified'
                 ])
             ], 201);
+            
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'message' => 'ข้อมูลไม่ถูกต้อง',
@@ -183,6 +198,27 @@ class AuthController extends Controller
             'totalDonated' => $user->total_donated,
             'donationCount' => $user->donation_count,
             'donations' => []
+        ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        // ตรวจสอบว่ามีการส่ง preferred_categories มาหรือไม่
+        if ($request->has('preferred_categories')) {
+            $categories = $request->input('preferred_categories');
+            
+            // ตรวจสอบและแปลงข้อมูลให้เป็น JSON ก่อนบันทึก
+            $user->preferred_categories = is_array($categories) ? json_encode($categories) : $categories;
+            
+            $user->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'อัปเดตข้อมูลสำเร็จ',
+            'user' => $user
         ]);
     }
 

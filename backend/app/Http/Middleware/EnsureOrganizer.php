@@ -2,24 +2,28 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\UserRole;
 use Closure;
 use Illuminate\Http\Request;
-use App\Enums\UserRole;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
 class EnsureOrganizer
 {
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
-        $role = $user->role;
 
-        $isOrganizer = ($role instanceof UserRole)
-            ? $role === UserRole::ORGANIZER
-            : in_array(strtoupper($role), ['ORGANIZER']);
-
-        if (!$isOrganizer) {
+        if (!Auth::check()) {
             return response()->json([
-                'message' => 'Unauthorized. Organizer access required.'
+                'success' => false,
+                'message' => 'กรุณาเข้าสู่ระบบก่อน',
+            ], 401);
+        }
+
+        if (Auth::user()->role !== UserRole::ORGANIZER) {
+            return response()->json([
+                'success' => false,
+                'message' => 'คุณไม่มีสิทธิ์เข้าถึงส่วนนี้',
             ], 403);
         }
 

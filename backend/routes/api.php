@@ -13,6 +13,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Api\UserBehaviorController;
 use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\CategoryController;
 
 
 
@@ -23,7 +24,9 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/categories', [CategoryController::class, 'store']);
         Route::get('me', [AuthController::class, 'me']);
+        Route::patch('me', [AuthController::class, 'updateProfile']);
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('donations', [AuthController::class, 'donations']);
     });
@@ -42,6 +45,7 @@ Route::get('/recommendations', [RecommendationController::class, 'getRecommendat
 Route::post('/user-behaviors', [UserBehaviorController::class, 'store']);
 
 Route::middleware(['auth:sanctum'])->prefix('donation-requests')->group(function () {
+    Route::post('/categories', [CategoryController::class, 'store']);
     Route::get('/my/requests', [DonationRequestController::class, 'myRequests']);
     Route::post('/', [DonationRequestController::class, 'store']);
     Route::put('/{id}', [DonationRequestController::class, 'update']);

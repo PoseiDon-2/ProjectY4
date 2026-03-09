@@ -22,10 +22,10 @@ interface User {
     lastName: string
     phone: string
     avatar?: string
-    joinDate: string 
-    createdAt?: string 
+    joinDate: string
+    createdAt?: string
     created_at?: string
-    
+
     totalDonated: number
     donationCount: number
     favoriteCategories: string[]
@@ -115,18 +115,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 const donationsRes = await fetchWithAuth('/auth/donations')
                 const donations = donationsRes.ok ? await donationsRes.json() : []
-
+                const rawInterests = data.preferred_categories || data.interests;
                 // แปลง interests ถ้าเป็น string
                 let interests: string[] = []
-                if (typeof data.interests === 'string') {
+                if (typeof rawInterests === 'string') {
                     try {
-                        interests = JSON.parse(data.interests)
+                        interests = JSON.parse(rawInterests)
                     } catch (e) {
                         console.error("Failed to parse interests:", e)
                         interests = []
                     }
                 } else {
-                    interests = data.interests ?? []
+                    interests = rawInterests ?? []
                 }
 
                 // จัดการเรื่องวันที่ให้แน่นอน
