@@ -8,8 +8,6 @@ use App\Models\DonationRequest;
 use App\Enums\StoryStatus;
 use App\Services\TrustLevelService;
 use App\Enums\UserRole;
-use App\Enums\UserRole;
-use App\Enums\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +23,7 @@ class StoryController extends Controller
         $user = Auth::user();
 
         $stories = Story::with(['donationRequest:id,title'])
-            ->forOrganizer($user->id)
+            ->where('organizer_id', $user->id)
             ->latest()
             ->get();
 
@@ -46,12 +44,10 @@ class StoryController extends Controller
         $isScheduled = filter_var($request->input('is_scheduled'), FILTER_VALIDATE_BOOLEAN);
         $mediaType   = $request->input('media_type', 'image');
 
-        // แยก Rule ของ media ออกมาให้ชัดเจน
         $mediaRule = $mediaType === 'video'
-            ? 'required|file|mimetypes:video/mp4,video/webm,video/quicktime|max:102400' // ปรับเป็น 102400 (100MB)
-            : 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120';
+            ? 'required|file|mimetypes:video/mp4,video/webm,video/quicktime|max:102400' 
+            : 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120'; 
 
-        // Validation
         $request->validate([
             'title'               => 'required|string|max:255',
             'content'             => 'required|string|min:10|max:500',
@@ -66,31 +62,15 @@ class StoryController extends Controller
             'show_time'           => ['required', Rule::in(['immediately', '24_hours', '3_days', '1_week'])],
             'is_scheduled'        => 'required|boolean',
             'scheduled_time'      => 'required_if:is_scheduled,true|nullable|date|after:now',
-        ], [
-            'title.required'               => 'กรุณากรอกหัวข้อ Story',
-            'content.required'             => 'กรุณากรอกเนื้อหา Story',
-            'content.min'                  => 'เนื้อหาต้องมีอย่างน้อย 10 ตัวอักษร',
-            'content.max'                  => 'เนื้อหาต้องไม่เกิน 500 ตัวอักษร',
-            'media.required'               => 'กรุณาเลือกรูปภาพหรือวิดีโอ',
-            'media.image'                  => 'ไฟล์ต้องเป็นรูปภาพเท่านั้น (jpeg, png, jpg, webp)',
-            'media.mimes'                  => 'ไฟล์ต้องเป็นรูปภาพเท่านั้น (jpeg, png, jpg, webp)',
-            'media.mimetypes'              => 'ไฟล์วิดีโอต้องเป็น MP4, WebM หรือ MOV',
-            'media.max'                    => 'ขนาดไฟล์เกินที่กำหนด',
-            'donation_request_id.required' => 'กรุณาเลือกคำขอบริจาค',
-            'donation_request_id.exists'   => 'คำขอบริจาคไม่ถูกต้อง หรือไม่ใช่ของคุณ',
-            'scheduled_time.required_if'   => 'กรุณากำหนดเวลาที่ต้องการเผยแพร่',
-            'scheduled_time.after'         => 'เวลาที่กำหนดต้องเป็นเวลาในอนาคต',
         ]);
 
         DB::beginTransaction();
         try {
-            // ── Upload media ──────────────────────────────────────
             $mediaPath = $request->file('media')->store(
                 'stories/' . $user->id,
                 'public'
             );
 
-            // ── กำหนดสถานะ ────────────────────────────────────────
             $isPublished = !$isScheduled;
             $publishedAt = $isPublished ? now() : null;
 
@@ -112,28 +92,25 @@ class StoryController extends Controller
                 'likes'               => 0,
             ]);
 
-            // คำนวณ expires_at หลัง fill show_time และ published_at
-            $story->expires_at = $publishedAt ? $story->computeExpiresAt($publishedAt) : null;
+            if (method_exists($story, 'computeExpiresAt')) {
+                $story->expires_at = $publishedAt ? $story->computeExpiresAt($publishedAt) : null;
+            }
+            
             $story->save();
-
             DB::commit();
 
             try {
-                $organizer = $user;
-                if ($organizer) {
-                    app(TrustLevelService::class)->updateUserTrust($organizer);
+                if (class_exists(TrustLevelService::class)) {
+                    app(TrustLevelService::class)->updateUserTrust($user);
                 }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Trust level update after story create failed: ' . $e->getMessage());
-            }
+            } catch (\Throwable $e) {}
 
             return response()->json([
                 'success' => true,
-                'message' => $isScheduled
-                    ? 'กำหนดเวลาเผยแพร่ Story สำเร็จ'
-                    : 'เผยแพร่ Story สำเร็จ',
+                'message' => $isScheduled ? 'กำหนดเวลาเผยแพร่ Story สำเร็จ' : 'เผยแพร่ Story สำเร็จ',
                 'data'    => $story->load('donationRequest:id,title'),
             ], 201);
+            
         } catch (\Throwable $e) {
             DB::rollBack();
             if (isset($mediaPath)) {
@@ -150,19 +127,112 @@ class StoryController extends Controller
     }
 
     // ─── GET /organizer/stories/{id} ─────────────────────────────
-    public function show(\Illuminate\Http\Request $request, $id): JsonResponse
+    public function show(Request $request, $id): JsonResponse
     {
-        $story = Story::with('donationRequest:id,title')
-            ->forOrganizer(Auth::id())
-            ->findOrFail($id);
+        $user = Auth::user();
+        $story = Story::with('donationRequest:id,title')->find($id);
 
-        return response()->json(['success' => true, 'data' => $story]);
+        if (!$story) return response()->json(['error' => 'Story not found'], 404);
+
+        if ($story->organizer_id !== $user->id) return response()->json(['error' => 'Unauthorized'], 403);
+
+        return response()->json([
+            'success' => true, 
+            'data' => $story,
+        ]);
+    }
+
+    // ─── PUT/PATCH /organizer/stories/{id} ──────────────────────
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $user = Auth::user();
+        $story = Story::findOrFail($id);
+
+        if ($story->organizer_id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $request->merge([
+            'is_scheduled' => filter_var($request->input('is_scheduled', $story->is_scheduled), FILTER_VALIDATE_BOOLEAN)
+        ]);
+
+        $isScheduled = $request->input('is_scheduled');
+        $mediaType   = $request->input('media_type', $story->media_type);
+
+        $mediaRule = $mediaType === 'video'
+            ? 'nullable|file|mimetypes:video/mp4,video/webm,video/quicktime|max:102400'
+            : 'nullable|file|image|mimes:jpeg,png,jpg,webp|max:5120';
+
+        $request->validate([
+            'title'               => 'sometimes|required|string|max:255',
+            'content'             => 'sometimes|required|string|min:10|max:500',
+            'type'                => ['sometimes', 'required', Rule::in(['progress', 'milestone', 'thank_you', 'completion'])],
+            'media_type'          => ['sometimes', 'required', Rule::in(['image', 'video'])],
+            'media'               => $mediaRule,
+            'duration'            => 'sometimes|required|integer|min:1|max:60',
+            'show_time'           => ['sometimes', 'required', Rule::in(['immediately', '24_hours', '3_days', '1_week'])],
+            'is_scheduled'        => 'sometimes|required|boolean',
+            'scheduled_time'      => 'required_if:is_scheduled,true|nullable|date',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            if ($request->hasFile('media')) {
+                if ($story->media_path) {
+                    Storage::disk('public')->delete($story->media_path);
+                }
+                $mediaPath = $request->file('media')->store('stories/' . $user->id, 'public');
+                $story->media_path = $mediaPath;
+            }
+
+            if ($request->has('title')) $story->title = $request->input('title');
+            if ($request->has('content')) $story->content = $request->input('content');
+            if ($request->has('type')) $story->type = $request->input('type');
+            if ($request->has('media_type')) $story->media_type = $mediaType;
+            if ($request->has('duration')) $story->duration = $request->input('duration');
+            if ($request->has('show_time')) $story->show_time = $request->input('show_time');
+            
+            if ($request->has('is_scheduled')) {
+                $story->is_scheduled = $isScheduled;
+                $story->scheduled_time = $isScheduled ? $request->input('scheduled_time') : null;
+                
+                // ถ้ายกเลิกตั้งเวลา ให้เปลี่ยนสถานะเป็น Publish
+                if (!$isScheduled && !$story->is_published) {
+                    $story->is_published = true;
+                    $story->published_at = now();
+                }
+            }
+
+            $story->save();
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'อัปเดต Story สำเร็จ',
+                'data'    => $story->load('donationRequest:id,title'),
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            \Log::error('Error updating story: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'เกิดข้อผิดพลาดในการอัปเดต Story',
+                'error'   => config('app.debug') ? $e->getMessage() : 'Internal server error',
+            ], 500);
+        }
     }
 
     // ─── DELETE /organizer/stories/{id} ──────────────────────────
     public function destroy(int $id): JsonResponse
     {
-        $story = Story::forOrganizer(Auth::id())->findOrFail($id);
+        $user = Auth::user();
+        $story = Story::findOrFail($id);
+
+        if ($story->organizer_id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
 
         if ($story->media_path) {
             Storage::disk('public')->delete($story->media_path);
@@ -177,10 +247,9 @@ class StoryController extends Controller
     public function publicIndex()
     {
         try {
-            // ดึงข้อมูล Story ที่ถูก publish แล้ว พร้อมข้อมูลผู้จัดและโปรเจกต์
-            $stories = \App\Models\Story::with(['organizer', 'donationRequest'])
-                ->where('is_published', true) // ดึงเฉพาะอันที่เผยแพร่แล้ว
-                ->latest() // เรียงจากใหม่ไปเก่า
+            $stories = Story::with(['organizer', 'donationRequest'])
+                ->where('is_published', true)
+                ->latest()
                 ->get();
 
             return response()->json([
@@ -188,32 +257,35 @@ class StoryController extends Controller
                 'data' => $stories
             ], 200);
         } catch (\Exception $e) {
+            \Log::error('Error in StoryController::publicIndex: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'เกิดข้อผิดพลาดในการดึงข้อมูล Story',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
 
     // ─── GET /stories/{id} (Public Show) ─────────────────────────
-    // ✅ เพิ่มฟังก์ชันนี้เพื่อใช้ดู Story รายตัวสำหรับฝั่งหน้าบ้าน (ไม่ต้องล็อกอิน)
-    // ─── GET /stories/{id} (Public Show) ─────────────────────────
     public function publicShow($id): JsonResponse
     {
         try {
-            $story = Story::with(['organizer', 'donationRequest'])->findOrFail($id);
+            $story = Story::with(['organizer', 'donationRequest'])
+                ->where('is_published', true)
+                ->findOrFail($id);
 
-            // 🌟 ค้นหา Story ถัดไปของ "โครงการเดียวกัน" โดยใช้เวลาสร้าง (created_at) แทน ID
             $nextStory = Story::where('donation_request_id', $story->donation_request_id)
                 ->where('is_published', true)
-                ->where('created_at', '>', $story->created_at) // ดึงอันที่ถูกสร้างทีหลังตัวปัจจุบัน
-                ->orderBy('created_at', 'asc')                 // เรียงจากเก่าไปใหม่
+                ->where('created_at', '>', $story->created_at)
+                ->orderBy('created_at', 'asc')
                 ->first();
 
             $story->next_id = $nextStory ? $nextStory->id : null;
 
-            return response()->json($story, 200);
+            return response()->json([
+                'success' => true,
+                'data' => $story
+            ], 200);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -228,15 +300,41 @@ class StoryController extends Controller
         }
     }
 
+    // ─── GET /stories/donation-request/{id} ──────────────────────
+    public function getStoriesByDonationRequest($donationRequestId)
+    {
+        try {
+            $stories = Story::with(['organizer', 'donationRequest'])
+                ->where('donation_request_id', $donationRequestId)
+                ->where('is_published', true)
+                ->orderBy('published_at', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $stories
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getStoriesByDonationRequest: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch stories',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
     // ─── POST /stories/{id}/view ─────────────────────────────────
-    // ฟังก์ชันสำหรับบวกยอดวิว (+1) เมื่อมีคนกดดู Story
     public function recordView($id): JsonResponse
     {
         try {
-            // หา Story จาก ID (ไม่ต้องใช้ Auth เพราะใครๆ ก็กดดูและเพิ่มวิวได้)
-            $story = Story::findOrFail($id);
+            $story = Story::find($id);
 
-            // สั่งบวกยอดวิวขึ้น 1
+            if (!$story) {
+                return response()->json(['error' => 'Story not found'], 404);
+            }
+
             $story->increment('views');
 
             return response()->json([
@@ -245,156 +343,16 @@ class StoryController extends Controller
                 'views' => $story->views
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error recording view: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'เกิดข้อผิดพลาดในการบันทึกยอดวิว',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
 
-
-    // อัพเดท methods อื่นๆ ให้ตรงกับโครงสร้างตาราง
-    public function index(Request $request)
-    {
-        $user = Auth::user();
-
-        $query = DonationRequest::with(['stories' => function ($query) {
-            $query->orderBy('created_at', 'desc');
-        }])->where('organizer_id', $user->id);
-
-        if ($request->has('donation_request_id')) {
-            $query->where('id', $request->donation_request_id);
-        }
-
-        $donationRequests = $query->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $donationRequests,
-            'message' => 'Stories retrieved successfully'
-        ]);
-    }
-
-    public function show(Request $request, $id)
-    {
-        $user = Auth::user();
-        $story = Story::with('donationRequest')->find($id);
-
-        if (!$story) {
-            return response()->json(['error' => 'Story not found'], 404);
-        }
-
-        // ตรวจสอบว่าเป็น owner หรือไม่ (ใช้ author_id)
-        if ($story->author_id !== $user->id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $story,
-            'message' => 'Story retrieved successfully'
-        ]);
-    }
-
-    // Public methods
-    public function publicIndex(Request $request)
-    {
-        try {
-            $stories = Story::with('donationRequest')
-                ->where('status', StoryStatus::PUBLISHED->value)
-                ->whereNotNull('published_at')
-                ->orderBy('published_at', 'desc')
-                ->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => $stories
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Error in StoryController::publicIndex: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to fetch stories',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
-            ], 500);
-        }
-    }
-
-    public function publicShow($id)
-    {
-        try {
-            $story = Story::with('donationRequest')
-                ->where('status', StoryStatus::PUBLISHED->value)
-                ->whereNotNull('published_at')
-                ->find($id);
-
-            if (!$story) {
-                return response()->json(['error' => 'Story not found'], 404);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $story
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Error in StoryController::publicShow: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to fetch story',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
-            ], 500);
-        }
-    }
-
-    public function getStoriesByDonationRequest($donationRequestId)
-    {
-        try {
-            $stories = Story::with('donationRequest')
-                ->where('donation_request_id', $donationRequestId)
-                ->where('status', StoryStatus::PUBLISHED->value)
-                ->whereNotNull('published_at')
-                ->orderBy('published_at', 'desc')
-                ->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => $stories
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Error in StoryController::getStoriesByDonationRequest: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to fetch stories',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
-            ], 500);
-        }
-    }
-
-    public function recordView($id)
-    {
-        $story = Story::find($id);
-
-        if (!$story) {
-            return response()->json(['error' => 'Story not found'], 404);
-        }
-
-        $story->increment('views');
-
-        return response()->json([
-            'success' => true,
-            'message' => 'View recorded successfully'
-        ]);
-    }
-
+    // ─── POST /stories/{id}/like ─────────────────────────────────
     public function toggleLike($id)
     {
-        // เนื่องจากตารางไม่มี field likes แล้ว อาจต้องสร้างตารางใหม่สำหรับ like
-        // สำหรับตอนนี้ให้ข้ามไปก่อน
         return response()->json([
             'success' => true,
             'message' => 'Like feature not implemented yet'

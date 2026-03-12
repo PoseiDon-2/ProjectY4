@@ -10,11 +10,6 @@ use App\Services\TrustLevelService;
 use Illuminate\Support\Facades\Http; // [สำคัญ] ต้องเพิ่มบรรทัดนี้
 use Illuminate\Support\Facades\Log;  // [สำคัญ] ต้องเพิ่มบรรทัดนี้
 
-use Illuminate\Support\Facades\Http; // [สำคัญ] ต้องเพิ่มบรรทัดนี้
-use Illuminate\Support\Facades\Log;  // [สำคัญ] ต้องเพิ่มบรรทัดนี้
-
-use Illuminate\Support\Facades\Http; // [สำคัญ] ต้องเพิ่มบรรทัดนี้
-use Illuminate\Support\Facades\Log;  // [สำคัญ] ต้องเพิ่มบรรทัดนี้
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -80,8 +75,6 @@ Schedule::call(function () {
 
 })
 ->everyMinute() // รันทุก 1 นาที เพื่อให้โพสต์ได้ตรงเวลาที่สุด
+->name('publish_scheduled_stories');
 
-->name('publish_scheduled_stories');
-->name('publish_scheduled_stories');
-->name('publish_scheduled_stories');
 

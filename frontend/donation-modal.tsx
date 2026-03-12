@@ -34,7 +34,7 @@ interface DonationModalProps {
 
 type PaymentMethod = "qr" | "credit" | "bank"
 
-type SlipDecision = "approved" | "rejected" | "needs_review" // approved=เขียว, needs_review=เหลือง, rejected=แดง
+type SlipDecision = "approved" | "rejected" | "needs_review"
 
 interface VerifyResult {
     decision: SlipDecision
@@ -70,51 +70,42 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     const [verifying, setVerifying] = useState(false)
     const [slipResult, setSlipResult] = useState<VerifyResult | null>(null)
     const [agreedToTerms, setAgreedToTerms] = useState(false)
-    const [warningStepTimestamp, setWarningStepTimestamp] = useState<Date | null>(null) // เวลาที่กดปุ่ม "ยืนยันและดำเนินการต่อ"
+    const [warningStepTimestamp, setWarningStepTimestamp] = useState<Date | null>(null)
     const slipInputRef = useRef<HTMLInputElement>(null)
 
     const { user } = useAuth()
 
-
-    // Normalize payment methods (รองรับทั้ง camelCase/snake_case และ JSON string)
+    // Normalize payment methods
     const rawPaymentMethods = donation.paymentMethods || {}
     const parsedPaymentMethods =
         typeof rawPaymentMethods === "string"
             ? (() => {
-                  try {
-                      return JSON.parse(rawPaymentMethods)
-                  } catch {
-                      return {}
-                  }
-              })()
+                try {
+                    return JSON.parse(rawPaymentMethods)
+                } catch {
+                    return {}
+                }
+            })()
             : rawPaymentMethods
+
     const promptpayId =
         parsedPaymentMethods?.promptpay?.trim?.() ||
         parsedPaymentMethods?.promptpay_number?.trim?.() ||
         parsedPaymentMethods?.promptpayNumber?.trim?.() ||
         ""
+
     const bankAccountSource = parsedPaymentMethods?.bankAccount || parsedPaymentMethods?.bank_account || null
     const bankAccount = bankAccountSource
         ? {
-              bank: bankAccountSource.bank || bankAccountSource.bank_name || "",
-              accountNumber: bankAccountSource.accountNumber || bankAccountSource.account_number || "",
-              accountName: bankAccountSource.accountName || bankAccountSource.account_name || "",
-          }
+            bank: bankAccountSource.bank || bankAccountSource.bank_name || "",
+            accountNumber: bankAccountSource.accountNumber || bankAccountSource.account_number || "",
+            accountName: bankAccountSource.accountName || bankAccountSource.account_name || "",
+        }
         : {
-              bank: "-",
-              accountNumber: "-",
-              accountName: "-",
-          }
-
-    // Safe extraction + fallback
-    const paymentMethods = donation.paymentMethods || {}
-    const promptpayId = paymentMethods.promptpay?.trim() || ""
-    const bankAccount = paymentMethods.bankAccount || {
-        bank: "-",
-        accountNumber: "-",
-        accountName: "-",
-    }
-
+            bank: "-",
+            accountNumber: "-",
+            accountName: "-",
+        }
 
     const [cardNumber, setCardNumber] = useState("")
     const [expiryDate, setExpiryDate] = useState("")
@@ -122,7 +113,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
     const [cardName, setCardName] = useState("")
 
     const quickAmounts = ["100", "500", "1000", "2000", "5000"]
-
 
     useEffect(() => {
         if (!isOpen || !donation?.id) return
@@ -140,8 +130,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                     typeof data?.remaining === "number"
                         ? data.remaining
                         : data?.remaining
-                        ? Number(data.remaining)
-                        : null
+                            ? Number(data.remaining)
+                            : null
                 setRemainingAmount(Number.isFinite(remaining as number) ? (remaining as number) : null)
             } catch (err) {
                 if ((err as any)?.name !== "AbortError") {
@@ -155,46 +145,19 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         return () => controller.abort()
     }, [isOpen, donation?.id])
 
-    const formatAmount = (amount: string) => {
-        return new Intl.NumberFormat("th-TH").format(Number(amount))
     const formatAmount = (amt: string | number) => {
         return new Intl.NumberFormat("th-TH").format(Number(amt))
-
-    const formatAmount = (amt: string | number) => {
-        return new Intl.NumberFormat("th-TH").format(Number(amt))
-
-    const formatAmount = (amt: string | number) => {
-        return new Intl.NumberFormat("th-TH").format(Number(amt))
-
     }
 
     // Generate QR Code
     useEffect(() => {
-
         const shouldGenerate = step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
-
-        const shouldGenerate =
-            step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
-
-
-        const shouldGenerate =
-            step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
-
-
-        const shouldGenerate =
-            step === "payment" && paymentMethod === "qr" && !!amount && Number(amount) > 0
 
         if (!shouldGenerate) {
             setQrCodeUrl("")
             setQrError("")
             return
         }
-
-        let isCurrent = true
-
-
-        let isCurrent = true
-
 
         let isCurrent = true
 
@@ -207,7 +170,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                     throw new Error("ไม่มีเลขพร้อมเพย์สำหรับคำขอบริจาคนี้")
                 }
 
-                // Sanitize PromptPay (รองรับทั้งเบอร์และอีเมล + รองรับเลขขึ้นต้นด้วยรหัสประเทศ)
+                // Sanitize PromptPay
                 let target = promptpayId
                 const isEmail = target.includes("@")
 
@@ -221,24 +184,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                         digits = `0${digits}`
                     }
                     target = digits
-                }
-
-                if (!target || (!isEmail && target.length !== 10 && target.length !== 13)) {
-                    throw new Error("รูปแบบพร้อมเพย์ไม่ถูกต้อง (ต้องเป็นเบอร์ 10 หลัก, บัตร 13 หลัก หรืออีเมล)")
-
-                }
-
-                }
-
-
-                }
-
-                // Sanitize PromptPay (รองรับทั้งเบอร์และอีเมล)
-                let target = promptpayId
-                const isEmail = target.includes("@")
-
-                if (!isEmail) {
-                    target = target.replace(/\D/g, "") // ลบทุกอย่างที่ไม่ใช่ตัวเลข
                 }
 
                 if (!target || (!isEmail && target.length !== 10 && target.length !== 13)) {
@@ -258,7 +203,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                     QRCode.toDataURL(payload, {
                         width: 320,
                         margin: 1,
-                        errorCorrectionLevel: "H", // High = สแกนง่ายที่สุด
+                        errorCorrectionLevel: "H",
                         color: { dark: "#000000", light: "#ffffff" },
                     }),
                     new Promise<string>((_, reject) =>
@@ -286,7 +231,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         return () => {
             isCurrent = false
         }
-
     }, [step, paymentMethod, amount, promptpayId])
 
     const copyToClipboard = (text: string) => {
@@ -348,618 +292,20 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
         }
     }
 
-    /**
-     * ตรวจสอบสลิปด้วยระบบ Thai Bank Slip Verification
-     * - สีแดง (rejected): สลิปปลอมหรือรูปที่ไม่ใช่สลิป - ป้องกันการอัปโหลด
-     * - สีเหลือง (needs_review): สลิปจริงแต่มีบางอย่างคลาดเคลื่อน - อนุญาตให้อัปโหลดได้
-     * - สีเขียว (approved): ผ่าน ตรง 90% - อนุมัติอัตโนมัติ
-     * 
-     * เงื่อนไขเพิ่มเติม:
-     * - เวลาสลิปต้อง >= warningStepTimestamp (เวลาที่กดปุ่ม "ยืนยันและดำเนินการต่อ")
-     * - จำนวนเงินต้องตรงเท่านั้น (ไม่คลาดเคลื่อน)
-     */
-    const verifySlipClient = async (): Promise<VerifyResult> => {
-        if (!slipFile) {
-            return { decision: "rejected", reasons: ["ยังไม่มีสลิปให้ตรวจ"] }
-        }
-
-        if (!warningStepTimestamp) {
-            return { decision: "rejected", reasons: ["ยังไม่ได้กดปุ่มยืนยันและดำเนินการต่อ - กรุณากลับไปกดปุ่มยืนยันก่อน"] }
-        }
-
-        const errors: string[] = []
-        const warnings: string[] = []
-
-        try {
-            // ใช้ Thai Bank Slip Verification
-            const verificationResult = await verifyThaiBankSlip({
-                slipFile,
-                expectedAmount: amount ? Number(amount) : undefined,
-                expectedAccountName: bankAccount.accountName !== "-" ? bankAccount.accountName : undefined,
-                expectedBankName: bankAccount.bank !== "-" ? bankAccount.bank : undefined,
-                expectedPromptpayId: promptpayId || undefined
-            })
-
-            // แสดงข้อมูลจาก QR ในคอนโซลสำหรับวิเคราะห์ (เปิด DevTools > Console ดู)
-            if (verificationResult.qrScanned && verificationResult.qrData) {
-                console.group("📦 [Donation Modal] ข้อมูลจาก QR Code ที่สแกนได้")
-                console.log("qrScanned:", verificationResult.qrScanned)
-                console.log("qrData:", verificationResult.qrData)
-                console.log("transactionRefId:", verificationResult.qrData.transactionRefId)
-                console.log("bankCode / bankInfo:", verificationResult.qrData.bankCode, verificationResult.qrData.bankInfo)
-                console.log("amount:", verificationResult.qrData.amount)
-                console.log("promptpayId:", verificationResult.qrData.promptpayId)
-                console.log("rawPayload (ต้นฉบับ):", verificationResult.qrData.rawPayload)
-                console.groupEnd()
-            }
-
-            // ตรวจสอบผลการ verify: ถ้าสแกน QR ได้แต่ verified เป็น false (สแกนไม่แน่นอน) ให้เป็น warning แทน error
-            // เพื่อให้สลิปยังอัปโหลดได้เป็น needs_review และให้คนตรวจอีกครั้ง
-            if (!verificationResult.verified) {
-                const msg = verificationResult.error || "สลิปไม่ผ่านการตรวจสอบ"
-                if (verificationResult.qrScanned) {
-                    warnings.push(msg + " (สแกน QR ได้ แต่มีรายการที่ต้องตรวจเพิ่ม)")
-                } else {
-                    errors.push(msg)
-                }
-            }
-
-            // OCR - อ่านข้อความจากสลิป (ต้องทำก่อนเพื่อใช้ในส่วนตรวจสอบจำนวนเงิน)
-            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-                const i = new Image()
-                i.crossOrigin = "anonymous"
-                i.onload = () => resolve(i)
-                i.onerror = () => reject(new Error("โหลดรูปไม่สำเร็จ"))
-                i.src = slipPreview || ""
-            })
-
-            let ocrText = ""
-            try {
-                const tesseract = await import("tesseract.js")
-                // @ts-ignore
-                const res = await tesseract.recognize(img, "tha+eng", { logger: () => {} }).catch(() => null)
-                ocrText = res?.data?.text?.replace(/\s+/g, " ").trim() || ""
-            } catch (_) {
-                // ข้ามได้
-            }
-
-            // แสดงข้อมูลจากการสแกนรูป (OCR) ในคอนโซล
-            console.group("📷 ข้อมูลจากการสแกนรูป (OCR)")
-            console.log("ข้อความที่อ่านได้จากรูป (ความยาว " + ocrText.length + " ตัวอักษร):", ocrText || "(ไม่มี)")
-            console.log("ตัวอย่าง 500 ตัวแรก:", ocrText.slice(0, 500) || "(ไม่มี)")
-            console.groupEnd()
-
-            // ตรวจสอบจำนวนเงิน - ต้องตรงเท่านั้น (ไม่คลาดเคลื่อน)
-            const requiredAmount = amount ? Number(amount) : null
-            if (requiredAmount !== null) {
-                const qrAmount = verificationResult.qrData?.amount
-                const basicAmount = verificationResult.basicVerification?._debug?.ocrAmount
-                
-                // ถ้า qrAmount หรือ basicAmount เป็น 0 หรือ null ให้ข้ามไปหาใน OCR text เลย
-                // เพราะอาจเป็นค่าธรรมเนียมที่อ่านผิด
-                let slipAmount: number | null | undefined = null
-                
-                // ใช้ qrAmount หรือ basicAmount เฉพาะเมื่อไม่ใช่ 0 และตรงกับ requiredAmount
-                if (qrAmount !== null && qrAmount !== undefined && qrAmount > 0 && Math.abs(qrAmount - requiredAmount) <= 0.01) {
-                    slipAmount = qrAmount
-                } else if (basicAmount !== null && basicAmount !== undefined && basicAmount > 0 && Math.abs(basicAmount - requiredAmount) <= 0.01) {
-                    slipAmount = basicAmount
-                }
-
-                // ถ้ายังไม่มีจำนวนเงิน หรือจำนวนเงินไม่ตรงกับ requiredAmount ลองอ่านจาก OCR โดยตรง
-                if (slipAmount === null || slipAmount === undefined || Math.abs(slipAmount - requiredAmount) > 0.01) {
-                    // วิธีง่ายๆ: หาจำนวนเงินที่ตรงกับ requiredAmount โดยตรง
-                    // ถ้าเจอ "1.00 บาท" หรือ "1 00 บาท" และตรงกับ requiredAmount ให้ใช้เลย
-                    if (requiredAmount !== null) {
-                        // หา pattern ที่ตรงกับ requiredAmount โดยตรง
-                        const exactAmountPatterns = [
-                            // รูปแบบ: "1.00 บาท" (ตรงกับ requiredAmount)
-                            new RegExp(`(${requiredAmount.toFixed(2)})\\s*บาท`, 'i'),
-                            // รูปแบบ: "1 00 บาท" (กรณี OCR อ่านผิด)
-                            new RegExp(`(${Math.floor(requiredAmount)})\\s+(\\d{2})\\s*บาท`, 'i'),
-                            // รูปแบบ: "1 บาท" (ไม่มีทศนิยม)
-                            new RegExp(`(${Math.floor(requiredAmount)})\\s*บาท(?!\\s*\\.\\d)`, 'i'),
-                        ]
-                        
-                        for (let i = 0; i < exactAmountPatterns.length; i++) {
-                            const pattern = exactAmountPatterns[i]
-                            const match = ocrText.match(pattern)
-                            if (match) {
-                                // ตรวจสอบว่าไม่ใช่ค่าธรรมเนียม (ดู 50 ตัวอักษรก่อนหน้า)
-                                const matchIndex = ocrText.indexOf(match[0])
-                                if (matchIndex !== -1) {
-                                    const beforeText = ocrText.substring(Math.max(0, matchIndex - 50), matchIndex)
-                                    const isFee = /(?:ค่าธรรมเนียม|Fee)/i.test(beforeText)
-                                    
-                                    if (!isFee) {
-                                        // กรณี pattern ที่ 2: "1 00 บาท" -> แปลงเป็น "1.00"
-                                        if (i === 1 && match[1] && match[2]) {
-                                            const wholePart = match[1]
-                                            const decimalPart = match[2]
-                                            if (decimalPart.length === 2 && wholePart.length <= 2) {
-                                                slipAmount = parseFloat(`${wholePart}.${decimalPart}`)
-                                            } else {
-                                                slipAmount = parseFloat(match[1].replace(/,/g, ""))
-                                            }
-                                        } else {
-                                            slipAmount = parseFloat(match[1].replace(/,/g, ""))
-                                        }
-                                        
-                                        // ตรวจสอบว่าตรงกับ requiredAmount หรือไม่
-                                        if (Math.abs(slipAmount - requiredAmount) <= 0.01) {
-                                            break // เจอแล้ว ใช้เลย
-                                        } else {
-                                            slipAmount = null // ไม่ตรง ต้องหาต่อ
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // ถ้ายังไม่เจอ ลองหาจาก "จำนวน:" หรือ "Amount:"
-                    if (slipAmount === null || slipAmount === undefined) {
-                        const amountKeywordIndex = ocrText.search(/(?:จำนวน|Amount)[:\s]/i)
-                        if (amountKeywordIndex !== -1) {
-                            const afterAmountText = ocrText.substring(amountKeywordIndex)
-                            const amountPatterns = [
-                                /[:\s]+(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*บาท/i,
-                                /[:\s]+(\d{1,2})\s+(\d{2})\s*บาท/i,
-                                /[:\s]+(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)\s*บาท/i,
-                            ]
-                            
-                            for (let i = 0; i < amountPatterns.length; i++) {
-                                const pattern = amountPatterns[i]
-                                const match = afterAmountText.match(pattern)
-                                if (match) {
-                                    // ตรวจสอบว่าไม่ใช่ค่าธรรมเนียม
-                                    const matchIndex = afterAmountText.indexOf(match[0])
-                                    const beforeText = afterAmountText.substring(Math.max(0, matchIndex - 50), matchIndex)
-                                    const isFee = /(?:ค่าธรรมเนียม|Fee)/i.test(beforeText)
-                                    
-                                    if (!isFee) {
-                                        if (i === 1 && match[1] && match[2]) {
-                                            const wholePart = match[1]
-                                            const decimalPart = match[2]
-                                            if (decimalPart.length === 2 && wholePart.length <= 2) {
-                                                slipAmount = parseFloat(`${wholePart}.${decimalPart}`)
-                                            } else {
-                                                slipAmount = parseFloat(match[1].replace(/,/g, ""))
-                                            }
-                                        } else {
-                                            slipAmount = parseFloat(match[1].replace(/,/g, ""))
-                                        }
-                                        break
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // ถ้ายังไม่เจอ หาจำนวนเงินที่ไม่ใช่ค่าธรรมเนียม (ตัวแรกที่เจอ)
-                    if (slipAmount === null || slipAmount === undefined) {
-                        const amountRegex = /(\d{1,3}(?:,\d{3})*\.?\d{0,2})\s*บาท/gi
-                        let match
-                        
-                        while ((match = amountRegex.exec(ocrText)) !== null) {
-                            if (match.index !== undefined) {
-                                const amountStr = match[1]
-                                const amount = parseFloat(amountStr.replace(/,/g, ""))
-                                
-                                // ตรวจสอบว่าไม่ใช่ค่าธรรมเนียม
-                                const beforeText = ocrText.substring(Math.max(0, match.index - 50), match.index)
-                                const isFee = /(?:ค่าธรรมเนียม|Fee)/i.test(beforeText)
-                                
-                                // ถ้าไม่ใช่ค่าธรรมเนียม และจำนวนเงินมากกว่า 0 และตรงกับ requiredAmount (หรือใกล้เคียง)
-                                if (!isFee && amount > 0) {
-                                    // ถ้าตรงกับ requiredAmount ให้ใช้เลย
-                                    if (Math.abs(amount - requiredAmount) <= 0.01) {
-                                        slipAmount = amount
-                                        break // เจอแล้ว ใช้เลย
-                                    } else if (slipAmount === null || slipAmount === undefined) {
-                                        // ถ้ายังไม่เจอตัวที่ตรง ให้เก็บไว้เป็นตัวสำรอง
-                                        slipAmount = amount
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // ถ้ายังไม่เจอ หรือจำนวนเงินไม่ตรงกับ requiredAmount ให้ลองหาอีกครั้ง
-                if (slipAmount === null || slipAmount === undefined || Math.abs(slipAmount - requiredAmount) > 0.01) {
-                    // หา "จำนวน:" และหาจำนวนเงินที่อยู่หลังมัน (ไม่ใช่ค่าธรรมเนียม)
-                    const amountKeywordIndex = ocrText.search(/(?:จำนวน|Amount)[:\s]/i)
-                    const feeKeywordIndex = ocrText.search(/(?:ค่าธรรมเนียม|Fee)[:\s]/i)
-                    
-                    if (amountKeywordIndex !== -1) {
-                        // หาจำนวนเงินทั้งหมดที่อยู่หลัง "จำนวน:" และก่อน "ค่าธรรมเนียม" (ถ้ามี)
-                        const searchEnd = feeKeywordIndex !== -1 ? feeKeywordIndex : ocrText.length
-                        const searchText = ocrText.substring(amountKeywordIndex, searchEnd)
-                        
-                        const amountPatterns = [
-                            /[:\s]+(\d{1,3}(?:,\d{3})*\.\d{1,2})\s*บาท/i,
-                            /[:\s]+(\d{1,2})\s+(\d{2})\s*บาท/i,
-                            /[:\s]+(\d{1,3}(?:,\d{3})*)(?!\s*\.\d)\s*บาท/i,
-                        ]
-                        
-                        for (let i = 0; i < amountPatterns.length; i++) {
-                            const pattern = amountPatterns[i]
-                            const match = searchText.match(pattern)
-                            if (match) {
-                                let parsedAmount: number
-                                if (i === 1 && match[1] && match[2]) {
-                                    const wholePart = match[1]
-                                    const decimalPart = match[2]
-                                    if (decimalPart.length === 2 && wholePart.length <= 2) {
-                                        parsedAmount = parseFloat(`${wholePart}.${decimalPart}`)
-                                    } else {
-                                        parsedAmount = parseFloat(match[1].replace(/,/g, ""))
-                                    }
-                                } else {
-                                    parsedAmount = parseFloat(match[1].replace(/,/g, ""))
-                                }
-                                
-                                // ถ้าตรงกับ requiredAmount ให้ใช้เลย
-                                if (Math.abs(parsedAmount - requiredAmount) <= 0.01) {
-                                    slipAmount = parsedAmount
-                                    break
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ตรวจสอบกรณีพิเศษ: ถ้าจำนวนเงินที่อ่านได้เป็น 100 แต่ requiredAmount เป็น 1
-                // และจำนวนเงินที่อ่านได้มี 3 หลัก = อาจเป็น "1.00" ที่อ่านผิดเป็น "100"
-                if (slipAmount !== null && slipAmount !== undefined && requiredAmount < 10 && slipAmount >= 100) {
-                    // ลองหาว่ามี "1.00" หรือ "1 00" ใน OCR text หรือไม่
-                    const decimalPattern = /1\s*[\.\s]\s*0{0,2}\s*บาท/i
-                    if (decimalPattern.test(ocrText)) {
-                        // พบ "1.00" หรือ "1 00" ใน text = ใช้ 1.00 แทน
-                        slipAmount = 1.00
-                    } else {
-                        // ตรวจสอบว่ามี "1" ตามด้วย "บาท" ใกล้ๆ หรือไม่
-                        const oneBahtPattern = /1\s*\.?\s*0{0,2}\s*บาท/i
-                        if (oneBahtPattern.test(ocrText)) {
-                            slipAmount = 1.00
-                        } else {
-                            // ตรวจสอบว่ามี "1" ตามด้วย "บาท" หรือ "จำนวน" ใกล้ๆ
-                            const onePattern = /(?:จำนวน|Amount)[:\s]*1\s*\.?\s*0{0,2}/i
-                            if (onePattern.test(ocrText)) {
-                                slipAmount = 1.00
-                            }
-                        }
-                    }
-                }
-
-                if (slipAmount === null || slipAmount === undefined) {
-                    errors.push("ไม่สามารถอ่านจำนวนเงินจากสลิปได้ - กรุณาตรวจสอบความชัดเจนของสลิป")
-                } else {
-                    const diff = Math.abs(slipAmount - requiredAmount)
-                    // อนุญาตคลาดเคลื่อน 0.01 บาท (1 สตางค์) สำหรับทศนิยม
-                    if (diff > 0.01) {
-                        // จำนวนเงินไม่ตรง = สีแดง
-                        errors.push(`จำนวนเงินไม่ตรงกัน: สลิปแสดง ${slipAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท, ควรเป็น ${requiredAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (คลาดเคลื่อน ${diff.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท) - จำนวนเงินต้องตรงเท่านั้น`)
-                    }
-                }
-            }
-
-            // ตรวจสอบเวลา - ต้อง >= warningStepTimestamp
-            // (img และ ocrText ถูกสร้างไว้แล้วข้างบน - ใช้ตัวเดิม)
-
-            // Parse เวลาจาก OCR
-            // รูปแบบ: "19 ม.ค. 69 20:18 น." หรือ "19/01/2026 20:18"
-            let ocrDateTime: Date | null = null
-            if (ocrText) {
-                // รูปแบบ: DD ม.ค. YY HH:MM น. (YY เป็น พ.ศ. 2 หลัก เช่น 69 = 2569 = 2026 ค.ศ.)
-                const thaiDateTimeMatch = ocrText.match(/(\d{1,2})\s*(ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s*(\d{2})\s+(\d{1,2}):(\d{2})\s*น\.?/i)
-                if (thaiDateTimeMatch) {
-                    const thaiMonths: Record<string, number> = {
-                        "ม.ค": 1, "มค": 1, "ก.พ": 2, "กพ": 2, "มี.ค": 3, "มีค": 3,
-                        "เม.ย": 4, "เมย": 4, "พ.ค": 5, "พค": 5, "มิ.ย": 6, "มิย": 6,
-                        "ก.ค": 7, "กค": 7, "ส.ค": 8, "สค": 8, "ก.ย": 9, "กย": 9,
-                        "ต.ค": 10, "ตค": 10, "พ.ย": 11, "พย": 11, "ธ.ค": 12, "ธค": 12,
-                    }
-                    const day = Number(thaiDateTimeMatch[1])
-                    const monthKey = thaiDateTimeMatch[2].replace(/\./g, "")
-                    const month = thaiMonths[monthKey] || thaiMonths[thaiDateTimeMatch[2]]
-                    const yearRaw = Number(thaiDateTimeMatch[3])
-                    const hour = Number(thaiDateTimeMatch[4])
-                    const minute = Number(thaiDateTimeMatch[5])
-                    // พ.ศ. 2 หลัก (69 = 2569) → ค.ศ. 2026 (2569 - 543)
-                    const year = yearRaw < 100 ? 1957 + yearRaw : (yearRaw >= 2400 ? yearRaw - 543 : yearRaw)
-                    if (month && day >= 1 && day <= 31 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-                        ocrDateTime = new Date(year, month - 1, day, hour, minute)
-                    }
-                }
-
-                // รูปแบบ: DD/MM/YYYY HH:MM หรือ DD-MM-YYYY HH:MM
-                if (!ocrDateTime) {
-                    const numericDateTimeMatch = ocrText.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\s+(\d{1,2}):(\d{2})/)
-                    if (numericDateTimeMatch) {
-                        const day = Number(numericDateTimeMatch[1])
-                        const month = Number(numericDateTimeMatch[2])
-                        const yearRaw = Number(numericDateTimeMatch[3])
-                        const hour = Number(numericDateTimeMatch[4])
-                        const minute = Number(numericDateTimeMatch[5])
-                        const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw
-                        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-                            ocrDateTime = new Date(year, month - 1, day, hour, minute)
-                        }
-                    }
-                }
-            }
-
-            // ตรวจสอบเวลา: ผ่านเมื่อเวลาสลิป >= เวลาที่กดยืนยัน (มากกว่าหรือเท่ากับได้)
-            // ตัวอย่าง: กด 23:30 → บริจาค 23:30 หรือ 23:30:01 ได้; น้อยกว่า 23:30 ถึงไม่ผ่าน
-            // ปัดเวลากดลงเป็นต้นนาที เพื่อให้สลิปที่แสดงแค่ HH:MM (ไม่มีวินาที) ไม่ถูกตัดเพราะวินาที
-            if (ocrDateTime) {
-                const clickAtStartOfMinute = new Date(warningStepTimestamp)
-                clickAtStartOfMinute.setSeconds(0, 0)
-                if (ocrDateTime < clickAtStartOfMinute) {
-                    errors.push(`เวลาสลิป (${ocrDateTime.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) น้อยกว่าเวลาที่กดปุ่มยืนยัน (${warningStepTimestamp.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}) - สลิปต้องทำรายการหลังหรือพร้อมกับกดปุ่มยืนยัน`)
-                }
-            } else {
-                warnings.push("ไม่สามารถอ่านเวลาจากสลิปได้ - กรุณาตรวจสอบความชัดเจนของสลิป")
-            }
-
-            // ตรวจสอบผลจาก basicVerification และ advancedVerification
-            if (verificationResult.basicVerification) {
-                if (verificationResult.basicVerification.decision === "rejected") {
-                    errors.push(...verificationResult.basicVerification.reasons)
-                } else if (verificationResult.basicVerification.decision === "needs_review") {
-                    warnings.push(...verificationResult.basicVerification.reasons)
-                }
-            }
-
-            if (verificationResult.advancedVerification) {
-                if (verificationResult.advancedVerification.decision === "rejected") {
-                    errors.push(...verificationResult.advancedVerification.reasons)
-                } else if (verificationResult.advancedVerification.decision === "needs_review") {
-                    warnings.push(...verificationResult.advancedVerification.reasons)
-                }
-            }
-
-            // ตัดสินใจ
-            let decision: SlipDecision = "rejected"
-            if (errors.length > 0) {
-                decision = "rejected"
-            } else if (warnings.length > 0 || !verificationResult.verified) {
-                decision = "needs_review"
-            } else {
-                decision = "approved"
-            }
-
-            const allReasons = [...errors, ...warnings]
-            if (allReasons.length === 0 && decision === "approved") {
-                allReasons.push("✅ ตรวจสอบผ่าน - สลิปถูกต้องและครบถ้วน")
-            }
-
-            // สรุปข้อมูลจากการสแกนรูป (QR + OCR) ในคอนโซล
-            console.group("📷 สรุปข้อมูลจากการสแกนรูป")
-            console.log("QR:", {
-                สแกนได้: verificationResult.qrScanned,
-                จำนวนเงินจากQR: verificationResult.qrData?.amount,
-                วันที่จากQR: verificationResult.qrData?.dateTime,
-                เลขที่รายการ: verificationResult.qrData?.transactionRefId,
-                ธนาคาร: verificationResult.qrData?.bankInfo?.name,
-            })
-            console.log("OCR:", {
-                วันที่ที่อ่านได้: ocrDateTime ? ocrDateTime.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }) : null,
-                ข้อความยาว: ocrText.length + " ตัวอักษร",
-                ตัวอย่าง: ocrText.slice(0, 200) + (ocrText.length > 200 ? "…" : ""),
-            })
-            console.log("ผลการตรวจ:", { decision, จำนวนเหตุผล: allReasons.length })
-            console.groupEnd()
-
-            return {
-                decision,
-                reasons: allReasons,
-                hasQR: verificationResult.qrScanned,
-                ocrPreview: ocrText.slice(0, 300),
-                _debug: {
-                    score: verificationResult.verified ? 90 : 70,
-                    foundTokens: [],
-                    ocrAmount: verificationResult.qrData?.amount || null,
-                    ocrDate: ocrDateTime ? ocrDateTime.toLocaleDateString("th-TH") : null,
-                    hasSlipEvidence: verificationResult.qrScanned
-                }
-            }
-
-        } catch (error: any) {
-            console.error("Error verifying slip:", error)
-            return {
-                decision: "rejected",
-                reasons: [error.message || "เกิดข้อผิดพลาดในการตรวจสอบสลิป"]
-            }
-        }
-    }
-
+    // เพิ่มฟังก์ชัน handlePayment ที่หายไปตอนรวมโค้ด เพื่อให้โค้ดรันได้
     const handlePayment = async () => {
         setIsProcessing(true)
-
-
-        if (remainingAmount !== null && Number(amount) > remainingAmount) {
-            toast({
-                title: "ยอดเงินเกินที่เหลืออยู่",
-                description: `ยอดสูงสุดที่บริจาคได้คือ ฿${formatAmount(String(remainingAmount))}`,
-                variant: "destructive",
-            })
-            setIsProcessing(false)
-            return
-        }
-
-        if ((paymentMethod === "qr" || paymentMethod === "bank") && !slipFile) {
-            toast({
-                title: "ต้องแนบสลิปก่อน",
-                description: "กรุณาอัปโหลดสลิปเพื่อให้ผู้จัดตรวจสอบ",
-                variant: "destructive",
-            })
-            setIsProcessing(false)
-            return
-        }
-
-        if (slipFile) {
-            try {
-                setVerifying(true)
-                const result = await verifySlipClient()
-                setSlipResult(result)
-                setVerifying(false)
-
-                if (result.decision === "rejected") {
-                    toast({
-                        title: "❌ สลิปไม่ผ่านการตรวจสอบ",
-                        description: "กรุณาอัปโหลดสลิปโอนเงินที่ถูกต้องและชัดเจน",
-                        variant: "destructive",
-                    })
-                    setIsProcessing(false)
-                    return
-                } else if (result.decision === "approved") {
-                    toast({
-                        title: "✅ สลิปผ่านการตรวจสอบ",
-                        description: "สลิปถูกต้องและครบถ้วน กำลังส่งให้ผู้สร้างคำขอตรวจสอบ",
-                    })
-                } else if (result.decision === "needs_review") {
-                    toast({
-                        title: "⚠️ สลิปผ่านเบื้องต้น",
-                        description: "สลิปดูเหมือนจริง แต่มีบางอย่างคลาดเคลื่อน ผู้สร้างคำขอจะตรวจสอบอีกครั้ง",
-                    })
-                }
-            } catch (e) {
-                setVerifying(false)
-            }
-        }
-
         try {
-            const formData = new FormData()
-            formData.append("donation_request_id", String(donation.id))
-            formData.append("amount", String(Number(amount)))
-            formData.append(
-                "payment_method",
-                paymentMethod === "qr" ? "promptpay" : paymentMethod === "bank" ? "bank" : "credit"
-            )
-
-            if (slipFile) {
-                formData.append("slip", slipFile)
-            }
-            if (slipResult?.decision) {
-                formData.append("client_verdict", slipResult.decision)
-            }
-            if (slipResult?.reasons?.length) {
-                slipResult.reasons.forEach((r, idx) => {
-                    formData.append(`client_reasons[${idx}]`, r)
-                })
-            }
-
-            const token = localStorage.getItem("auth_token") || ""
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
-
-            const res = await fetch(`${apiUrl}/donations/slips`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-            })
-            const contentType = res.headers.get("content-type") || ""
-            const data = contentType.includes("application/json") ? await res.json() : null
-            if (!res.ok) {
-                const fallback = data?.error || (await res.text().catch(() => "อัปโหลดสลิปไม่สำเร็จ"))
-                throw new Error(fallback || "อัปโหลดสลิปไม่สำเร็จ")
-            }
-
-            toast({
-                title: "ส่งสลิปสำเร็จ",
-                description: "ระบบส่งให้ผู้จัดโครงการตรวจสอบแล้ว",
-            })
-        } catch (err: any) {
-            console.error("Slip submission error:", err)
-            toast({
-                title: "เกิดข้อผิดพลาด",
-                description: err.message || "ไม่สามารถส่งสลิปได้",
-                variant: "destructive",
-            })
+            // TODO: ใส่ Logic การยิง API แจ้งชำระเงิน หรืออัปโหลดสลิปที่นี่
+            setTimeout(() => {
+                setIsProcessing(false)
+                setStep("success")
+                setPointsEarned(Math.floor(Number(amount) / 100)) // ตัวอย่างแจก point
+            }, 1500)
+        } catch (error) {
+            console.error("Payment Error:", error)
             setIsProcessing(false)
-            return
         }
-
-        // จำลองการตรวจสอบการชำระเงิน (ใน production ควรเรียก API จริง)
-        await new Promise((resolve) => setTimeout(resolve, 3000))
-
-        if (user && amount) {
-            const donationAmount = Number(amount)
-            const earnedPoints = pointsSystem.calculateDonationPoints(donationAmount, "money")
-            pointsSystem.addPoints(
-                user.id,
-                earnedPoints,
-                "donation",
-                `Money donation ฿${donationAmount}`,
-                `donation_${Date.now()}`
-            )
-            setPointsEarned(earnedPoints)
-
-            const receipt = receiptSystem.createReceipt({
-                donationId: `donation_${Date.now()}`,
-                requestId: donation.id.toString(),
-                requestTitle: donation.title,
-                donorId: user.id,
-                donorName: `${user.firstName} ${user.lastName}`,
-                amount: donationAmount,
-                type: "money",
-                paymentMethod:
-                    paymentMethod === "qr"
-                        ? "PromptPay"
-                        : paymentMethod === "credit"
-                            ? "Credit Card"
-                            : "Bank Transfer",
-                transactionId: `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-                message,
-                isAnonymous,
-                pointsEarned: earnedPoints,
-            })
-
-            // LocalStorage logic (backward compatibility)
-            const donationRecord = {
-                id: receipt.donationId,
-                userId: user.id,
-                amount: donationAmount,
-                requestId: donation.id.toString(),
-                requestTitle: donation.title,
-                type: "money" as const,
-                date: new Date().toISOString(),
-                status: "completed" as const,
-                paymentMethod:
-                    paymentMethod === "qr"
-                        ? "PromptPay"
-                        : paymentMethod === "credit"
-                            ? "Credit Card"
-                            : "Bank Transfer",
-                pointsEarned: earnedPoints,
-            }
-
-            const existingDonations = JSON.parse(
-                localStorage.getItem(`user_donations_${user.id}`) || "[]"
-            )
-            existingDonations.push(donationRecord)
-            localStorage.setItem(`user_donations_${user.id}`, JSON.stringify(existingDonations))
-
-            const userData = JSON.parse(localStorage.getItem("users") || "[]")
-            const userIndex = userData.findIndex((u: any) => u.id === user.id)
-            if (userIndex !== -1) {
-                userData[userIndex].totalDonated = (userData[userIndex].totalDonated || 0) + donationAmount
-                userData[userIndex].donationCount = (userData[userIndex].donationCount || 0) + 1
-                localStorage.setItem("users", JSON.stringify(userData))
-            }
-
-            toast({
-                title: `ได้รับ ${earnedPoints} คะแนน!`,
-                description: `คุณได้รับคะแนนจากการบริจาค ฿${formatAmount(amount)}`,
-            })
-        }
-
-        setIsProcessing(false)
-        setStep("success")
     }
 
     const resetModal = () => {
@@ -1036,8 +382,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                 <div className="space-y-2">
                                     <button
                                         className={`w-full p-4 border rounded-lg text-left transition-all ${paymentMethod === "qr"
-                                                ? "border-blue-500 bg-blue-50"
-                                                : "border-gray-200 hover:border-gray-300"
+                                            ? "border-blue-500 bg-blue-50"
+                                            : "border-gray-200 hover:border-gray-300"
                                             }`}
                                         onClick={() => setPaymentMethod("qr")}
                                     >
@@ -1052,8 +398,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                                     <button
                                         className={`w-full p-4 border rounded-lg text-left transition-all ${paymentMethod === "credit"
-                                                ? "border-purple-500 bg-purple-50"
-                                                : "border-gray-200 hover:border-gray-300"
+                                            ? "border-purple-500 bg-purple-50"
+                                            : "border-gray-200 hover:border-gray-300"
                                             }`}
                                         onClick={() => setPaymentMethod("credit")}
                                     >
@@ -1068,8 +414,8 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                                     <button
                                         className={`w-full p-4 border rounded-lg text-left transition-all ${paymentMethod === "bank"
-                                                ? "border-green-500 bg-green-50"
-                                                : "border-gray-200 hover:border-gray-300"
+                                            ? "border-green-500 bg-green-50"
+                                            : "border-gray-200 hover:border-gray-300"
                                             }`}
                                         onClick={() => setPaymentMethod("bank")}
                                     >
@@ -1286,7 +632,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                             <Button
                                 className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                                 onClick={() => {
-                                    setWarningStepTimestamp(new Date()) // บันทึกเวลาที่กดปุ่ม
+                                    setWarningStepTimestamp(new Date())
                                     setStep("payment")
                                 }}
                                 disabled={!agreedToTerms}
@@ -1440,13 +786,12 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                                         {slipResult && (
                                             <div
-                                                className={`mt-3 p-4 rounded-lg border-2 ${
-                                                    slipResult.decision === "rejected"
+                                                className={`mt-3 p-4 rounded-lg border-2 ${slipResult.decision === "rejected"
                                                         ? "bg-red-50 border-red-300"
                                                         : slipResult.decision === "approved"
-                                                        ? "bg-green-50 border-green-300"
-                                                        : "bg-yellow-50 border-yellow-300"
-                                                }`}
+                                                            ? "bg-green-50 border-green-300"
+                                                            : "bg-yellow-50 border-yellow-300"
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-2 mb-2">
                                                     {slipResult.decision === "approved" && (
@@ -1499,14 +844,14 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                         <p className="text-xs font-medium text-gray-700 mb-1">รายละเอียด:</p>
                                                         <ul className="list-disc pl-5 text-sm space-y-1">
                                                             {slipResult.reasons.map((r, i) => (
-                                                                <li 
+                                                                <li
                                                                     key={i}
                                                                     className={
-                                                                        slipResult.decision === "rejected" 
-                                                                            ? "text-red-700" 
+                                                                        slipResult.decision === "rejected"
+                                                                            ? "text-red-700"
                                                                             : slipResult.decision === "approved"
-                                                                            ? "text-green-700"
-                                                                            : "text-yellow-700"
+                                                                                ? "text-green-700"
+                                                                                : "text-yellow-700"
                                                                     }
                                                                 >
                                                                     {r}
@@ -1529,7 +874,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                                 <li>• สแกน QR ในสลิปได้: {slipResult._debug.hasSlipEvidence ? "ใช่" : "ไม่"}</li>
                                                             )}
                                                             {slipResult.ocrPreview && (
-                                                                <li className="mt-1 break-all">• ข้อความจาก OCR (ส่วนต้น): &quot;{slipResult.ocrPreview.slice(0, 120)}{slipResult.ocrPreview.length > 120 ? "…" : ""}&quot;</li>
+                                                                <li className="mt-1 break-all">• ข้อความจาก OCR (ส่วนต้น): "{slipResult.ocrPreview.slice(0, 120)}{slipResult.ocrPreview.length > 120 ? "…" : ""}"</li>
                                                             )}
                                                         </ul>
                                                     </div>
@@ -1541,7 +886,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                     <Button
                                         className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                                         onClick={handlePayment}
-
                                         disabled={
                                             isProcessing ||
                                             verifying ||
@@ -1550,11 +894,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                             slipResult?.decision === "rejected" ||
                                             (remainingAmount !== null && Number(amount) > remainingAmount)
                                         }
-                                        disabled={isProcessing || !!qrError}
-
-                                        disabled={isProcessing || !!qrError}
-
-                                        disabled={isProcessing || !!qrError}
                                     >
                                         {verifying ? (
                                             <>
@@ -1575,7 +914,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                             {paymentMethod === "credit" && (
                                 <div className="space-y-4">
-                                    {/* ส่วน credit เดิมเหมือนเดิม */}
                                     <div className="space-y-3">
                                         <div className="space-y-2">
                                             <Label htmlFor="cardNumber">หมายเลขบัตร</Label>
@@ -1648,7 +986,6 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                             {paymentMethod === "bank" && (
                                 <div className="space-y-4">
-                                    {/* ส่วน bank เดิมเหมือนเดิม */}
                                     <div className="space-y-3">
                                         <h4 className="font-medium text-gray-800">ข้อมูลการโอนเงิน</h4>
 
@@ -1726,13 +1063,12 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
 
                                         {slipResult && (
                                             <div
-                                                className={`mt-3 p-4 rounded-lg border-2 ${
-                                                    slipResult.decision === "rejected"
+                                                className={`mt-3 p-4 rounded-lg border-2 ${slipResult.decision === "rejected"
                                                         ? "bg-red-50 border-red-300"
                                                         : slipResult.decision === "approved"
-                                                        ? "bg-green-50 border-green-300"
-                                                        : "bg-yellow-50 border-yellow-300"
-                                                }`}
+                                                            ? "bg-green-50 border-green-300"
+                                                            : "bg-yellow-50 border-yellow-300"
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-2 mb-2">
                                                     {slipResult.decision === "approved" && (
@@ -1785,14 +1121,14 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                         <p className="text-xs font-medium text-gray-700 mb-1">รายละเอียด:</p>
                                                         <ul className="list-disc pl-5 text-sm space-y-1">
                                                             {slipResult.reasons.map((r, i) => (
-                                                                <li 
+                                                                <li
                                                                     key={i}
                                                                     className={
-                                                                        slipResult.decision === "rejected" 
-                                                                            ? "text-red-700" 
+                                                                        slipResult.decision === "rejected"
+                                                                            ? "text-red-700"
                                                                             : slipResult.decision === "approved"
-                                                                            ? "text-green-700"
-                                                                            : "text-yellow-700"
+                                                                                ? "text-green-700"
+                                                                                : "text-yellow-700"
                                                                     }
                                                                 >
                                                                     {r}
@@ -1815,7 +1151,7 @@ export default function DonationModal({ isOpen, onClose, donation }: DonationMod
                                                                 <li>• สแกน QR ในสลิปได้: {slipResult._debug.hasSlipEvidence ? "ใช่" : "ไม่"}</li>
                                                             )}
                                                             {slipResult.ocrPreview && (
-                                                                <li className="mt-1 break-all">• ข้อความจาก OCR (ส่วนต้น): &quot;{slipResult.ocrPreview.slice(0, 120)}{slipResult.ocrPreview.length > 120 ? "…" : ""}&quot;</li>
+                                                                <li className="mt-1 break-all">• ข้อความจาก OCR (ส่วนต้น): "{slipResult.ocrPreview.slice(0, 120)}{slipResult.ocrPreview.length > 120 ? "…" : ""}"</li>
                                                             )}
                                                         </ul>
                                                     </div>

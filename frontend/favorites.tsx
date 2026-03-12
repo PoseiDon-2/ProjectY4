@@ -9,45 +9,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/contexts/auth-context"
-import { favoritesAPI, type FavoriteRequestItem } from "@/lib/api"
 import ShareModal from "./share-modal"
 import axios from "axios"
-import { useAuth } from "@/contexts/auth-context"
-
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
-
-export default function Favorites() {
-    const router = useRouter()
-    const { user } = useAuth()
-    const [favoriteRequests, setFavoriteRequests] = useState<FavoriteRequestItem[]>([])
-    const [loading, setLoading] = useState(true)
-    const [showShareModal, setShowShareModal] = useState<string | null>(null)
-
-    useEffect(() => {
-        if (!user) {
-            setLoading(false)
-            return
-        }
-        setLoading(true)
-        favoritesAPI
-            .getList()
-            .then((res) => {
-                const list = Array.isArray(res.data) ? res.data : (res.data?.data ?? [])
-                setFavoriteRequests(list)
-            })
-            .catch(() => setFavoriteRequests([]))
-            .finally(() => setLoading(false))
-    }, [user])
-
-    if (!user) {
-        router.push("/login")
-        return null
-    }
 
 interface DonationRequest {
     id: string
@@ -91,10 +56,10 @@ export default function Favorites() {
             return diffDays > 0 ? diffDays : 0
         }
 
-        const getFirstImageUrl = (images: string | null) => {
+        const getFirstImageUrl = (images: string | null | any[]) => {
             if (!images) return "https://via.placeholder.com/400x300?text=No+Image"
             try {
-                const imageArray = JSON.parse(images)
+                const imageArray = typeof images === 'string' ? JSON.parse(images) : images
                 if (Array.isArray(imageArray) && imageArray.length > 0) {
                     const baseUrl = API_URL.replace('/api', '')
                     return `${baseUrl}/storage/${imageArray[0]}`
@@ -113,19 +78,19 @@ export default function Favorites() {
         }
 
         const getCategoryName = (category: any) => {
-            return category?.name || "ไม่ระบุหมวดหมู่"
+            return category?.name || category || "ไม่ระบุหมวดหมู่"
         }
 
         return {
-            id: apiData.id,
-            title: apiData.title,
-            description: apiData.description,
+            id: apiData.id?.toString() || "",
+            title: apiData.title || "",
+            description: apiData.description || "",
             category: getCategoryName(apiData.category),
             location: apiData.location || "ไม่ระบุสถานที่",
-            goalAmount: apiData.goal_amount || apiData.target_amount || 0,
-            currentAmount: apiData.current_amount || 0,
+            goalAmount: Number(apiData.goal_amount || apiData.target_amount || 0),
+            currentAmount: Number(apiData.current_amount || 0),
             daysLeft: calculateDaysLeft(apiData.expires_at),
-            supporters: apiData.supporters_count || apiData.supporters || 0,
+            supporters: Number(apiData.supporters_count || apiData.supporters || 0),
             image: getFirstImageUrl(apiData.images),
             organizer: getOrganizerName(apiData.organizer),
             detailedAddress: apiData.detailed_address,
@@ -133,57 +98,15 @@ export default function Favorites() {
         }
     }
 
-    // ดึงรายการที่สนใจจาก API
-    const fetchFavorites = async () => {
-        try {
-            setLoading(true)
-            setError(null)
-
-            // วิธีที่ 1: ดึงจาก endpoint ที่เฉพาะเจาะจง (แนะนำ)
-            // สร้าง endpoint ที่ backend เช่น GET /api/users/{id}/interests
-            const endpoint = user
-                ? `${API_URL}/users/${user.id}/interests`
-                : `${API_URL}/sessions/${getSessionId()}/interests`
-
-            const response = await axios.get(endpoint)
-
-            // วิธีที่ 2: ดึงจาก user_behaviors (ถ้ายังไม่มี endpoint เฉพาะ)
-            // const response = await axios.get(`${API_URL}/user-behaviors`, {
-            //     params: {
-            //         action_type: 'swipe_like',
-            //         user_id: user?.id || null,
-            //         session_id: getSessionId()
-            //     }
-            // })
-
-            const apiRequests = response.data.data || response.data || []
-            const transformedRequests = apiRequests.map((item: any) => {
-                // ถ้า endpoint ส่งข้อมูล donation_request มาเต็ม
-                if (item.donation_request) {
-                    return transformApiData(item.donation_request)
-                }
-                // ถ้า endpoint ส่งแค่ ID
-                return transformApiData(item)
-            })
-
-            setFavoriteRequests(transformedRequests)
-
-        } catch (error) {
-            console.error("Failed to fetch favorites:", error)
-            setError("ไม่สามารถโหลดรายการที่สนใจได้")
-
-            // Fallback: ดึงจาก localStorage (สำหรับ guest)
-            const stored = localStorage.getItem("likedDonations")
-            if (stored && !user) {
-                const likedIds = JSON.parse(stored)
-                fetchDonationsByIds(likedIds)
-            }
-        } finally {
-            setLoading(false)
+    const getSessionId = () => {
+        let sessionId = localStorage.getItem("session_id")
+        if (!sessionId) {
+            sessionId = crypto.randomUUID()
+            localStorage.setItem("session_id", sessionId)
         }
+        return sessionId
     }
 
-    // ดึงข้อมูล donation requests จาก array of IDs
     const fetchDonationsByIds = async (ids: string[]) => {
         try {
             const requests = await Promise.all(
@@ -200,26 +123,65 @@ export default function Favorites() {
         }
     }
 
-    // ดึง session ID
-    const getSessionId = () => {
-        let sessionId = localStorage.getItem("session_id")
-        if (!sessionId) {
-            sessionId = crypto.randomUUID()
-            localStorage.setItem("session_id", sessionId)
+    const fetchFavorites = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+
+            if (!user) {
+                const stored = localStorage.getItem("likedDonations")
+                if (stored) {
+                    const likedIds = JSON.parse(stored)
+                    await fetchDonationsByIds(likedIds)
+                } else {
+                    setFavoriteRequests([])
+                }
+                return
+            }
+
+            // ✅ แก้ไข API Endpoint เป็น /favorites ตามที่กำหนดใน api.php
+            const endpoint = `${API_URL}/favorites`
+            
+            // ✅ แนบ Authorization Token ไปด้วย
+            const response = await axios.get(endpoint, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem("token") || sessionStorage.getItem("token") || ""}`
+                }
+            })
+            const apiRequests = response.data?.data || response.data || []
+            
+            const transformedRequests = apiRequests.map((item: any) => {
+                if (item.donation_request) {
+                    return transformApiData(item.donation_request)
+                }
+                return transformApiData(item)
+            })
+
+            setFavoriteRequests(transformedRequests)
+        } catch (error) {
+            console.error("Failed to fetch favorites:", error)
+            setError("ไม่สามารถโหลดรายการที่สนใจได้")
+        } finally {
+            setLoading(false)
         }
-        return sessionId
     }
 
-    // ลบออกจากรายการที่สนใจ
+    useEffect(() => {
+        fetchFavorites()
+    }, [user])
+
     const removeFromFavorites = async (id: string) => {
         try {
             setRemovingId(id)
 
             if (user) {
-                // สำหรับ user ที่ login: ลบจาก database
-                await axios.delete(`${API_URL}/users/${user.id}/interests/${id}`)
+                // ✅ แก้ไข API Endpoint เป็น /favorites/{id} ตามที่กำหนดใน api.php
+                await axios.delete(`${API_URL}/favorites/${id}`, {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem("token") || sessionStorage.getItem("token") || ""}`
+                    }
+                })
             } else {
-                // สำหรับ guest: ลบจาก localStorage
                 const stored = localStorage.getItem("likedDonations")
                 if (stored) {
                     const likedIds = JSON.parse(stored)
@@ -228,10 +190,8 @@ export default function Favorites() {
                 }
             }
 
-            // อัปเดต UI
             setFavoriteRequests(prev => prev.filter(request => request.id !== id))
 
-            // ส่ง event tracking
             await axios.post(`${API_URL}/user-behaviors`, {
                 action_type: 'unlike',
                 donation_request_id: id,
@@ -241,7 +201,7 @@ export default function Favorites() {
                     timestamp: new Date().toISOString(),
                     source: 'favorites_page'
                 }
-            })
+            }).catch(() => {})
 
         } catch (error) {
             console.error("Failed to remove from favorites:", error)
@@ -251,33 +211,12 @@ export default function Favorites() {
         }
     }
 
-    // ดึงข้อมูลเมื่อ component mount
-    useEffect(() => {
-        fetchFavorites()
-    }, [user])
-
-
     const formatAmount = (amount: number) => {
         return new Intl.NumberFormat("th-TH").format(amount)
     }
 
-
-    const removeFromFavorites = async (id: string) => {
-        try {
-            await favoritesAPI.remove(id)
-            setFavoriteRequests((prev) => prev.filter((r) => r.id !== id))
-        } catch {
-            // ignore
-        }
-    }
-
     const getCategoryColor = (category: string | null) => {
         if (!category) return "bg-gray-100 text-gray-700"
-    const getCategoryColor = (category: string) => {
-
-    const getCategoryColor = (category: string) => {
-
-    const getCategoryColor = (category: string) => {
         const colors: Record<string, string> = {
             ภัยพิบัติ: "bg-red-100 text-red-700",
             การแพทย์: "bg-blue-100 text-blue-700",
@@ -290,20 +229,6 @@ export default function Favorites() {
         return colors[category] || "bg-gray-100 text-gray-700"
     }
 
-    const getUrgencyBadge = (daysLeft: number | null | undefined) => {
-        const d = daysLeft ?? 0
-        if (d <= 7) return { text: "เร่งด่วน", class: "bg-red-500 text-white" }
-        if (d <= 15) return { text: "ใกล้หมดเขต", class: "bg-orange-500 text-white" }
-        return { text: d > 0 ? `${d} วัน` : "หมดเขต", class: "bg-gray-500 text-white" }
-    }
-
-    const toItem = (r: FavoriteRequestItem) => ({
-        goalAmount: r.goalAmount ?? r.goal_amount ?? 0,
-        currentAmount: r.currentAmount ?? r.current_amount ?? 0,
-        image: (r.image ?? (Array.isArray(r.images) && r.images[0] ? (r.images[0] as string) : null)) || "https://via.placeholder.com/400x300?text=No+Image",
-        category: r.category ?? "",
-        daysLeft: r.daysLeft ?? null,
-    })
     const getUrgencyBadge = (daysLeft: number) => {
         if (daysLeft <= 3) return { text: "ด่วนมาก!", class: "bg-red-500 text-white" }
         if (daysLeft <= 7) return { text: "เร่งด่วน", class: "bg-orange-500 text-white" }
@@ -314,6 +239,11 @@ export default function Favorites() {
     const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
         const target = e.target as HTMLImageElement
         target.src = "https://via.placeholder.com/400x300?text=No+Image"
+    }
+
+    if (!user && !loading) {
+        router.push("/login")
+        return null
     }
 
     if (loading) {
@@ -327,23 +257,9 @@ export default function Favorites() {
         )
     }
 
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
             <div className="bg-white shadow-sm border-b">
-
-                <div className="max-w-4xl mx-auto px-4 py-4">
-                    <div className="flex items-center gap-4">
-                        <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="hover:bg-pink-50">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            กลับ
-                        </Button>
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-800">❤️ คำขอที่สนใจ</h1>
-                            <p className="text-sm text-gray-600">
-                                {loading ? "กำลังโหลด..." : `${favoriteRequests.length} รายการที่คุณเลือกไว้`}
-                            </p>
-
                 <div className="max-w-6xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -372,16 +288,10 @@ export default function Favorites() {
                             >
                                 ดูเพิ่มเติม
                             </Button>
-
                         </div>
                     </div>
                 </div>
             </div>
-
-
-            <div className="max-w-4xl mx-auto p-4">
-                {loading ? (
-                    <div className="text-center py-16 text-gray-500">กำลังโหลดรายการที่สนใจ...</div>
 
             <div className="max-w-6xl mx-auto p-4 md:p-6">
                 {error && favoriteRequests.length === 0 ? (
@@ -397,31 +307,24 @@ export default function Favorites() {
                             โหลดใหม่
                         </Button>
                     </div>
-
                 ) : favoriteRequests.length === 0 ? (
                     <div className="text-center py-16">
                         <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                         <h2 className="text-xl font-semibold text-gray-600 mb-2">ยังไม่มีคำขอที่สนใจ</h2>
-
-                        <p className="text-gray-500 mb-6">กลับไปเลือกคำขอบริจาคที่คุณต้องการสนับสนุน หรือกดปุ่มถูกใจที่หน้ารายละเอียดโครงการ</p>
-                        <Button onClick={() => router.push("/")} className="bg-pink-500 hover:bg-pink-600">
-
                         <p className="text-gray-500 mb-6">กลับไปเลือกคำขอบริจาคที่คุณต้องการสนับสนุน</p>
                         <Button
                             onClick={() => router.push("/swipe")}
                             className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                         >
                             <Heart className="w-4 h-4 mr-2" />
-
                             เริ่มเลือกคำขอบริจาค
                         </Button>
                     </div>
                 ) : (
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {favoriteRequests.map((request) => {
-                            const { goalAmount, currentAmount, image, category, daysLeft } = toItem(request)
-                            const progressPercentage = goalAmount > 0 ? (currentAmount / goalAmount) * 100 : 0
-                            const urgency = getUrgencyBadge(daysLeft)
+                            const progressPercentage = request.goalAmount > 0 ? (request.currentAmount / request.goalAmount) * 100 : 0
+                            const urgency = getUrgencyBadge(request.daysLeft)
 
                             return (
                                 <Card
@@ -430,34 +333,23 @@ export default function Favorites() {
                                 >
                                     <div className="relative">
                                         <img
-
-                                            src={image}
-=======
-                                            src={request.image}
-
-                                            src={request.image}
-
                                             src={request.image}
                                             alt={request.title}
                                             className="w-full h-48 object-cover hover:scale-105 transition-transform duration-300"
                                             onError={handleImageError}
                                         />
 
-                                        <div className="absolute top-3 left-3 flex gap-2">
-                                            {category && (
-                                                <Badge className={getCategoryColor(category)}>{category}</Badge>
-                                            )}
-                                            <Badge className={urgency.class}>{urgency.text}</Badge>
-
                                         <div className="absolute top-3 left-3 flex flex-col gap-2">
-                                            <Badge className={getCategoryColor(request.category)}>
-                                                {request.category}
-                                            </Badge>
+                                            {request.category && (
+                                                <Badge className={getCategoryColor(request.category)}>
+                                                    {request.category}
+                                                </Badge>
+                                            )}
                                             <Badge className={urgency.class}>
                                                 {urgency.text}
                                             </Badge>
-
                                         </div>
+
                                         <Button
                                             size="sm"
                                             variant="ghost"
@@ -476,38 +368,6 @@ export default function Favorites() {
                                     <CardContent className="p-4">
                                         <div className="space-y-3">
                                             <div>
-
-                                                <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">{request.title}</h3>
-                                                <p className="text-sm text-gray-600 line-clamp-2">{request.description || ""}</p>
-                                            </div>
-
-                                            <div className="flex items-center gap-4 text-xs text-gray-500">
-                                                {request.location && (
-                                                    <div className="flex items-center gap-1">
-                                                        <MapPin className="w-3 h-3" />
-                                                        <span className="truncate">{request.location}</span>
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center gap-1">
-                                                    <Users className="w-3 h-3" />
-                                                    <span>{request.supporters}</span>
-                                                <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">
-                                                    {request.title}
-                                                </h3>
-                                                <p className="text-sm text-gray-600 line-clamp-2">
-                                                    {request.description}
-                                                </p>
-                                            </div>
-
-                                                <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">
-                                                    {request.title}
-                                                </h3>
-                                                <p className="text-sm text-gray-600 line-clamp-2">
-                                                    {request.description}
-                                                </p>
-                                            </div>
-
-
                                                 <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">
                                                     {request.title}
                                                 </h3>
@@ -518,21 +378,22 @@ export default function Favorites() {
 
                                             <div className="flex items-center justify-between text-xs text-gray-500">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="flex items-center gap-1">
-                                                        <MapPin className="w-3 h-3" />
-                                                        <span className="truncate max-w-[100px]">
-                                                            {request.location}
-                                                        </span>
-                                                    </div>
+                                                    {request.location && (
+                                                        <div className="flex items-center gap-1">
+                                                            <MapPin className="w-3 h-3" />
+                                                            <span className="truncate max-w-[100px]">
+                                                                {request.location}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                     <div className="flex items-center gap-1">
                                                         <Users className="w-3 h-3" />
                                                         <span>{request.supporters}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1">
                                                         <Calendar className="w-3 h-3" />
-                                                        <span>{request.daysLeft}</span>
+                                                        <span>{request.daysLeft} วัน</span>
                                                     </div>
-
                                                 </div>
                                             </div>
 
@@ -540,7 +401,7 @@ export default function Favorites() {
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-gray-600">ระดมทุนได้</span>
                                                     <span className="font-semibold text-gray-800">
-                                                        ฿{formatAmount(currentAmount)} / ฿{formatAmount(goalAmount)}
+                                                        ฿{formatAmount(request.currentAmount)} / ฿{formatAmount(request.goalAmount)}
                                                     </span>
                                                 </div>
                                                 <Progress
@@ -567,38 +428,20 @@ export default function Favorites() {
                                             <div className="flex gap-2 pt-2">
                                                 <Button
                                                     size="sm"
-
-                                                    asChild
-                                                    onClick={() => setShowDonationModal(request.id)}
-
-                                                    onClick={() => setShowDonationModal(request.id)}
-
                                                     onClick={() => setShowDonationModal(request.id)}
                                                     className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                                                 >
-                                                    <Link href={`/enhanced-donation/${request.id}`}>
-                                                        <Heart className="w-4 h-4 mr-1" />
-                                                        บริจาค
-                                                    </Link>
+                                                    <Heart className="w-4 h-4 mr-1" />
+                                                    บริจาค
                                                 </Button>
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-
                                                     className="border-pink-200 text-pink-600 hover:bg-pink-50 bg-transparent"
-                                                    asChild
-                                                >
-                                                    <Link href={`/enhanced-donation/${request.id}`}>
-                                                        <ExternalLink className="w-4 h-4 mr-1" />
-                                                        ดูรายละเอียด
-                                                    </Link>
-
-                                                    className="border-pink-200 text-pink-600 hover:bg-pink-50"
                                                     onClick={() => router.push(`/donation/${request.id}`)}
                                                 >
                                                     <ExternalLink className="w-4 h-4 mr-1" />
-                                                    ดู
-
+                                                    ดูรายละเอียด
                                                 </Button>
                                                 <Button
                                                     size="sm"
@@ -618,7 +461,6 @@ export default function Favorites() {
                     </div>
                 )}
             </div>
-
 
             {/* Donation Modal */}
             {showDonationModal && (
@@ -646,8 +488,8 @@ export default function Favorites() {
                             </Button>
                             <Button
                                 onClick={() => {
-                                    setShowDonationModal(null)
                                     router.push(`/donation/${showDonationModal}?donate=true`)
+                                    setShowDonationModal(null)
                                 }}
                                 className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                             >
@@ -662,7 +504,6 @@ export default function Favorites() {
             {showShareModal && (() => {
                 const request = favoriteRequests.find((r) => r.id === showShareModal)
                 if (!request) return null
-                const { goalAmount, currentAmount, image } = toItem(request)
                 return (
                     <ShareModal
                         isOpen={true}
@@ -672,10 +513,10 @@ export default function Favorites() {
                             title: request.title,
                             description: request.description || "",
                             category: request.category || "",
-                            goalAmount,
-                            currentAmount,
+                            goalAmount: request.goalAmount,
+                            currentAmount: request.currentAmount,
                             organizer: request.organizer || "",
-                            image,
+                            image: request.image,
                         }}
                     />
                 )

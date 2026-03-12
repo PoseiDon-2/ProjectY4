@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import ShareModal from "../../share-modal"
 import { useAuth } from "@/contexts/auth-context"
 import { favoritesAPI } from "@/lib/api"
-import StoryPreview from "../../story-preview"
+// import StoryPreview from "../../story-preview" // นำกลับมาใช้ถ้าจำเป็น
 import axios from "axios"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
@@ -19,9 +19,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api"
 // --- CONFIGURATION ---
 const CONFIG = {
     INITIAL_SCORE: 100,
-    SWIPE_LEFT_PENALTY: 10,   // ลดคะแนนเมื่อปัดซ้าย
-    COOLDOWN_MS: 30 * 1000,   // 30 วินาที ห้ามโชว์ซ้ำ (ปรับได้ตามต้องการ)
-    TAG_PENALTY: 2,           // (Optional) ถ้ามี Logic Tag
+    SWIPE_LEFT_PENALTY: 10,
+    COOLDOWN_MS: 30 * 1000,
+    TAG_PENALTY: 2,
 };
 
 interface DonationRequest {
@@ -51,7 +51,6 @@ interface DonationRequest {
     }
 }
 
-// Interface สำหรับการ์ดที่มีคะแนน
 interface ScoredDonationRequest extends DonationRequest {
     internalScore: number;
     lastViewedAt: number;
@@ -81,7 +80,7 @@ interface StoryGroup {
     stories: Story[]
 }
 
-// --- MOCK DATA สำหรับฟีดสไตล์ X.com ---
+// --- MOCK DATA ---
 const MOCK_POSTS = [
     {
         id: "p1",
@@ -135,7 +134,6 @@ const MOCK_POSTS = [
     }
 ];
 
-// --- MOCK DATA สำหรับ SHORTS (คลิปสั้นแนวตั้ง) ---
 const MOCK_SHORTS = [
     {
         id: "s1",
@@ -167,7 +165,6 @@ const MOCK_SHORTS = [
     }
 ];
 
-// Helper function to transform API data to component format
 const transformApiData = (apiData: any): DonationRequest => {
     const calculateDaysLeft = (expiresAt: string | null) => {
         if (!expiresAt) return 30
@@ -245,7 +242,6 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     target.src = "https://via.placeholder.com/400x300?text=No+Image"
 }
 
-// --- Session ID Management ---
 const getOrCreateSessionId = () => {
     if (typeof window === 'undefined') return ''
 
@@ -260,7 +256,6 @@ const getOrCreateSessionId = () => {
     return sessionId
 }
 
-// --- User Behavior Tracking Functions ---
 const trackUserBehavior = async (
     sessionId: string,
     donationRequestId: string,
@@ -291,7 +286,7 @@ const trackUserBehavior = async (
         const payload = {
             session_id: sessionId,
             donation_request_id: donationRequestId,
-            action_type: actionTypeValue, // ส่งเป็น integer
+            action_type: actionTypeValue,
             duration_ms: durationMs || 0,
             meta_data: metaData || null
         }
@@ -304,11 +299,9 @@ const trackUserBehavior = async (
 }
 
 export default function DonationSwipe() {
-    // State สำหรับการควบคุม Tab และ ฟีดโพสต์
     const [activeTab, setActiveTab] = useState<'swipe' | 'foryou' | 'following'>('swipe')
     const [feedPosts, setFeedPosts] = useState(MOCK_POSTS)
 
-    // State สำหรับ Infinite Loop Logic
     const [cardPool, setCardPool] = useState<ScoredDonationRequest[]>([])
     const [activeCardIndex, setActiveCardIndex] = useState(0)
 
@@ -324,7 +317,6 @@ export default function DonationSwipe() {
     const [showShareModal, setShowShareModal] = useState(false)
     const [favoriteCount, setFavoriteCount] = useState(0)
 
-    // ตัวแปรสำหรับ tracking
     const [sessionId, setSessionId] = useState<string>('')
     const viewStartTimeRef = useRef<number>(0)
     const cardRef = useRef<HTMLDivElement>(null)
@@ -332,20 +324,7 @@ export default function DonationSwipe() {
     const router = useRouter()
 
     useEffect(() => {
-
-        // Log API URL for debugging
         console.log("🔗 API URL:", API_URL)
-        console.log("📡 Fetching from endpoints:", {
-            donations: `${API_URL}/donation-requests`,
-            stories: `${API_URL}/stories`
-        })
-        // กำหนด Session ID เมื่อ component โหลด
-        setSessionId(getOrCreateSessionId())
-
-        // กำหนด Session ID เมื่อ component โหลด
-        setSessionId(getOrCreateSessionId())
-
-        // กำหนด Session ID เมื่อ component โหลด
         setSessionId(getOrCreateSessionId())
         fetchData()
     }, [])
@@ -357,8 +336,6 @@ export default function DonationSwipe() {
         }
     }, [])
 
-
-    // โหลดจำนวนรายการที่สนใจจาก API (เมื่อล็อกอิน) เพื่อให้ตรงกับหน้ารายการที่สนใจ
     useEffect(() => {
         if (!user) {
             setFavoriteCount(0)
@@ -372,18 +349,15 @@ export default function DonationSwipe() {
             .catch(() => setFavoriteCount(0))
     }, [user])
 
-    // Track view time เมื่อเปลี่ยนการ์ด
     useEffect(() => {
         if (cardPool.length > 0 && activeCardIndex >= 0 && activeTab === 'swipe') {
-            // เริ่มจับเวลาดูการ์ดใบปัจจุบัน
             viewStartTimeRef.current = Date.now()
 
             return () => {
-                // เมื่อเปลี่ยนการ์ด ให้บันทึกเวลาดูของใบก่อนหน้า
                 const viewDuration = Date.now() - viewStartTimeRef.current
                 const previousCard = cardPool[activeCardIndex]
 
-                if (previousCard && viewDuration > 500) { // บันทึกเฉพาะถ้าดูเกิน 500ms
+                if (previousCard && viewDuration > 500) {
                     trackUserBehavior(
                         sessionId,
                         previousCard.id,
@@ -399,7 +373,6 @@ export default function DonationSwipe() {
         }
     }, [activeCardIndex, cardPool, sessionId, activeTab])
 
-    // --- ALGORITHM: THE BRAIN ---
     const getNextCardIndex = useCallback((pool: ScoredDonationRequest[]) => {
         if (pool.length === 0) return -1;
         if (pool.length === 1) return 0;
@@ -422,137 +395,46 @@ export default function DonationSwipe() {
         return candidates[0].index;
     }, []);
 
-
     const fetchData = async () => {
         try {
             setLoading(true)
             setError(null)
 
-
             console.log("🔄 Starting data fetch...")
 
-            // Fetch both endpoints with better error handling
-            const [donationResponse, storiesResponse] = await Promise.all([
-                axios.get(`${API_URL}/donation-requests`).catch(err => {
-                    console.error("❌ Donation requests fetch failed:", {
-                        url: `${API_URL}/donation-requests`,
-                        status: err.response?.status,
-                        statusText: err.response?.statusText,
-                        data: err.response?.data,
-                        message: err.message
-                    })
-                    throw err
-                }),
-                axios.get(`${API_URL}/stories`).catch(err => {
-                    console.error("❌ Stories fetch failed:", {
-                        url: `${API_URL}/stories`,
-                        status: err.response?.status,
-                        statusText: err.response?.statusText,
-                        data: err.response?.data,
-                        message: err.message
-                    })
-                    throw err
-                })
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
-            const sessionId = getOrCreateSessionId(); // รับ sessionId ตรงนี้
+            const token = localStorage.getItem('auth_token')
+            const currentSessionId = getOrCreateSessionId()
 
-            // --- สร้าง query parameters ---
-            const params = new URLSearchParams();
-            if (sessionId) {
-                params.append('session_id', sessionId);
+            const params = new URLSearchParams()
+            if (currentSessionId) {
+                params.append('session_id', currentSessionId)
             }
+            const queryString = params.toString()
+            const url = `${API_URL}/donation-requests${queryString ? `?${queryString}` : ''}`
 
-            const queryString = params.toString();
-            const url = `${API_URL}/donation-requests${queryString ? `?${queryString}` : ''}`;
-
-            // --- 2. สร้าง Config สำหรับ Axios ---
             const axiosConfig = {
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
                     'Accept': 'application/json'
                 }
-            };
-
-            // --- 3. ยิง Request พร้อม Header ---
-            const [donationResponse, storiesResponse] = await Promise.all([
-                axios.get(url, axiosConfig), // ใช้ URL ที่มี query parameter
-                axios.get(`${API_URL}/stories`, axiosConfig)
-
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
-            const sessionId = getOrCreateSessionId(); // รับ sessionId ตรงนี้
-
-            // --- สร้าง query parameters ---
-            const params = new URLSearchParams();
-            if (sessionId) {
-                params.append('session_id', sessionId);
             }
 
-            const queryString = params.toString();
-            const url = `${API_URL}/donation-requests${queryString ? `?${queryString}` : ''}`;
-
-            // --- 2. สร้าง Config สำหรับ Axios ---
-            const axiosConfig = {
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Accept': 'application/json'
-                }
-            };
-
-            // --- 3. ยิง Request พร้อม Header ---
             const [donationResponse, storiesResponse] = await Promise.all([
-                axios.get(url, axiosConfig), // ใช้ URL ที่มี query parameter
-                axios.get(`${API_URL}/stories`, axiosConfig)
-
-            const token = localStorage.getItem('auth_token') || localStorage.getItem('auth_token');
-            const sessionId = getOrCreateSessionId(); // รับ sessionId ตรงนี้
-
-            // --- สร้าง query parameters ---
-            const params = new URLSearchParams();
-            if (sessionId) {
-                params.append('session_id', sessionId);
-            }
-
-            const queryString = params.toString();
-            const url = `${API_URL}/donation-requests${queryString ? `?${queryString}` : ''}`;
-
-            // --- 2. สร้าง Config สำหรับ Axios ---
-            const axiosConfig = {
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Accept': 'application/json'
-                }
-            };
-
-            // --- 3. ยิง Request พร้อม Header ---
-            const [donationResponse, storiesResponse] = await Promise.all([
-                axios.get(url, axiosConfig), // ใช้ URL ที่มี query parameter
+                axios.get(url, axiosConfig),
                 axios.get(`${API_URL}/stories`, axiosConfig)
             ])
 
             console.log("✅ Both requests succeeded")
-            console.log("📦 Donation response:", {
-                hasData: !!donationResponse.data,
-                dataType: Array.isArray(donationResponse.data) ? 'array' : typeof donationResponse.data,
-                dataKeys: donationResponse.data ? Object.keys(donationResponse.data) : []
-            })
-            console.log("📦 Stories response:", {
-                hasData: !!storiesResponse.data,
-                dataType: Array.isArray(storiesResponse.data) ? 'array' : typeof storiesResponse.data,
-                dataKeys: storiesResponse.data ? Object.keys(storiesResponse.data) : []
-            })
 
             const apiRequests = donationResponse.data.data || donationResponse.data || []
             const transformedRequests = apiRequests.length > 0 ? apiRequests.map(transformApiData) : []
 
-            // --- 4. Logic การเรียงลำดับใน Frontend ---
-            // ใช้ index มากำหนดคะแนน เพื่อให้ตัวแรกสุดที่ Backend ส่งมา (ซึ่งควรจะเป็นตัวแนะนำ) อยู่บนสุดเสมอ
             const scoredRequests: ScoredDonationRequest[] = transformedRequests.map((req: DonationRequest, index: number) => ({
                 ...req,
                 internalScore: 1000 - index,
                 lastViewedAt: 0
             }));
 
-            // กรองสิ่งที่ Like ไปแล้วออก
             const storedLikes = localStorage.getItem("likedDonations");
             let initialPool = scoredRequests;
             if (storedLikes) {
@@ -569,30 +451,14 @@ export default function DonationSwipe() {
             const storyGroups = groupStoriesByDonationRequest(apiStories, transformedRequests)
             setStoryGroups(storyGroups)
 
-            console.log("✅ Data processing complete:", {
-                donationRequestsCount: transformedRequests.length,
-                storyGroupsCount: storyGroups.length
-            })
-
         } catch (error) {
             console.error("❌ Data fetching failed:", error)
 
-            // Detailed error logging
             if (axios.isAxiosError(error)) {
                 const status = error.response?.status
                 const statusText = error.response?.statusText
                 const errorData = error.response?.data
-                const failedUrl = error.config?.url
 
-                console.error("📊 Error Details:", {
-                    status,
-                    statusText,
-                    failedUrl,
-                    errorData,
-                    message: error.message
-                })
-
-                // Show more specific error message
                 if (status === 500) {
                     const errorMessage = errorData?.message || errorData?.error || "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์"
                     setError(`เซิร์ฟเวอร์เกิดข้อผิดพลาด (500): ${errorMessage}`)
@@ -611,10 +477,6 @@ export default function DonationSwipe() {
                 setError(`ไม่สามารถโหลดข้อมูลได้: ${error instanceof Error ? error.message : "Unknown error"}`)
             }
 
-            setStoryGroups(getFallbackStoryGroups())
-
-            console.error("Failed to fetch data:", error)
-            setError("ไม่สามารถโหลดข้อมูลได้")
             setStoryGroups([])
 
         } finally {
@@ -670,14 +532,12 @@ export default function DonationSwipe() {
         return Object.values(groups)
     }
 
-    // --- SWIPE LOGIC with BEHAVIOR TRACKING ---
     const handleSwipe = async (liked: boolean) => {
         const currentCard = cardPool[activeCardIndex];
         if (!currentCard) return;
 
         let newPool = [...cardPool];
 
-        // Track swipe action
         const actionType = liked ? 'swipe_like' : 'swipe_pass';
         await trackUserBehavior(
             sessionId,
@@ -696,9 +556,8 @@ export default function DonationSwipe() {
             localStorage.setItem("likedDonations", JSON.stringify(newLikedRequests))
 
             if (user) {
-                favoritesAPI.add(currentRequest.id).then(() => setFavoriteCount((c) => c + 1)).catch(() => {})
+                favoritesAPI.add(currentCard.id).then(() => setFavoriteCount((c) => c + 1)).catch(() => {})
             }
-
 
             newPool = newPool.filter(item => item.id !== currentCard.id);
 
@@ -710,7 +569,6 @@ export default function DonationSwipe() {
             };
 
             newPool = newPool.map(item => item.id === currentCard.id ? updatedCard : item);
-
         }
 
         setCardPool(newPool);
@@ -723,7 +581,6 @@ export default function DonationSwipe() {
         }
     }
 
-    // --- CLICK DETAIL TRACKING ---
     const handleDetailClick = async (donationRequestId: string) => {
         await trackUserBehavior(
             sessionId,
@@ -736,7 +593,6 @@ export default function DonationSwipe() {
         router.push(`/donation/${donationRequestId}`);
     }
 
-    // --- SHARE MODAL TRACKING ---
     const handleShareClick = async (donationRequestId: string) => {
         await trackUserBehavior(
             sessionId,
@@ -749,7 +605,6 @@ export default function DonationSwipe() {
         setShowShareModal(true);
     }
 
-    // --- STORY CLICK TRACKING ---
     const handleStoryClick = async (storyGroup: StoryGroup) => {
         await trackUserBehavior(
             sessionId,
@@ -849,7 +704,6 @@ export default function DonationSwipe() {
         return new Intl.NumberFormat("th-TH").format(amount)
     }
 
-    // --- Post Interaction Mock ---
     const toggleLikePost = (postId: string) => {
         setFeedPosts(posts => posts.map(post => {
             if (post.id === postId) {
@@ -859,7 +713,6 @@ export default function DonationSwipe() {
         }))
     }
 
-    // Filter Posts based on active tab
     const displayPosts = feedPosts.filter(post => activeTab === 'foryou' || post.feedType === activeTab);
 
     if (loading) {
@@ -922,13 +775,7 @@ export default function DonationSwipe() {
                             onClick={() => router.push("/favorites")}
                             className="bg-pink-100 text-pink-700 border-pink-200 hover:bg-pink-200"
                         >
-
-                            ❤️ {user ? favoriteCount : likedRequests.length} รายการ
-                            ❤️ รายการที่สนใจ {likedRequests.length}
-
-                            ❤️ รายการที่สนใจ {likedRequests.length}
-
-                            ❤️ รายการที่สนใจ {likedRequests.length}
+                            ❤️ รายการที่สนใจ {user ? favoriteCount : likedRequests.length}
                         </Button>
                         {user ? (
                             <Button
@@ -952,7 +799,6 @@ export default function DonationSwipe() {
                     </div>
                 </div>
 
-                {/* --- NAVIGATION TABS --- */}
                 <div className="flex border-b border-gray-200 mb-6 sticky top-0 bg-gradient-to-br from-pink-50 to-purple-50 z-10 pt-2">
                     <button 
                         onClick={() => setActiveTab('swipe')}
@@ -977,7 +823,6 @@ export default function DonationSwipe() {
                     </button>
                 </div>
 
-                {/* --- TAB CONTENT: SWIPE MODE (FULL ORIGINAL LOGIC) --- */}
                 {activeTab === 'swipe' && (
                     <div className="max-w-6xl mx-auto">
                         {!currentRequest || cardPool.length === 0 ? (
@@ -1078,8 +923,13 @@ export default function DonationSwipe() {
                                                         <div className="text-right text-xs text-gray-500">{Math.round(progressPercentage)}% ของเป้าหมาย</div>
                                                     </div>
 
-                                                    <div className="text-sm text-gray-600 flex-shrink-0">
-                                                        <span className="font-medium">ผู้จัดการ:</span> {currentRequest.organizer}
+                                                    <div className="text-sm text-gray-600 flex-shrink-0 flex items-center gap-2 flex-wrap">
+                                                        <span><span className="font-medium">ผู้จัดการ:</span> {currentRequest.organizer}</span>
+                                                        {currentRequest.organizerTrustLevelName && (
+                                                            <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">
+                                                                {currentRequest.organizerTrustLevelName}
+                                                            </Badge>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -1129,98 +979,34 @@ export default function DonationSwipe() {
                     </div>
                 )}
 
-                {/* --- TAB CONTENT: FEED & STORIES (For You / Following) --- */}
                 {(activeTab === 'foryou' || activeTab === 'following') && (
                     <div className="max-w-2xl mx-auto">
-                        
-                        {/* --- SHORTS SHELF (คลิปวิดีโอแนวตั้ง เลื่อนแนวนอน) --- */}
                         <div className="mb-6">
                             <h2 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
                                 <Play className="w-5 h-5 text-pink-500 fill-pink-500" />
                                 อัปเดตล่าสุด (Shorts)
                             </h2>
                             
-                            {/* Horizontal scrollable container */}
                             <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar snap-x touch-pan-x w-full">
                                 {MOCK_SHORTS.map((short) => (
                                     <div 
                                         key={short.id} 
                                         className="relative flex-shrink-0 w-36 h-60 sm:w-40 sm:h-64 rounded-2xl overflow-hidden snap-start cursor-pointer group shadow-sm bg-black"
                                     >
-                                        {/* Thumbnail Video Image */}
                                         <img 
                                             src={short.thumbnail} 
                                             alt={short.title}
                                             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-90 group-hover:opacity-100" 
                                         />
-
-                                        <Badge className="absolute top-4 left-4 bg-white/90 text-gray-800 hover:bg-white/90">
-                                            {currentRequest.category}
-                                        </Badge>
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="absolute top-4 right-4 bg-white/90 hover:bg-white"
-                                            onClick={() => setShowShareModal(true)}
-                                        >
-                                            <Share2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-
-                                    <CardContent className="p-6 flex-1 flex flex-col">
-                                        <div className="space-y-4 flex-1">
-                                            <div className="flex-shrink-0">
-                                                <h2 className="text-xl font-bold text-gray-800 mb-2 line-clamp-2 leading-tight">{currentRequest.title}</h2>
-                                                <p className="text-gray-600 text-sm line-clamp-1">{currentRequest.description}</p>
-                                            </div>
-
-                                            <div className="flex items-center gap-4 text-sm text-gray-500 flex-shrink-0">
-                                                <div className="flex items-center gap-1">
-                                                    <MapPin className="w-4 h-4 flex-shrink-0" />
-                                                    <span className="truncate">{currentRequest.location}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <Users className="w-4 h-4 flex-shrink-0" />
-                                                    <span>{currentRequest.supporters} คน</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <Calendar className="w-4 h-4 flex-shrink-0" />
-                                                    <span>{currentRequest.daysLeft} วัน</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-2 flex-shrink-0">
-                                                <div className="flex justify-between text-sm">
-                                                    <span className="text-gray-600">ระดมทุนได้</span>
-                                                    <span className="font-semibold text-gray-800">
-                                                        ฿{formatAmount(currentRequest.currentAmount)} / ฿{formatAmount(currentRequest.goalAmount)}
-                                                    </span>
-                                                </div>
-                                                <Progress value={progressPercentage} className="h-2" />
-                                                <div className="text-right text-xs text-gray-500">{Math.round(progressPercentage)}% ของเป้าหมาย</div>
-                                            </div>
-
-                                            <div className="text-sm text-gray-600 flex-shrink-0 flex items-center gap-2 flex-wrap">
-                                                <span><span className="font-medium">ผู้จัดการ:</span> {currentRequest.organizer}</span>
-                                                {currentRequest.organizerTrustLevelName && (
-                                                    <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">
-                                                        {currentRequest.organizerTrustLevelName}
-                                                    </Badge>
-                                                )}
-
                                         
-                                        {/* Gradient overlay for text readability */}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
                                         
-                                        {/* Play icon centered on hover */}
                                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                             <div className="bg-white/30 backdrop-blur-sm p-3 rounded-full">
                                                 <Play className="w-8 h-8 text-white fill-white" />
-
                                             </div>
                                         </div>
 
-                                        {/* Content Information */}
                                         <div className="absolute bottom-3 left-3 right-3 text-white">
                                             <p className="text-xs font-medium line-clamp-2 leading-tight mb-2 drop-shadow-md">
                                                 {short.title}
@@ -1235,7 +1021,6 @@ export default function DonationSwipe() {
                             </div>
                         </div>
 
-                        {/* Write Post Prompt */}
                         <Card className="border-0 shadow-sm mb-6 bg-white">
                             <CardContent className="p-4 flex gap-3 items-center">
                                 <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
@@ -1249,7 +1034,6 @@ export default function DonationSwipe() {
                             </CardContent>
                         </Card>
 
-                        {/* Feed Posts */}
                         <div className="space-y-4">
                             {displayPosts.map(post => (
                                 <Card key={post.id} className="border-0 shadow-sm hover:bg-gray-50/50 transition-colors cursor-pointer bg-white">

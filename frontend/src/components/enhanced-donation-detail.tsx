@@ -131,19 +131,19 @@ const transformApiData = (apiData: any) => {
             const bankAccountFlat =
                 !bankAccountRaw && (raw?.bank || raw?.account_number || raw?.account_name)
                     ? {
-                          bank: raw?.bank || "",
-                          accountNumber: raw?.accountNumber || raw?.account_number || "",
-                          accountName: raw?.accountName || raw?.account_name || "",
-                      }
+                        bank: raw?.bank || "",
+                        accountNumber: raw?.accountNumber || raw?.account_number || "",
+                        accountName: raw?.accountName || raw?.account_name || "",
+                    }
                     : null
             const bankAccount = bankAccountRaw
                 ? {
-                      bank: bankAccountRaw.bank || bankAccountRaw.bank_name || bankAccountRaw.bankName || "",
-                      accountNumber:
-                          bankAccountRaw.accountNumber || bankAccountRaw.account_number || "",
-                      accountName:
-                          bankAccountRaw.accountName || bankAccountRaw.account_name || "",
-                  }
+                    bank: bankAccountRaw.bank || bankAccountRaw.bank_name || bankAccountRaw.bankName || "",
+                    accountNumber:
+                        bankAccountRaw.accountNumber || bankAccountRaw.account_number || "",
+                    accountName:
+                        bankAccountRaw.accountName || bankAccountRaw.account_name || "",
+                }
                 : bankAccountFlat
             return {
                 promptpay: raw?.promptpay || raw?.promptpay_number || raw?.promptpayNumber || "",
@@ -328,7 +328,7 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                 const found = list.some((r: { id: string }) => String(r.id) === String(id))
                 setIsFavorited(found)
             })
-            .catch(() => {})
+            .catch(() => { })
     }, [user, id])
 
     const loadReceipts = () => {
@@ -939,7 +939,6 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 ))}
                             </div>
 
-<<<<<<< HEAD
                             {mockStories.length > 3 && (
                                 <Button
                                     variant="outline"
@@ -948,7 +947,31 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                 >
                                     {showAllStories ? "แสดงน้อยลง" : `ดู Stories ทั้งหมด (${mockStories.length})`}
                                 </Button>
-=======
+                            )}
+
+                            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-gray-800">{mockStories.length}</div>
+                                    <div className="text-xs text-gray-600">Stories ทั้งหมด</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-gray-800">
+                                        {mockStories.reduce((sum, story) => sum + story.views, 0)}
+                                    </div>
+                                    <div className="text-xs text-gray-600">การดูรวม</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-gray-800">
+                                        {mockStories.reduce((sum, story) => sum + story.likes, 0)}
+                                    </div>
+                                    <div className="text-xs text-gray-600">ถูกใจรวม</div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {isOrganizer && (
+                        <>
                             <Card>
                                 <CardContent className="p-6 text-center">
                                     <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -1016,29 +1039,9 @@ export default function EnhancedDonationDetail({ id }: EnhancedDonationDetailPro
                                         )}
                                     </CardContent>
                                 </Card>
->>>>>>> b4a27171bb1247e78798fdb04c8516b2b29e17f5
                             )}
-
-                            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                                <div className="text-center">
-                                    <div className="text-lg font-bold text-gray-800">{mockStories.length}</div>
-                                    <div className="text-xs text-gray-600">Stories ทั้งหมด</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-lg font-bold text-gray-800">
-                                        {mockStories.reduce((sum, story) => sum + story.views, 0)}
-                                    </div>
-                                    <div className="text-xs text-gray-600">การดูรวม</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-lg font-bold text-gray-800">
-                                        {mockStories.reduce((sum, story) => sum + story.likes, 0)}
-                                    </div>
-                                    <div className="text-xs text-gray-600">ถูกใจรวม</div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                        </>
+                    )}
                 </div>
             </div>
 
